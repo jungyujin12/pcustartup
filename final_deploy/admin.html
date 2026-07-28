@@ -1181,7 +1181,7 @@ function renderClubTable() {
     return;
   }
   tbody.innerHTML = list.map((c,i) => `
-    <tr id="club-row-${c.code}">
+    <tr data-club-row="${c.code}">
       <td class="td-num">
         <input type="checkbox" class="club-check" value="${c.code}" style="width:14px;height:14px;cursor:pointer" onchange="syncCheckAll()">
         ${i+1}
@@ -1207,14 +1207,14 @@ function renderClubTable() {
         <button class="accordion-btn" onclick="toggleMembers('${c.code}',event)" title="팀원 보기">👥</button>
       </td>
     </tr>
-    <tr class="members-row" id="members-row-${c.code}" style="display:none">
+    <tr class="members-row" data-members-row="${c.code}" style="display:none">
       <td colspan="7" style="padding:0">
         <div class="members-panel open" id="members-panel-${c.code}">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
             <span style="font-size:0.8rem;font-weight:800;color:var(--pcu-dark)">👥 팀원 목록 — ${c.name}</span>
             <button class="btn-sm btn-sm-blue" onclick="openAddMemberModal('${c.code}')">+ 팀원 추가</button>
           </div>
-          <div id="members-list-${c.code}"><div style="font-size:0.78rem;color:var(--pcu-gray)">로딩 중...</div></div>
+          <div data-members-list="${c.code}"><div style="font-size:0.78rem;color:var(--pcu-gray)">로딩 중...</div></div>
         </div>
       </td>
     </tr>`).join('');
@@ -1283,11 +1283,12 @@ window.copyCode = function(code, btn) {
 // ══ 아코디언 팀원 목록 ══
 window.toggleMembers = async function(code, event) {
   event.stopPropagation();
-  const membersRow = document.getElementById('members-row-' + code);
   const btn = event.currentTarget;
-  const row = document.getElementById('club-row-' + code);
+  const row = btn.closest('tr');
+  const membersRow = row?.nextElementSibling;
+  const panel = membersRow?.querySelector('.members-panel');
 
-  if (!membersRow) {
+  if (!membersRow || !membersRow.classList.contains('members-row')) {
     showToast('팀원 패널을 찾을 수 없습니다. 목록을 새로고침해주세요.');
     return;
   }
@@ -1295,25 +1296,31 @@ window.toggleMembers = async function(code, event) {
   const isOpen = membersRow.style.display !== 'none';
   if (isOpen) {
     membersRow.style.display = 'none';
+    panel?.classList.remove('open');
     btn.textContent = '👥';
     if (row) row.classList.remove('expanded');
   } else {
     membersRow.style.display = 'table-row';
+    panel?.classList.add('open');
     btn.textContent = '👥▼';
     if (row) row.classList.add('expanded');
     // 최초 열 때만 로드
-    const container = document.getElementById('members-list-' + code);
-    if (container && container.textContent.includes('로딩 중')) {
-      loadMembersList(code);
+    const container = membersRow.querySelector('[data-members-list]');
+    if (container && container.dataset.loaded !== 'true') {
+      await loadMembersList(code, container);
     }
   }
 };
 
-async function loadMembersList(code) {
-  const container = document.getElementById('members-list-' + code);
+async function loadMembersList(code, targetContainer = null) {
+  const candidates = [...document.querySelectorAll(`[data-members-list="${code}"]`)];
+  const container = targetContainer
+    || candidates.find(element => element.closest('.members-row')?.style.display !== 'none')
+    || candidates[0];
   if (!container) return;
   try {
     const snap = await getDocs(collection(db,'members',code,'list'));
+    container.dataset.loaded = 'true';
     if (snap.empty) {
       container.innerHTML = '<div style="font-size:0.78rem;color:var(--pcu-gray);padding:0.5rem">등록된 팀원 없음 (엑셀 업로드 또는 직접 추가)</div>';
       return;
@@ -1344,9 +1351,21 @@ async function loadMembersList(code) {
   }
 }
 
+async function syncClubMemberCount(code) {
+  const snap = await getDocs(collection(db,'members',code,'list'));
+  await updateDoc(doc(db,'clubs',code), {
+    memberCount: snap.size,
+    memberCountUpdatedAt: serverTimestamp()
+  });
+  const club = clubList.find(item => item.code === code);
+  if (club) club.memberCount = snap.size;
+  return snap.size;
+}
+
 window.deleteMemberFromList = async function(clubCode, memberId) {
   if (!confirm('팀원을 삭제할까요?')) return;
   await deleteDoc(doc(db,'members',clubCode,'list',memberId));
+  await syncClubMemberCount(clubCode);
   loadMembersList(clubCode);
   showToast('✅ 팀원 삭제 완료');
 };
@@ -1383,6 +1402,7 @@ window.saveMemberToList = async function(code) {
       grade: document.getElementById('add-m-grade').value.trim(),
       createdAt: serverTimestamp()
     });
+    await syncClubMemberCount(code);
     showToast('✅ 팀원 추가 완료');
     closeModal();
     loadMembersList(code);
@@ -2067,33 +2087,82 @@ async function updateClubCode(oldCode, newCode, name) {
       }
     } catch(me) { console.warn('members 이전 실패(무시):', me.message); }
 
-    // 3. reports 이전 (구코드 → 신코드)
+    // 3. 보고서 메타데이터는 Storage 이동 후 새 URL과 함께 이전
+    let reportDocs = [];
     try {
       const rSnap = await getDocs(collection(db,'reports',oldCode,'submissions'));
-      if (!rSnap.empty) {
-        for (const rd of rSnap.docs) {
-          await setDoc(doc(db,'reports',newCode,'submissions',rd.id), rd.data());
-          await deleteDoc(rd.ref);
-        }
-      }
-    } catch(re) { console.warn('reports 이전 실패(무시):', re.message); }
+      reportDocs = rSnap.docs;
+    } catch(re) { console.warn('reports 조회 실패:', re.message); }
 
     // 4. Storage 파일 이전
+    const movedFileUrls = new Map();
+    const oldStorageRefs = [];
     const baseYear = new Date().getFullYear();
     for (const yr of Array.from({length:6},(_,i)=>String(baseYear-3+i))) {
       try {
         const oldFiles = await listAll(ref(storage,`reports/${yr}/${oldCode}/`));
         for (const item of oldFiles.items) {
           const blob = await getBlob(item);
-          await uploadBytes(ref(storage,`reports/${yr}/${newCode}/${item.name}`), blob, {
+          const newRef = ref(storage,`reports/${yr}/${newCode}/${item.name}`);
+          await uploadBytes(newRef, blob, {
             contentType: blob.type || 'application/octet-stream'
           });
-          await deleteObject(item);
+          movedFileUrls.set(item.fullPath, {
+            fileUrl: await getDownloadURL(newRef),
+            storagePath: newRef.fullPath
+          });
+          oldStorageRefs.push(item);
         }
       } catch(se) { console.warn(`Storage ${yr} 이전 실패(무시):`, se.message); }
     }
 
-    // 관련 데이터 이동이 끝난 뒤에만 기존 코드를 비활성화한다.
+    // 5. 보고서 문서의 코드·파일 URL을 새 경로로 맞춘 뒤 이전
+    for (const rd of reportDocs) {
+      const report = rd.data();
+      const moved = movedFileUrls.get(report.storagePath);
+      await setDoc(doc(db,'reports',newCode,'submissions',rd.id), {
+        ...report,
+        clubCode: newCode,
+        fileUrl: moved?.fileUrl || report.fileUrl,
+        storagePath: moved?.storagePath
+          || String(report.storagePath || '').replace(`/${oldCode}/`, `/${newCode}/`)
+      });
+      await deleteDoc(rd.ref);
+    }
+
+    // 6. AI 분석 기록 이전
+    try {
+      const filesSnap = await getDocs(collection(db,'ai_history',oldCode,'files'));
+      for (const fileDoc of filesSnap.docs) {
+        await setDoc(doc(db,'ai_history',newCode,'files',fileDoc.id), {
+          ...fileDoc.data(),
+          clubCode: newCode
+        });
+        const recordsSnap = await getDocs(collection(db,'ai_history',oldCode,'files',fileDoc.id,'records'));
+        for (const recordDoc of recordsSnap.docs) {
+          await setDoc(doc(db,'ai_history',newCode,'files',fileDoc.id,'records',recordDoc.id), {
+            ...recordDoc.data(),
+            clubCode: newCode
+          });
+          await deleteDoc(recordDoc.ref);
+        }
+        await deleteDoc(fileDoc.ref);
+      }
+    } catch(ae) { console.warn('AI 기록 이전 실패:', ae.message); }
+
+    // 7. 프로그램 참여 이력 이전
+    try {
+      const programSnap = await getDocs(collection(db,'programs',oldCode,'history'));
+      for (const programDoc of programSnap.docs) {
+        await setDoc(doc(db,'programs',newCode,'history',programDoc.id), programDoc.data());
+        await deleteDoc(programDoc.ref);
+      }
+    } catch(pe) { console.warn('프로그램 이력 이전 실패:', pe.message); }
+
+    // 새 데이터가 모두 준비된 뒤에만 기존 Storage 파일을 삭제
+    await Promise.all(oldStorageRefs.map(item => deleteObject(item)));
+
+    // 관련 데이터 이동이 끝난 뒤에만 기존 코드를 제거한다.
     await deleteDoc(doc(db,'clubs',oldCode));
     showToast(`✅ 코드 ${oldCode} → ${newCode} 변경 완료 (팀원·보고서 데이터 자동 이전)`);
     await loadClubs();
@@ -2159,10 +2228,15 @@ window.loadDashboard = async function() {
 
   // 각 동아리의 최신 보고서 가져오기
   reportSummary = await Promise.all(clubList.map(async club => {
-    const snap = await getDocs(query(collection(db,'reports',club.code,'submissions'), orderBy('submittedAt','desc')));
-    const reports = snap.docs
-      .map(d => ({ id:d.id, ...d.data() }))
-      .filter(report => String(report.year || '2026') === selectedYear);
+    let reports = [];
+    try {
+      const snap = await getDocs(query(collection(db,'reports',club.code,'submissions'), orderBy('submittedAt','desc')));
+      reports = snap.docs
+        .map(d => ({ id:d.id, ...d.data() }))
+        .filter(report => String(report.year || '2026') === selectedYear);
+    } catch (error) {
+      console.warn(`${club.code} 보고서 조회 실패:`, error.message);
+    }
     const latest = reports[0] || null;
     const data = latest?.formData || {};
 
@@ -2348,7 +2422,7 @@ function renderTable(data) {
     return;
   }
   tbody.innerHTML = data.map((d,i) => `
-    <tr class="${d.status==='미제출'?'row-pending':''}" id="club-row-${d.code}">
+    <tr class="${d.status==='미제출'?'row-pending':''}" data-club-row="${d.code}">
       <td class="td-num">
         <button class="accordion-btn" onclick="toggleMembers('${d.code}',event)" title="팀원 보기">▶</button>
         ${i+1}
@@ -2365,14 +2439,14 @@ function renderTable(data) {
       <td class="td-date">${d.latestDate||'—'}</td>
       <td><button class="btn btn-secondary td-btn" onclick="window.openDetail('${d.code}')">상세</button></td>
     </tr>
-    <tr class="members-row" id="members-row-${d.code}" style="display:none">
+    <tr class="members-row" data-members-row="${d.code}" style="display:none">
       <td colspan="12" style="padding:0">
         <div class="members-panel" id="members-panel-${d.code}">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
             <span style="font-size:0.8rem;font-weight:800;color:var(--pcu-dark)">👥 팀원 목록 — ${d.club}</span>
             <button class="btn-sm btn-sm-blue" onclick="openAddMemberModal('${d.code}')">+ 팀원 추가</button>
           </div>
-          <div id="members-list-${d.code}"><div style="font-size:0.78rem;color:var(--pcu-gray)">로딩 중...</div></div>
+          <div data-members-list="${d.code}"><div style="font-size:0.78rem;color:var(--pcu-gray)">로딩 중...</div></div>
         </div>
       </td>
     </tr>`).join('');
@@ -4239,6 +4313,7 @@ window.addMemberDirect = async function() {
       isRep: role.includes('대표') || false,
       isLeader: role.includes('대표') || false,
     });
+    await syncClubMemberCount(code);
     showAdminMsg(msg, `✅ ${name} 저장 완료!`, 'var(--pcu-mint)');
     ['newMemberName','newMemberDept','newMemberGrade','newMemberStuId',
      'newMemberTel','newMemberEmail','newMemberRole'].forEach(id => {
@@ -4270,6 +4345,7 @@ window.deleteMember = async function(memberId) {
   if (!confirm(`${memberId.replace(/_/g,' ')} 팀원을 삭제할까요?`)) return;
   try {
     await deleteDoc(doc(db,'members',currentMemberClub,'list',memberId));
+    await syncClubMemberCount(currentMemberClub);
     await window.loadMembersByClub();
   } catch(e) {
     alert('삭제 실패: '+e.message);
