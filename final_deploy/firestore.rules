@@ -1,0 +1,148 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email in [
+          "jyj2315@gmail.com",
+          "bridge0610@pcu.ac.kr"
+        ];
+    }
+
+    function clubExists(code) {
+      return exists(/databases/$(database)/documents/clubs/$(code));
+    }
+
+    match /clubs/{clubCode} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create: if request.resource.data.code == clubCode
+        && request.resource.data.name is string
+        && request.resource.data.repName is string
+        && request.resource.data.repTel is string
+        && request.resource.data.repEmail is string
+        && request.resource.data.status == "active";
+      allow update, delete: if isAdmin();
+    }
+
+    match /club_names/{nameHash} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create: if request.resource.data.clubCode is string
+        && request.resource.data.keys().hasOnly(["clubCode", "createdAt"])
+        && existsAfter(
+          /databases/$(database)/documents/clubs/$(request.resource.data.clubCode)
+        );
+      allow update, delete: if isAdmin();
+    }
+
+    match /members/{clubCode}/list/{memberId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /reports/{clubCode}/submissions/{docId} {
+      allow read: if clubExists(clubCode);
+      allow create: if clubExists(clubCode)
+        && request.resource.data.clubCode == clubCode
+        && request.resource.data.fileName is string
+        && request.resource.data.fileUrl is string
+        && request.resource.data.year is string;
+      allow update, delete: if isAdmin();
+    }
+
+    match /ai_history/{clubCode}/files/{fileId} {
+      allow read: if clubExists(clubCode);
+      allow create, update: if clubExists(clubCode)
+        && request.resource.data.clubCode == clubCode
+        && request.resource.data.fileName is string;
+      allow delete: if isAdmin();
+
+      match /records/{recordId} {
+        allow read, create: if clubExists(clubCode);
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    match /consultations/{docId} {
+      allow create: if request.resource.data.name is string
+        && request.resource.data.tel is string
+        && request.resource.data.topic is string;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /surveys/{surveyId} {
+      allow get: if true;
+      allow list, create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["responseCount"])
+          && request.resource.data.responseCount == resource.data.get("responseCount", 0) + 1
+        );
+
+      match /responses/{responseId} {
+        allow create: if request.resource.data.answers is map;
+        allow read, update, delete: if isAdmin();
+      }
+    }
+
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /programs/{clubCode}/history/{docId} {
+      allow read: if clubExists(clubCode);
+      allow write: if isAdmin();
+    }
+
+    match /contests/{contestId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /ai_jobs/{jobId} {
+      allow create: if request.resource.data.status == "pending"
+        && request.resource.data.type in ["report_analysis", "contest_match"]
+        && (
+          (
+            request.resource.data.type == "report_analysis"
+            && request.resource.data.clubCode is string
+            && clubExists(request.resource.data.clubCode)
+            && request.resource.data.fileUrl is string
+            && request.resource.data.fileName is string
+            && request.resource.data.modes is list
+          )
+          || (
+            request.resource.data.type == "contest_match"
+            && isAdmin()
+          )
+        );
+      allow read: if isAdmin()
+        || (
+          resource.data.type == "report_analysis"
+          && resource.data.clubCode is string
+          && clubExists(resource.data.clubCode)
+        );
+      allow update, delete: if isAdmin();
+    }
+
+    match /email_jobs/{jobId} {
+      allow create: if request.resource.data.status == "pending"
+        && (
+          request.resource.data.type in ["registration", "upload", "consultation"]
+          || (request.resource.data.type == "reminder" && isAdmin())
+        );
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /recovery_jobs/{jobId} {
+      allow create: if request.resource.data.status == "pending"
+        && request.resource.data.email is string;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /system/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

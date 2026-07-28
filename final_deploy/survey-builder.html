@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>설문 만들기 — PCU 창업지원</title>
+<style>
+:root {
+  --pcu-blue:#0052CC; --pcu-dark:#172B4D; --pcu-lightblue:#E6F0FF;
+  --pcu-lightgray:#DFE1E6; --pcu-gray:#6B778C; --pcu-mint:#36B37E;
+  --font-family-base:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:var(--font-family-base); background:#f0f4f8; min-height:100vh; visibility:hidden; }
+.header { background:var(--pcu-dark); color:white; padding:1rem 1.5rem; display:flex; align-items:center; justify-content:space-between; }
+.header h1 { font-size:1rem; font-weight:800; }
+.wrap { max-width:700px; margin:0 auto; padding:1.5rem 1rem; }
+.card { background:white; border-radius:12px; padding:1.2rem 1.5rem; margin-bottom:1rem; box-shadow:0 1px 4px rgba(0,0,0,0.08); }
+.card h2 { font-size:0.95rem; font-weight:800; color:var(--pcu-dark); margin-bottom:0.8rem; }
+input, textarea, select { border:1.5px solid var(--pcu-lightgray); border-radius:8px; padding:8px 12px; font-size:0.85rem; font-family:var(--font-family-base); outline:none; width:100%; transition:border-color 0.15s; }
+input:focus, textarea:focus, select:focus { border-color:var(--pcu-blue); }
+.btn { padding:9px 18px; border-radius:8px; font-size:0.85rem; font-weight:700; cursor:pointer; border:none; font-family:var(--font-family-base); }
+.btn-primary { background:var(--pcu-blue); color:white; }
+.btn-secondary { background:var(--pcu-lightblue); color:var(--pcu-blue); }
+.btn-red { background:#FFF0F0; color:#dc2626; }
+.question-item { border:1.5px solid var(--pcu-lightblue); border-radius:10px; padding:1rem; margin-bottom:0.8rem; }
+.question-header { display:flex; align-items:center; gap:8px; margin-bottom:0.8rem; }
+.q-type-badge { background:var(--pcu-lightblue); color:var(--pcu-blue); font-size:0.7rem; font-weight:700; padding:2px 8px; border-radius:20px; }
+.option-row { display:flex; gap:6px; margin-bottom:6px; align-items:center; }
+.option-row input { flex:1; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📋 설문 만들기</h1>
+  <a href="admin.html" style="color:rgba(255,255,255,0.7);font-size:0.78rem">← 관리자로</a>
+</div>
+
+<div class="wrap">
+  <!-- 설문 기본 정보 -->
+  <div class="card">
+    <h2>설문 기본 정보</h2>
+    <div style="display:flex;flex-direction:column;gap:0.7rem">
+      <input id="surveyTitle" placeholder="설문 제목 (예: 2026년도 창업동아리 만족도 조사)">
+      <textarea id="surveyDesc" placeholder="설문 안내 문구" rows="2"></textarea>
+      <div style="display:flex;gap:0.7rem">
+        <div style="flex:1">
+          <label style="font-size:0.75rem;font-weight:700;color:var(--pcu-gray);display:block;margin-bottom:4px">마감일 (선택)</label>
+          <input type="date" id="surveyDeadline">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:0.75rem;font-weight:700;color:var(--pcu-gray);display:block;margin-bottom:4px">대상</label>
+          <select id="surveyTarget">
+            <option value="all">링크 접속자 전체</option>
+            <option value="club">동아리 코드 입력자</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 질문 목록 -->
+  <div id="questionList"></div>
+
+  <!-- 질문 추가 -->
+  <div class="card">
+    <h2>질문 추가</h2>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.7rem;margin-bottom:0.8rem">
+      <button class="btn btn-secondary" onclick="addQuestion('객관식')">📋 객관식</button>
+      <button class="btn btn-secondary" onclick="addQuestion('주관식')">✏️ 주관식</button>
+      <button class="btn btn-secondary" onclick="addQuestion('점수')">⭐ 점수 (1~5)</button>
+      <button class="btn btn-secondary" onclick="addQuestion('서명')">✍️ 서명</button>
+    </div>
+  </div>
+
+  <!-- 저장 -->
+  <div style="display:flex;gap:0.8rem;justify-content:flex-end">
+    <button class="btn btn-primary" onclick="saveSurvey()">💾 설문 저장</button>
+  </div>
+  <div id="saveResult" style="margin-top:0.8rem;font-size:0.82rem;text-align:center"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const app = initializeApp({
+  apiKey:"AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",
+  authDomain:"pcu-startup.firebaseapp.com",
+  projectId:"pcu-startup",
+  storageBucket:"pcu-startup.firebasestorage.app",
+  messagingSenderId:"47845163622",
+  appId:"1:47845163622:web:789eaef6966e9cf28be3a7"
+});
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+onAuthStateChanged(auth, user => {
+  if (!user) {
+    location.replace('admin.html');
+    return;
+  }
+  document.body.style.visibility = 'visible';
+});
+
+let questions = [];
+
+window.addQuestion = function(type) {
+  const q = { id: Date.now(), type, text: '', options: type==='객관식'?['']:[], required: true };
+  questions.push(q);
+  renderQuestions();
+};
+
+function renderQuestions() {
+  const list = document.getElementById('questionList');
+  list.innerHTML = questions.map((q,i) => `
+    <div class="card question-item" id="q-${q.id}">
+      <div class="question-header">
+        <span style="font-size:0.8rem;font-weight:700;color:var(--pcu-gray)">Q${i+1}</span>
+        <span class="q-type-badge">${q.type}</span>
+        <label style="margin-left:auto;font-size:0.75rem;display:flex;align-items:center;gap:4px">
+          <input type="checkbox" ${q.required?'checked':''} onchange="toggleRequired(${q.id},this.checked)"> 필수
+        </label>
+        <button class="btn btn-red" style="padding:4px 10px;font-size:0.72rem" onclick="removeQuestion(${q.id})">삭제</button>
+      </div>
+      <input placeholder="질문 내용을 입력하세요" value="${q.text}" oninput="updateText(${q.id},this.value)" style="margin-bottom:0.6rem">
+      ${q.type==='객관식' ? `
+        <div id="opts-${q.id}">${q.options.map((opt,oi)=>`
+          <div class="option-row">
+            <span style="font-size:0.78rem;color:var(--pcu-gray)">${oi+1}.</span>
+            <input value="${opt}" placeholder="선택지" oninput="updateOption(${q.id},${oi},this.value)">
+            <button onclick="removeOption(${q.id},${oi})" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:0.85rem">✕</button>
+          </div>`).join('')}
+          <button onclick="addOption(${q.id})" style="background:none;border:1.5px dashed var(--pcu-lightgray);border-radius:6px;padding:5px 12px;font-size:0.75rem;cursor:pointer;color:var(--pcu-gray);width:100%;margin-top:4px">+ 선택지 추가</button>
+        </div>` : ''}
+      ${q.type==='점수' ? `<div style="display:flex;gap:6px;margin-top:4px">${[1,2,3,4,5].map(n=>`<div style="width:32px;height:32px;border-radius:50%;background:var(--pcu-lightblue);display:flex;align-items:center;justify-content:center;font-size:0.82rem;font-weight:700;color:var(--pcu-blue)">${n}</div>`).join('')}</div>` : ''}
+      ${q.type==='서명' ? `<div style="border:1.5px dashed var(--pcu-lightgray);border-radius:8px;padding:1rem;text-align:center;color:var(--pcu-gray);font-size:0.78rem;margin-top:4px">✍️ 서명 입력 영역 (응답 화면에서 활성화)</div>` : ''}
+      ${q.type==='주관식' ? `<textarea placeholder="응답 예시..." rows="2" disabled style="background:#fafbff;margin-top:4px"></textarea>` : ''}
+    </div>`).join('');
+}
+
+window.updateText = (id,v) => { const q=questions.find(q=>q.id===id); if(q) q.text=v; };
+window.updateOption = (id,oi,v) => { const q=questions.find(q=>q.id===id); if(q) q.options[oi]=v; };
+window.toggleRequired = (id,v) => { const q=questions.find(q=>q.id===id); if(q) q.required=v; };
+window.addOption = (id) => { const q=questions.find(q=>q.id===id); if(q) { q.options.push(''); renderQuestions(); }};
+window.removeOption = (id,oi) => { const q=questions.find(q=>q.id===id); if(q) { q.options.splice(oi,1); renderQuestions(); }};
+window.removeQuestion = (id) => { questions=questions.filter(q=>q.id!==id); renderQuestions(); };
+
+window.saveSurvey = async function() {
+  const title = document.getElementById('surveyTitle').value.trim();
+  if (!title) { alert('설문 제목을 입력해주세요.'); return; }
+  if (!questions.length) { alert('질문을 하나 이상 추가해주세요.'); return; }
+
+  try {
+    const docRef = await addDoc(collection(db,'surveys'), {
+      title,
+      desc: document.getElementById('surveyDesc').value,
+      deadline: document.getElementById('surveyDeadline').value,
+      target: document.getElementById('surveyTarget').value,
+      questions: questions.map(q => ({...q})),
+      createdAt: serverTimestamp(),
+      responseCount: 0
+    });
+    const link = location.origin + '/survey.html?id=' + docRef.id;
+    document.getElementById('saveResult').innerHTML = `
+      <div style="background:#E6F9F1;border-radius:8px;padding:1rem;text-align:center">
+        <div style="font-weight:800;color:#059669;margin-bottom:0.5rem">✅ 설문 저장 완료!</div>
+        <div style="font-size:0.78rem;color:#555;margin-bottom:0.5rem">학생 응답 링크:</div>
+        <a href="${link}" target="_blank" style="font-size:0.8rem;color:var(--pcu-blue);word-break:break-all">${link}</a>
+        <button onclick="navigator.clipboard.writeText('${link}').then(()=>alert('복사됨'))"
+          style="display:block;width:100%;margin-top:0.8rem;background:var(--pcu-blue);color:white;border:none;border-radius:6px;padding:8px;font-size:0.82rem;font-weight:700;cursor:pointer">
+          링크 복사
+        </button>
+      </div>`;
+    questions = [];
+    renderQuestions();
+  } catch(e) {
+    alert('저장 실패: '+e.message);
+  }
+};
+</script>
+</body>
+</html>
