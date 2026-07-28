@@ -164,6 +164,14 @@ window.submitSurvey = async function() {
   }
   const clubCode = document.getElementById('clubCodeInput')?.value.trim()||'';
   if (surveyData.target==='club' && !clubCode) { alert('동아리 코드를 입력해주세요.'); return; }
+  if (surveyData.target==='club') {
+    const clubSnap = await getDoc(doc(db,'clubs',clubCode));
+    if (!clubSnap.exists()) { alert('등록되지 않은 동아리 코드입니다.'); return; }
+    if (clubSnap.data().status !== 'active') {
+      alert('운영이 종료된 동아리는 설문에 응답할 수 없습니다.');
+      return;
+    }
+  }
 
   const btn = document.querySelector('.btn-submit');
   if (btn) { btn.disabled = true; btn.textContent = '제출 중...'; }
