@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>창업 상담 신청 — PCU 창업지원</title>
+  <link rel="stylesheet" href="theme.css">
+  <style>
+    .consult-screen {
+      min-height: 100vh;
+      background: linear-gradient(180deg, #FFFFFF 0%, #F5F9FF 100%);
+      padding: var(--spacing-md);
+      display: flex; align-items: flex-start; justify-content: center;
+      padding-top: 2rem;
+    }
+    .consult-card {
+      background: var(--bg-white);
+      border: 1px solid rgba(0,82,204,0.1);
+      border-radius: 16px;
+      padding: 2rem 2.5rem;
+      max-width: 560px; width: 100%;
+      box-shadow: var(--shadow-lg);
+    }
+    .card-header { text-align: center; margin-bottom: 2rem; }
+    .card-icon { font-size: 2.5rem; margin-bottom: 0.8rem; }
+    .card-header h2 { font-size: 1.5rem; font-weight: 900; color: var(--pcu-dark); margin-bottom: 0.4rem; letter-spacing: -1px; }
+    .card-header p { color: var(--text-secondary); font-size: 0.88rem; line-height: 1.6; }
+
+    .form-section { margin-bottom: 1.5rem; }
+    .form-section-title {
+      font-size: 0.78rem; font-weight: 800; color: var(--pcu-blue);
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-bottom: 0.8rem; padding-bottom: 6px;
+      border-bottom: 2px solid var(--pcu-lightblue);
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 0.9rem; }
+    .field label { font-size: 0.78rem; font-weight: 700; color: var(--pcu-dark); }
+    .field label .req { color: #dc2626; margin-left: 2px; }
+    .field input, .field select, .field textarea {
+      border: 1.5px solid var(--pcu-lightgray); border-radius: 8px;
+      padding: 10px 13px; font-size: 0.9rem;
+      font-family: var(--font-family-base); outline: none;
+      transition: var(--transition-fast);
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: var(--pcu-blue); box-shadow: 0 0 0 3px rgba(0,82,204,0.08);
+    }
+    .field textarea { resize: vertical; min-height: 100px; }
+    .field-err { font-size: 0.75rem; color: #dc2626; display: none; margin-top: 2px; }
+    .field-err.show { display: block; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+
+    /* 주제 선택 */
+    .topic-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .topic-btn {
+      border: 1.5px solid var(--pcu-lightgray); border-radius: 8px;
+      padding: 10px 12px; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; text-align: center; transition: var(--transition-fast);
+      background: white; font-family: var(--font-family-base);
+      color: var(--text-primary);
+    }
+    .topic-btn:hover { border-color: var(--pcu-blue); color: var(--pcu-blue); }
+    .topic-btn.selected { border-color: var(--pcu-blue); background: var(--pcu-lightblue); color: var(--pcu-blue); font-weight: 800; }
+
+    /* 일시 선택 */
+    .time-slots { display: flex; flex-wrap: wrap; gap: 8px; }
+    .time-slot {
+      border: 1.5px solid var(--pcu-lightgray); border-radius: 6px;
+      padding: 6px 14px; font-size: 0.78rem; font-weight: 600;
+      cursor: pointer; transition: var(--transition-fast);
+      background: white; font-family: var(--font-family-base);
+    }
+    .time-slot:hover { border-color: var(--pcu-blue); }
+    .time-slot.selected { border-color: var(--pcu-blue); background: var(--pcu-lightblue); color: var(--pcu-blue); }
+
+    /* 성공 화면 */
+    .success-box {
+      background: linear-gradient(135deg, var(--pcu-dark), #0052CC);
+      border-radius: 14px; padding: 2rem; text-align: center; color: white;
+      display: none;
+    }
+    .success-box h3 { font-size: 1.3rem; font-weight: 900; color: white; margin-bottom: 0.5rem; }
+    .success-box p { color: rgba(255,255,255,0.8); font-size: 0.9rem; line-height: 1.7; }
+    .success-num {
+      background: white; color: var(--pcu-blue);
+      border-radius: 10px; padding: 0.8rem 1.2rem;
+      font-size: 1.4rem; font-weight: 900; letter-spacing: 4px;
+      margin: 1rem 0;
+    }
+    .notice-box {
+      background: rgba(0,82,204,0.08); border: 1.5px solid rgba(0,82,204,0.2);
+      border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.78rem;
+      color: var(--pcu-blue); margin-top: 1rem; line-height: 1.7;
+    }
+    .btn-full { width: 100%; }
+  </style>
+</head>
+<body>
+<nav class="navbar">
+  <div class="nav-container">
+    <a href="index.html" class="nav-logo">PCU 창업지원</a>
+  </div>
+</nav>
+
+<div class="consult-screen">
+  <div class="consult-card">
+
+    <!-- 신청 폼 -->
+    <div id="consultForm">
+      <div class="card-header">
+        <div class="card-icon">💬</div>
+        <h2>창업 상담 신청</h2>
+        <p>창업 아이디어부터 사업화까지<br>전문 상담을 제공합니다.</p>
+      </div>
+
+      <!-- 기본 정보 -->
+      <div class="form-section">
+        <div class="form-section-title">기본 정보</div>
+        <div class="field-row">
+          <div class="field">
+            <label>성명 <span class="req">*</span></label>
+            <input type="text" id="cName" placeholder="이름 입력">
+            <span class="field-err" id="cName-err">성명을 입력해주세요.</span>
+          </div>
+          <div class="field">
+            <label>학번 <span class="req">*</span></label>
+            <input type="text" id="cStudentId" placeholder="학번 8자리">
+            <span class="field-err" id="cStudentId-err">학번을 입력해주세요.</span>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>학과 <span class="req">*</span></label>
+            <input type="text" id="cDept" placeholder="소속 학과명">
+            <span class="field-err" id="cDept-err">학과를 입력해주세요.</span>
+          </div>
+          <div class="field">
+            <label>학년</label>
+            <select id="cGrade">
+              <option value="">-- 선택 --</option>
+              <option>1학년</option><option>2학년</option>
+              <option>3학년</option><option>4학년</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>연락처 <span class="req">*</span></label>
+          <input type="tel" id="cTel" placeholder="010-0000-0000" maxlength="13"
+            oninput="fmtTel(this)">
+          <span class="field-err" id="cTel-err">연락처를 입력해주세요.</span>
+        </div>
+        <div class="field">
+          <label>이메일</label>
+          <input type="email" id="cEmail" placeholder="이메일 주소 입력">
+        </div>
+      </div>
+
+      <!-- 상담 주제 -->
+      <div class="form-section">
+        <div class="form-section-title">상담 주제 <span style="color:#dc2626">*</span></div>
+        <div class="topic-grid" id="topicGrid">
+          <button class="topic-btn" onclick="selectTopic(this,'아이디어 발굴')">💡 아이디어 발굴</button>
+          <button class="topic-btn" onclick="selectTopic(this,'사업계획서 작성')">📝 사업계획서 작성</button>
+          <button class="topic-btn" onclick="selectTopic(this,'정부지원사업 연계')">🏛️ 정부지원사업 연계</button>
+          <button class="topic-btn" onclick="selectTopic(this,'팀 구성 및 멘토링')">👥 팀 구성 및 멘토링</button>
+          <button class="topic-btn" onclick="selectTopic(this,'시제품 제작')">⚙️ 시제품 제작</button>
+          <button class="topic-btn" onclick="selectTopic(this,'기타')">📌 기타</button>
+        </div>
+        <span class="field-err" id="topic-err" style="margin-top:6px">상담 주제를 선택해주세요.</span>
+      </div>
+
+      <!-- 희망 일시 -->
+      <div class="form-section">
+        <div class="form-section-title">희망 일시 <span style="color:#dc2626">*</span></div>
+        <div class="field">
+          <label>희망 날짜</label>
+          <input type="date" id="cDate" min="">
+        </div>
+        <div class="field">
+          <label>희망 시간대</label>
+          <div class="time-slots" id="timeSlots">
+            <button class="time-slot" onclick="selectTime(this,'09:00~10:00')">09:00~10:00</button>
+            <button class="time-slot" onclick="selectTime(this,'10:00~11:00')">10:00~11:00</button>
+            <button class="time-slot" onclick="selectTime(this,'11:00~12:00')">11:00~12:00</button>
+            <button class="time-slot" onclick="selectTime(this,'13:00~14:00')">13:00~14:00</button>
+            <button class="time-slot" onclick="selectTime(this,'14:00~15:00')">14:00~15:00</button>
+            <button class="time-slot" onclick="selectTime(this,'15:00~16:00')">15:00~16:00</button>
+            <button class="time-slot" onclick="selectTime(this,'16:00~17:00')">16:00~17:00</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 상담 내용 -->
+      <div class="form-section">
+        <div class="form-section-title">상담 내용</div>
+        <div class="field">
+          <label>창업 아이디어 / 상담 요청사항</label>
+          <textarea id="cContent" placeholder="상담 내용을 자유롭게 작성해주세요."></textarea>
+        </div>
+        <div class="field">
+          <label>창업동아리 코드 (선택)</label>
+          <input type="text" id="cClubCode" placeholder="동아리 코드 입력 (없으면 비워두세요)"
+            oninput="this.value=this.value.toUpperCase()">
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-full" onclick="submitConsult()">
+        상담 신청하기
+      </button>
+
+      <div class="notice-box">
+        📍 상담 장소: 배재대학교 A109호 창업지원팀<br>
+        📞 문의: 042-722-2330<br>
+        ⏰ 신청 후 1~2일 내 담당자가 연락드립니다.
+      </div>
+    </div>
+
+    <!-- 완료 화면 -->
+    <div class="success-box" id="successBox">
+      <h3>🎉 상담 신청 완료!</h3>
+      <p>신청번호</p>
+      <div class="success-num" id="consultNum">—</div>
+      <p>1~2일 내 담당자가 연락드립니다.<br>문의: 042-722-2330</p>
+      <a href="index.html" class="btn btn-primary btn-full"
+        style="margin-top:1.2rem;display:block;text-align:center;text-decoration:none">
+        메인으로 돌아가기
+      </a>
+    </div>
+
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getFirestore, collection, addDoc, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",
+  authDomain: "pcu-startup.firebaseapp.com",
+  projectId: "pcu-startup",
+  storageBucket: "pcu-startup.firebasestorage.app",
+  messagingSenderId: "47845163622",
+  appId: "1:47845163622:web:789eaef6966e9cf28be3a7"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+let selectedTopic = '';
+let selectedTime = '';
+
+// 최소 날짜 설정 (오늘 이후)
+const today = new Date();
+today.setDate(today.getDate() + 1);
+document.getElementById('cDate').min = today.toISOString().split('T')[0];
+
+window.selectTopic = function(btn, topic) {
+  document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedTopic = topic;
+  document.getElementById('topic-err').classList.remove('show');
+};
+
+window.selectTime = function(btn, time) {
+  document.querySelectorAll('.time-slot').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedTime = time;
+};
+
+window.fmtTel = function(el) {
+  let v = el.value.replace(/\D/g,'');
+  if (v.length <= 3) el.value = v;
+  else if (v.length <= 7) el.value = v.slice(0,3)+'-'+v.slice(3);
+  else el.value = v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7,11);
+};
+
+// 입력 중 이탈 경고 (내용 입력란에 일정량 이상 작성 시)
+let _formSubmitted = false;
+window.addEventListener('beforeunload', function(e) {
+  if (_formSubmitted) return;
+  const content = document.getElementById('cContent')?.value || '';
+  const name = document.getElementById('cName')?.value || '';
+  if (content.trim().length > 10 || name.trim().length > 0) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+window.submitConsult = async function() {
+  // 스팸 방지 — 5분 쿨타임
+  const lastSubmit = localStorage.getItem('pcu_consult_last');
+  if (lastSubmit && Date.now() - parseInt(lastSubmit) < 5 * 60 * 1000) {
+    const remain = Math.ceil((5 * 60 * 1000 - (Date.now() - parseInt(lastSubmit))) / 1000);
+    alert(`잠시 후 다시 시도해주세요. (${remain}초 후 가능)`);
+    return;
+  }
+
+  const name = document.getElementById('cName').value.trim();
+  const studentId = document.getElementById('cStudentId').value.trim();
+  const dept = document.getElementById('cDept').value.trim();
+  const tel = document.getElementById('cTel').value.trim();
+  const grade = document.getElementById('cGrade').value;
+  const email = document.getElementById('cEmail').value.trim();
+  const date = document.getElementById('cDate').value;
+  const content = document.getElementById('cContent').value.trim();
+  const clubCode = document.getElementById('cClubCode').value.trim();
+
+  // 검증
+  let valid = true;
+  const check = (id, errId, cond) => {
+    const err = document.getElementById(errId);
+    if (!cond) { err.classList.add('show'); valid = false; }
+    else err.classList.remove('show');
+  };
+  check('cName','cName-err', name.length > 0 && name.length <= 20);
+  check('cStudentId','cStudentId-err', /^\d{6,10}$/.test(studentId));
+  check('cDept','cDept-err', dept.length > 0);
+  check('cTel','cTel-err', /^01[0-9]-\d{3,4}-\d{4}$/.test(tel));
+  if (email) check('cEmail','cEmail-err', /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+  if (!selectedTopic) {
+    document.getElementById('topic-err').classList.add('show');
+    valid = false;
+  }
+  if (!valid) return;
+
+  const submitBtn = document.querySelector('[onclick="submitConsult()"]');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '제출 중...'; }
+
+  try {
+    // 신청번호 생성
+    const num = 'C' + Date.now().toString().slice(-6);
+
+    await addDoc(collection(db, 'consultations'), {
+      num, name, studentId, dept, grade, tel, email,
+      topic: selectedTopic,
+      date: date || '미정',
+      time: selectedTime || '미정',
+      content, clubCode,
+      status: '대기',
+      createdAt: serverTimestamp(),
+      year: new Date().getFullYear().toString()
+    });
+
+    // 관리자 이메일 알림 (서버 경유, 실패해도 신청 자체는 성공 처리)
+    try {
+      {
+        await fetch('/.netlify/functions/apiProxy?path=notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clubName: name,
+            clubCode: studentId,
+            fileName: `[상담신청] ${selectedTopic} - ${date || '날짜미정'} ${selectedTime || ''}`,
+            year: new Date().getFullYear().toString()
+          })
+        });
+      }
+    } catch(e) { console.log('알림 발송 실패 (무시):', e); }
+
+    // 쿨타임 기록
+    localStorage.setItem('pcu_consult_last', Date.now().toString());
+    _formSubmitted = true;
+
+    document.getElementById('consultForm').style.display = 'none';
+    document.getElementById('successBox').style.display = 'block';
+    document.getElementById('consultNum').textContent = num;
+
+  } catch(e) {
+    let msg = '제출 실패: ' + e.message;
+    if (e.code === 'permission-denied') msg = '권한 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+    else if (e.message?.includes('network') || e.code === 'unavailable') msg = '네트워크 연결을 확인하고 다시 시도해주세요.';
+    alert(msg);
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '상담 신청하기'; }
+  }
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PCU 창업동아리 등록 신청</title>
+  <link rel="stylesheet" href="theme.css">
+  <style>
+    .btn-full { width: 100%; }
+    .reg-screen {
+      min-height: 100vh;
+      background: linear-gradient(180deg, #FFFFFF 0%, #F5F9FF 100%);
+      padding: var(--spacing-md);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .reg-card {
+      background: var(--bg-white);
+      border: 1px solid rgba(0,82,204,0.1);
+      border-radius: 16px; padding: 2.5rem;
+      max-width: 500px; width: 100%;
+      box-shadow: var(--shadow-lg);
+    }
+    .reg-icon { font-size: 2.5rem; margin-bottom: 1rem; text-align: center; }
+    .reg-card h2 {
+      font-size: 1.5rem; font-weight: 900; color: var(--pcu-dark);
+      margin-bottom: 0.4rem; letter-spacing: -1px; text-align: center;
+    }
+    .reg-card > p {
+      color: var(--text-secondary); font-size: 0.88rem;
+      margin-bottom: 1.8rem; text-align: center; line-height: 1.6;
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 1rem; }
+    .field label { font-size: 0.78rem; font-weight: 700; color: var(--pcu-dark); }
+    .field label .req { color: #dc2626; margin-left: 2px; }
+    .field input, .field select {
+      border: 1.5px solid var(--pcu-lightgray); border-radius: 8px;
+      padding: 12px 13px; font-size: 0.9rem;
+      font-family: var(--font-family-base); outline: none;
+      transition: var(--transition-fast);
+    }
+    .field input:focus, .field select:focus {
+      border-color: var(--pcu-blue); box-shadow: 0 0 0 3px rgba(0,82,204,0.08);
+    }
+    .field-err { font-size: 0.75rem; color: #dc2626; display: none; margin-top: 2px; }
+    .field-err.show { display: block; }
+
+    /* 진행 단계 */
+    .steps {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0; margin-bottom: 2rem;
+    }
+    .step {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      flex: 1;
+    }
+    .step-circle {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: 2px solid var(--pcu-lightgray); background: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; font-weight: 800; color: var(--pcu-gray);
+      transition: var(--transition-fast); position: relative; z-index: 1;
+    }
+    .step.active .step-circle { border-color: var(--pcu-blue); background: var(--pcu-blue); color: white; }
+    .step.done .step-circle { border-color: var(--pcu-mint); background: var(--pcu-mint); color: white; }
+    .step-label { font-size: 0.65rem; font-weight: 700; color: var(--pcu-gray); text-align: center; }
+    .step.active .step-label { color: var(--pcu-blue); }
+    .step.done .step-label { color: var(--pcu-mint); }
+    .step-line { flex: 1; height: 2px; background: var(--pcu-lightgray); margin-bottom: 16px; }
+    .step-line.done { background: var(--pcu-mint); }
+
+    /* 완료 화면 */
+    .success-box {
+      background: linear-gradient(135deg, var(--pcu-dark), #0052CC);
+      border-radius: 14px; padding: 2rem; text-align: center; color: white;
+      display: none;
+    }
+    .success-box h3 { font-size: 1.3rem; font-weight: 900; color: white; margin-bottom: 0.5rem; }
+    .success-box p { color: rgba(255,255,255,0.8); font-size: 0.9rem; line-height: 1.7; margin: 0 0 0.3rem; }
+    .code-display {
+      background: white; color: var(--pcu-blue);
+      border-radius: 10px; padding: 1rem 1.5rem;
+      font-size: 1.8rem; font-weight: 900; letter-spacing: 6px;
+      margin: 1.2rem 0; cursor: pointer; transition: var(--transition-fast);
+    }
+    .code-display:hover { background: var(--pcu-lightblue); }
+    .code-copy-hint { font-size: 0.75rem; color: rgba(255,255,255,0.6); margin-top: 4px; }
+    .code-copied { color: var(--pcu-mint) !important; font-weight: 700; }
+    .notice-box {
+      background: rgba(0,82,204,0.08); border: 1.5px solid rgba(0,82,204,0.2);
+      border-radius: 10px; padding: 1rem 1.2rem; font-size: 0.82rem;
+      color: var(--pcu-blue); margin-top: 1.5rem; line-height: 1.7;
+    }
+    .already-link {
+      text-align: center; margin-top: 1.2rem; font-size: 0.82rem; color: var(--pcu-gray);
+    }
+    .already-link a { color: var(--pcu-blue); text-decoration: none; font-weight: 700; }
+
+    /* 모바일 */
+    @media (max-width: 480px) {
+      .reg-card { padding: 1.5rem; border-radius: 0; min-height: 100vh; }
+      .reg-screen { padding: 0; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+<nav class="navbar">
+  <div class="nav-container">
+    <a href="index.html" class="nav-logo">PCU 창업지원</a>
+  </div>
+</nav>
+
+<div class="reg-screen">
+  <div class="reg-card">
+    <div class="reg-icon">🚀</div>
+    <h2>창업동아리 등록 신청</h2>
+    <p>동아리 정보를 입력하면 전용 접근코드가 발급됩니다.<br>발급된 코드로 보고서를 제출할 수 있습니다.</p>
+
+    <!-- 진행 단계 -->
+    <div class="steps">
+      <div class="step active" id="step1">
+        <div class="step-circle">1</div>
+        <div class="step-label">정보 입력</div>
+      </div>
+      <div class="step-line" id="line1"></div>
+      <div class="step" id="step2">
+        <div class="step-circle">2</div>
+        <div class="step-label">코드 발급</div>
+      </div>
+      <div class="step-line" id="line2"></div>
+      <div class="step" id="step3">
+        <div class="step-circle">✓</div>
+        <div class="step-label">등록 완료</div>
+      </div>
+    </div>
+
+    <!-- 신청 폼 -->
+    <div id="regForm">
+      <div class="field">
+        <label>창업동아리명 <span class="req">*</span></label>
+        <input type="text" id="rName" placeholder="예) 창업팀명">
+        <span class="field-err" id="rName-err">동아리명을 입력해주세요.</span>
+      </div>
+      <div class="field">
+        <label>아이템 분야 <span class="req">*</span></label>
+        <select id="rField">
+          <option value="">-- 선택 --</option>
+          <option value="지식">💡 지식창업</option>
+          <option value="기술">⚙️ 기술창업</option>
+          <option value="일반">📦 일반창업</option>
+          <option value="해당없음">— 해당없음 (구상 중)</option>
+        </select>
+        <span class="field-err" id="rField-err">분야를 선택해주세요.</span>
+      </div>
+      <div class="field">
+        <label>대표자 성명 <span class="req">*</span></label>
+        <input type="text" id="rRepName" placeholder="이름 입력">
+        <span class="field-err" id="rRepName-err">대표자 성명을 입력해주세요.</span>
+      </div>
+      <div class="field">
+        <label>대표자 연락처 <span class="req">*</span></label>
+        <input type="tel" id="rRepTel" placeholder="010-0000-0000" maxlength="13"
+          oninput="fmtTel(this)" onblur="chkTel(this)">
+        <span class="field-err" id="rRepTel-err">올바른 연락처를 입력해주세요.</span>
+      </div>
+      <div class="field">
+        <label>대표자 이메일 <span class="req">*</span></label>
+        <input type="email" id="rRepEmail" placeholder="학교 이메일 또는 개인 이메일" onblur="chkEmail(this)">
+        <span class="field-err" id="rRepEmail-err">이메일을 입력해주세요. (코드 분실 시 필요)</span>
+      </div>
+
+      <button class="btn btn-primary btn-full" id="regBtn" onclick="submitReg()">
+        접근코드 발급받기
+      </button>
+
+      <div class="already-link">
+        이미 코드가 있나요? <a href="report.html">보고서 제출하기 →</a>
+      </div>
+    </div>
+
+    <!-- 완료 화면 -->
+    <div class="success-box" id="successBox">
+      <h3>🎉 등록 완료!</h3>
+      <p>아래 코드를 꼭 메모해두세요.</p>
+      <p style="font-size:0.78rem">활동보고서 접속 시 필요합니다.</p>
+      <div class="code-display" id="codeDisplay" onclick="copyCode()"></div>
+      <div class="code-copy-hint" id="copyHint">👆 코드를 클릭하면 복사됩니다</div>
+      <div class="notice-box">
+        ⚠️ 이 코드는 다시 확인할 수 없습니다.<br>
+        스크린샷을 찍거나 메모장에 저장해두세요.<br><br>
+        📝 보고서 제출: <strong>report.html</strong><br>
+        문의: 창업지원팀 042-722-2330
+      </div>
+      <a href="report.html" class="btn btn-primary btn-full"
+        style="margin-top:1rem;display:block;text-align:center;text-decoration:none">
+        📝 바로 보고서 제출하기
+      </a>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, runTransaction,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",
+  authDomain: "pcu-startup.firebaseapp.com",
+  projectId: "pcu-startup",
+  storageBucket: "pcu-startup.firebasestorage.app",
+  messagingSenderId: "47845163622",
+  appId: "1:47845163622:web:789eaef6966e9cf28be3a7"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+let generatedCode = '';
+let _formSubmitted = false;
+
+// 입력 중 이탈 경고
+window.addEventListener('beforeunload', function(e) {
+  if (_formSubmitted) return;
+  const name = document.getElementById('rName')?.value || '';
+  const repName = document.getElementById('rRepName')?.value || '';
+  if (name.trim().length > 0 || repName.trim().length > 0) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// ── SHA-256 해시 (코드 암호화) ──
+async function hashCode(code) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(code + 'pcu-startup-salt-2026');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// ── 코드 생성 ──
+async function generateUniqueCode(name) {
+  const base = name.replace(/[^a-zA-Z0-9가-힣]/g,'').slice(0,4).toUpperCase().padEnd(4,'X');
+  for (let tries = 0; tries < 10; tries++) {
+    const random = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000;
+    const code = base + String(random).padStart(6,'0');
+    if (!(await getDoc(doc(db, 'clubs', code))).exists()) return code;
+  }
+  throw new Error('접근코드를 생성하지 못했습니다. 다시 시도해주세요.');
+}
+
+// ── 등록 제출 ──
+window.submitReg = async function() {
+  const name = document.getElementById('rName').value.trim();
+  const field = document.getElementById('rField').value;
+  const repName = document.getElementById('rRepName').value.trim();
+  const repTel = document.getElementById('rRepTel').value.trim();
+  const repEmail = document.getElementById('rRepEmail').value.trim();
+
+  let valid = true;
+  const check = (id, errId, condition) => {
+    const errEl = document.getElementById(errId);
+    if (!condition) { errEl.classList.add('show'); valid = false; }
+    else errEl.classList.remove('show');
+  };
+  check('rName','rName-err', name.length > 0);
+  check('rField','rField-err', field.length > 0);
+  check('rRepName','rRepName-err', repName.length > 0);
+  check('rRepTel','rRepTel-err', /^01[0-9]-\d{3,4}-\d{4}$/.test(repTel));
+  check('rRepEmail','rRepEmail-err', /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(repEmail));
+  if (!valid) return;
+
+  const btn = document.getElementById('regBtn');
+  btn.disabled = true; btn.textContent = '처리 중...';
+
+  // 진행 단계 업데이트
+  document.getElementById('step1').classList.remove('active');
+  document.getElementById('step1').classList.add('done');
+  document.getElementById('line1').classList.add('done');
+  document.getElementById('step2').classList.add('active');
+
+  try {
+    const code = await generateUniqueCode(name);
+    const codeHash = await hashCode(code);
+    const normalizedName = name.normalize('NFKC').trim().toLowerCase();
+    const nameHash = await hashCode(normalizedName);
+
+    await runTransaction(db, async transaction => {
+      const nameRef = doc(db, 'club_names', nameHash);
+      const clubRef = doc(db, 'clubs', code);
+      const [nameSnap, clubSnap] = await Promise.all([
+        transaction.get(nameRef),
+        transaction.get(clubRef)
+      ]);
+      if (nameSnap.exists()) throw new Error('duplicate-name');
+      if (clubSnap.exists()) throw new Error('code-collision');
+
+      transaction.set(clubRef, {
+        name, code, field,
+        repName, repTel, repEmail,
+        codeHash,
+        createdAt: serverTimestamp(),
+        status: 'active',
+        year: new Date().getFullYear().toString()
+      });
+      transaction.set(nameRef, {
+        clubCode: code,
+        createdAt: serverTimestamp()
+      });
+    });
+
+    // 진행 단계 완료
+    document.getElementById('step2').classList.remove('active');
+    document.getElementById('step2').classList.add('done');
+    document.getElementById('line2').classList.add('done');
+    document.getElementById('step3').classList.add('done');
+
+    generatedCode = code;
+    _formSubmitted = true;
+    document.getElementById('regForm').style.display = 'none';
+    document.getElementById('successBox').style.display = 'block';
+    document.getElementById('codeDisplay').textContent = code;
+
+    // 담당자 알림 (실패해도 등록 자체는 성공 처리)
+    try {
+      {
+        fetch('/.netlify/functions/apiProxy?path=notify', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({type:'register',clubName:name,clubCode:code,repName,repTel,repEmail,field,fileName:'신규 등록',year:new Date().getFullYear().toString()})
+        }).catch(()=>{});
+      }
+    } catch(ne) {}
+
+  } catch(e) {
+    // 에러 유형별 메시지 구분
+    let msg = '등록 실패: ' + e.message;
+    if (e.message === 'duplicate-name') msg = '이미 등록된 동아리명입니다.';
+    else if (e.message === 'code-collision') msg = '접근코드 생성이 충돌했습니다. 다시 시도해주세요.';
+    else if (e.code === 'permission-denied') msg = '권한 오류가 발생했습니다. 관리자에게 문의해주세요.';
+    else if (e.message?.includes('network') || e.message?.includes('fetch')) msg = '네트워크 연결을 확인하고 다시 시도해주세요.';
+    else if (e.code === 'unavailable') msg = '서버에 일시적으로 연결할 수 없습니다. 잠시 후 다시 시도해주세요.';
+    alert(msg);
+    btn.disabled = false; btn.textContent = '접근코드 발급받기';
+    document.getElementById('step1').classList.add('active');
+    document.getElementById('step1').classList.remove('done');
+  }
+};
+
+// ── 코드 복사 ──
+window.copyCode = function() {
+  if (!generatedCode) return;
+  navigator.clipboard.writeText(generatedCode).then(() => {
+    const hint = document.getElementById('copyHint');
+    hint.textContent = '✅ 복사됐습니다!';
+    hint.classList.add('code-copied');
+    setTimeout(() => {
+      hint.textContent = '👆 코드를 클릭하면 복사됩니다';
+      hint.classList.remove('code-copied');
+    }, 2000);
+  });
+};
+
+// ── 전화번호 포맷 ──
+window.fmtTel = function(el) {
+  let v = el.value.replace(/\D/g,'');
+  if (v.length <= 3) el.value = v;
+  else if (v.length <= 7) el.value = v.slice(0,3)+'-'+v.slice(3);
+  else el.value = v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7,11);
+};
+window.chkTel = function(el) {
+  if (!el.value) { el.classList.remove('invalid','valid'); return; }
+  const ok = /^01[0-9]-\d{3,4}-\d{4}$/.test(el.value);
+  el.classList.toggle('valid', ok); el.classList.toggle('invalid', !ok);
+};
+window.chkEmail = function(el) {
+  if (!el.value) { el.classList.remove('invalid','valid'); return; }
+  const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(el.value);
+  el.classList.toggle('valid', ok); el.classList.toggle('invalid', !ok);
+};
+</script>
+</body>
+</html>
