@@ -291,8 +291,8 @@
     }
     .prog-bar-wrap { flex: 1; height: 5px; background: var(--pcu-lightgray); border-radius: 3px; overflow: hidden; }
     .prog-bar-fill { height: 100%; background: var(--pcu-blue); border-radius: 3px; transition: width 0.2s; }
-      text-align:center; padding:2rem; color:var(--pcu-gray); font-size:0.9rem;
-    }
+    .rise-summary-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:1.5rem; }
+    .contest-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.7rem; }
 
     @media(max-width:768px){
       .charts-grid { grid-template-columns:1fr; }
@@ -333,6 +333,16 @@
       .club-manage-wrap { padding: var(--spacing-md); }
       .add-club-form { flex-direction: column; }
       #notiPanel { right: 10px; left: 10px; width: auto; }
+      .tab-actions {
+        position: sticky; right: 0; flex-shrink: 0;
+        margin-left: 0 !important; padding: 0 8px !important;
+        background: var(--bg-white); box-shadow: -10px 0 12px var(--bg-white);
+      }
+      .rise-summary-grid { grid-template-columns:repeat(2,1fr); gap:0.6rem; }
+      .contest-form-grid { grid-template-columns:1fr; }
+      .contest-form-grid #contest-desc { grid-column:auto !important; }
+      .admin-file-item { flex-wrap:wrap; }
+      .admin-file-meta { width:100%; padding-left:2rem; }
     }
 
 
@@ -430,7 +440,7 @@ function logout() { if(window._logout) window._logout(); }
     <button class="tab-btn" onclick="switchTab('rise')">📊 RISE 실적</button>
     <button class="tab-btn" onclick="switchTab('contest')">🏆 공모전 관리</button>
     <button class="tab-btn" onclick="switchTab('survey')">📝 설문 관리</button>
-    <div style="margin-left:auto;display:flex;align-items:center;gap:0.8rem;padding:0 1rem">
+    <div class="tab-actions" style="margin-left:auto;display:flex;align-items:center;gap:0.8rem;padding:0 1rem">
       <select id="yearFilter" onchange="changeYear(this.value)" style="border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:4px 10px;font-size:0.78rem;font-family:var(--font-family-base);color:var(--pcu-blue);font-weight:700;outline:none">
         <option value="2026">2026년도</option>
         <option value="2025">2025년도</option>
@@ -945,7 +955,7 @@ function logout() { if(window._logout) window._logout(); }
         <button class="btn-sm btn-sm-blue" onclick="loadRiseStats()">🔄 집계</button>
         <button class="btn-sm btn-sm-mint" onclick="copyRiseReport()">📋 보고서 복사</button>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem">
+      <div class="rise-summary-grid">
         <div class="summary-item"><div class="summary-number sn-blue" id="rise-teams">—</div><div class="summary-label">참여 팀 수</div></div>
         <div class="summary-item"><div class="summary-number" id="rise-members">—</div><div class="summary-label">참여 인원 수</div></div>
         <div class="summary-item"><div class="summary-number sn-mint" id="rise-ai">—</div><div class="summary-label">AI 분석 건수</div></div>
@@ -966,7 +976,7 @@ function logout() { if(window._logout) window._logout(); }
       <h2 style="margin-bottom:var(--spacing-lg)">🏆 공모전 DB 관리</h2>
       <div style="background:white;border:1.5px solid var(--pcu-lightblue);border-radius:12px;padding:1.2rem 1.5rem;margin-bottom:1rem">
         <div style="font-size:0.88rem;font-weight:800;color:var(--pcu-dark);margin-bottom:0.8rem">+ 공모전 등록</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem">
+        <div class="contest-form-grid">
           <input id="contest-name" placeholder="공모전명" style="border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:8px 12px;font-size:0.82rem;font-family:var(--font-family-base);outline:none">
           <select id="contest-field" style="border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:8px 12px;font-size:0.82rem;font-family:var(--font-family-base);outline:none">
             <option value="전체">전체 분야</option><option value="지식">지식창업</option>
