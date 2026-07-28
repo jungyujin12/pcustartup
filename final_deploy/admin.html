@@ -1219,6 +1219,13 @@ window.loadClubs = async function loadClubs() {
   if (membersTab && membersTab.classList.contains('active')) {
     loadMembersTab();
   }
+  const filesTab = document.getElementById('tab-files');
+  if (filesTab && filesTab.classList.contains('active')) {
+    loadFilesTab();
+    const selectedCode = document.getElementById('fileClubSelect')?.value || '';
+    if (selectedCode && clubList.some(club => club.code === selectedCode)) loadAdminFiles();
+    else selectFileClub('');
+  }
 }
 
 function renderClubTable() {
@@ -4545,22 +4552,28 @@ window.loadAdminFiles = async function() {
     const reportSnap = await getDocs(collection(db,'reports',code,'submissions'));
     const reportByPath = new Map(reportSnap.docs.map(document => [document.data().storagePath, { id:document.id, ...document.data() }]));
     adminFileRefs = (await Promise.all(allItems.map(async({item,year}) => {
-      const [url, metadata] = await Promise.all([getDownloadURL(item), getMetadata(item)]);
-      const report = reportByPath.get(item.fullPath);
-      return {
-        name:item.name.replace(/^\d{13}_/,''),
-        storedName:item.name,
-        url,
-        ref:item,
-        path:item.fullPath,
-        year,
-        size:metadata.size,
-        contentType:metadata.contentType || '',
-        createdAt:metadata.timeCreated || report?.submittedAt?.toDate?.()?.toISOString?.() || '',
-        source:report?.uploadedByAdmin ? '관리자 업로드' : report ? '동아리 제출' : '기존 파일',
-        reportId:report?.id || ''
-      };
-    }))).sort((a,b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+      try {
+        const url = await getDownloadURL(item);
+        const metadata = await getMetadata(item).catch(() => ({}));
+        const report = reportByPath.get(item.fullPath);
+        return {
+          name:item.name.replace(/^\d{13}_/,''),
+          storedName:item.name,
+          url,
+          ref:item,
+          path:item.fullPath,
+          year,
+          size:metadata.size,
+          contentType:metadata.contentType || '',
+          createdAt:metadata.timeCreated || report?.submittedAt?.toDate?.()?.toISOString?.() || '',
+          source:report?.uploadedByAdmin ? '관리자 업로드' : report ? '동아리 제출' : '기존 파일',
+          reportId:report?.id || ''
+        };
+      } catch (error) {
+        console.warn(`${item.fullPath} 파일 정보 조회 실패:`, error.message);
+        return null;
+      }
+    }))).filter(Boolean).sort((a,b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     renderAdminFileList();
   } catch(e){listEl.innerHTML=`<div style="color:#dc2626;padding:1rem;font-size:0.85rem">❌ 오류: ${e.message}</div>`;}
 };
