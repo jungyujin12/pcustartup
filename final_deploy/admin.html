@@ -1142,7 +1142,10 @@ let reportSummary = [];
 
 window.loadClubs = async function loadClubs() {
   const snap = await getDocs(query(collection(db,'clubs'), orderBy('createdAt','asc')));
-  clubList = snap.docs.map(d => ({ code: d.id, ...d.data() }));
+  const selectedYear = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
+  clubList = snap.docs
+    .map(d => ({ code: d.id, ...d.data() }))
+    .filter(club => club.year ? String(club.year) === selectedYear : selectedYear === '2026');
   renderClubTable();
   // 인원관리 탭이 활성화돼 있으면 membersList도 갱신
   const membersTab = document.getElementById('tab-members');
@@ -1313,12 +1316,12 @@ async function loadMembersList(code) {
         </tr></thead>
         <tbody>
           ${members.map(m=>`<tr id="mrow-${m.id}">
-            <td>${m.name||'—'}${m.isLeader?'<span style="color:var(--pcu-blue);font-weight:700;margin-left:3px">★</span>':''}</td>
+            <td>${m.name||'—'}${(m.isLeader||m.isRep)?'<span style="color:var(--pcu-blue);font-weight:700;margin-left:3px">★</span>':''}</td>
             <td>${m.dept||'—'}</td>
-            <td>${m.sno||'—'}</td>
+            <td>${m.sno||m.stuId||'—'}</td>
             <td>${m.tel||'—'}</td>
             <td>${m.grade||'—'}</td>
-            <td>${m.isLeader?'팀장':''}</td>
+            <td>${(m.isLeader||m.isRep)?'팀장':''}</td>
             <td style="white-space:nowrap">
               <button onclick="editMemberInline('${code}','${m.id}')" style="background:none;border:none;cursor:pointer;color:var(--pcu-blue);font-size:0.75rem">✏️</button>
               <button onclick="deleteMemberFromList('${code}','${m.id}')" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:0.75rem">✕</button>
@@ -1365,6 +1368,7 @@ window.saveMemberToList = async function(code) {
       name, 
       dept: document.getElementById('add-m-dept').value.trim(),
       sno: document.getElementById('add-m-sno').value.trim(),
+      stuId: document.getElementById('add-m-sno').value.trim(),
       tel: document.getElementById('add-m-tel').value.trim(),
       grade: document.getElementById('add-m-grade').value.trim(),
       createdAt: serverTimestamp()
@@ -1390,15 +1394,15 @@ window.editMemberInline = async function(clubCode, memberId) {
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">학과</label>
           <input id="em-dept" class="edit-input" value="${m.dept||''}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">학번</label>
-          <input id="em-sno" class="edit-input" value="${m.sno||''}"></div>
+          <input id="em-sno" class="edit-input" value="${m.sno||m.stuId||''}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">연락처</label>
           <input id="em-tel" class="edit-input" value="${m.tel||''}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">학년</label>
           <input id="em-grade" class="edit-input" value="${m.grade||''}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">팀장여부</label>
           <select id="em-leader" class="edit-input">
-            <option value="false" ${!m.isLeader?'selected':''}>팀원</option>
-            <option value="true" ${m.isLeader?'selected':''}>팀장</option>
+            <option value="false" ${!(m.isLeader||m.isRep)?'selected':''}>팀원</option>
+            <option value="true" ${(m.isLeader||m.isRep)?'selected':''}>팀장</option>
           </select></div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem">
@@ -1411,15 +1415,19 @@ window.editMemberInline = async function(clubCode, memberId) {
 
 window.updateMember = async function(clubCode, memberId) {
   const name = document.getElementById('em-name').value.trim();
+  const studentNumber = document.getElementById('em-sno').value.trim();
+  const isLeader = document.getElementById('em-leader').value === 'true';
   if (!name) { showToast('이름을 입력해주세요.'); return; }
   try {
     await updateDoc(doc(db,'members',clubCode,'list',memberId), {
       name,
       dept: document.getElementById('em-dept').value.trim(),
-      sno: document.getElementById('em-sno').value.trim(),
+      sno: studentNumber,
+      stuId: studentNumber,
       tel: document.getElementById('em-tel').value.trim(),
       grade: document.getElementById('em-grade').value.trim(),
-      isLeader: document.getElementById('em-leader').value === 'true',
+      isLeader,
+      isRep: isLeader,
     });
     showToast('✅ 팀원 정보 수정 완료');
     closeModal();
@@ -1994,7 +2002,13 @@ window.toggleClubStatus = async function(code, currentStatus) {
   const label = newStatus === 'completed' ? '종료' : '재활성화';
   if (!confirm(`${code} 동아리를 ${label} 처리할까요?`)) return;
   try {
-    await updateDoc(doc(db,'clubs',code), { status: newStatus });
+    await updateDoc(doc(db,'clubs',code), {
+      status: newStatus,
+      endedAt: newStatus === 'completed' ? serverTimestamp() : null,
+      endedYear: newStatus === 'completed'
+        ? (document.getElementById('yearFilter')?.value || new Date().getFullYear().toString())
+        : null
+    });
     showToast(`✅ ${label} 처리 완료`);
     await loadClubs();
   } catch(e) { alert('처리 실패: '+e.message); }
@@ -2131,11 +2145,14 @@ window.confirmDelete = async function() {
 // ══ 대시보드 로드 ══
 window.loadDashboard = async function() {
   if (!clubList.length) await loadClubs();
+  const selectedYear = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
 
   // 각 동아리의 최신 보고서 가져오기
   reportSummary = await Promise.all(clubList.map(async club => {
     const snap = await getDocs(query(collection(db,'reports',club.code,'submissions'), orderBy('submittedAt','desc')));
-    const reports = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    const reports = snap.docs
+      .map(d => ({ id:d.id, ...d.data() }))
+      .filter(report => String(report.year || '2026') === selectedYear);
     const latest = reports[0] || null;
     const data = latest?.formData || {};
 
@@ -2565,8 +2582,9 @@ function doExportExcel() {
 
 // ══ 연도 변경 ══
 window.changeYear = function(year) {
-  loadDashboard();
-  loadClubs();
+  loadClubs().then(() => loadDashboard());
+  loadConsultations();
+  loadDeadlineSetting();
 };
 
 // ══ 상담 신청 관리 ══
@@ -4150,17 +4168,17 @@ function renderMemberTable(members, code) {
   tbody.innerHTML = members.map((m,i) => `
     <tr>
       <td class="td-num">${i+1}</td>
-      <td><strong>${m.name}</strong>${m.isRep?` <span class="tb tb-mint" style="font-size:0.65rem">대표</span>`:''}</td>
+      <td><strong>${m.name}</strong>${(m.isRep||m.isLeader)?` <span class="tb tb-mint" style="font-size:0.65rem">대표</span>`:''}</td>
       <td>${m.dept||'—'}</td>
       <td class="td-center">${m.grade||'—'}</td>
-      <td>${m.stuId||'—'}</td>
+      <td>${m.stuId||m.sno||'—'}</td>
       <td>${m.tel||'—'}</td>
       <td>${m.email||'—'}</td>
       <td>${m.role||'—'}</td>
       <td class="td-date">${m.updatedAt?.toDate?.()?.toLocaleDateString('ko-KR')||'—'}</td>
       <td>
         <button class="btn-sm btn-sm-blue td-btn"
-          onclick="editMember('${m.id}','${m.name}','${m.dept||''}','${m.grade||''}','${m.stuId||''}','${m.tel||''}','${m.email||''}','${m.role||''}')">수정</button>
+          onclick="editMember('${m.id}','${m.name}','${m.dept||''}','${m.grade||''}','${m.stuId||m.sno||''}','${m.tel||''}','${m.email||''}','${m.role||''}')">수정</button>
         <button class="btn-sm btn-sm-red td-btn"
           onclick="deleteMember('${m.id}')">삭제</button>
       </td>
@@ -4196,7 +4214,7 @@ window.addMemberDirect = async function() {
     const dup = existSnap.docs.find(d => {
       const data = d.data();
       if (d.id === editingId) return false; // 수정 중인 본인은 제외
-      return (data.name||'').trim() === name && (!stuId || (data.stuId||'') === stuId);
+      return (data.name||'').trim() === name && (!stuId || (data.stuId||data.sno||'') === stuId);
     });
     if (dup && !confirm(`"${name}"(${stuId||'학번없음'})은(는) 이미 등록된 팀원과 이름이 같습니다.\n그래도 추가하시겠습니까?`)) {
       return;
@@ -4206,9 +4224,10 @@ window.addMemberDirect = async function() {
     const memberId = editingId || `m_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
 
     await setDoc(doc(db,'members',code,'list',memberId), {
-      name, dept, grade, stuId, tel, email, role,
+      name, dept, grade, stuId, sno: stuId, tel, email, role,
       updatedAt: serverTimestamp(),
       isRep: role.includes('대표') || false,
+      isLeader: role.includes('대표') || false,
     });
     showAdminMsg(msg, `✅ ${name} 저장 완료!`, 'var(--pcu-mint)');
     ['newMemberName','newMemberDept','newMemberGrade','newMemberStuId',
@@ -4255,9 +4274,9 @@ window.exportMembersCSV = async function() {
     snap.docs.forEach(d => {
       const m = d.data();
       rows.push([
-        club.name, m.name||'', m.dept||'', m.grade||'', m.stuId||'',
+        club.name, m.name||'', m.dept||'', m.grade||'', m.stuId||m.sno||'',
         m.tel||'', m.email||'', m.role||'',
-        m.isRep?'대표':'팀원',
+        (m.isRep||m.isLeader)?'대표':'팀원',
         m.updatedAt?.toDate?.()?.toLocaleDateString('ko-KR')||''
       ]);
     });
@@ -4360,7 +4379,29 @@ function uploadAdminFile(file, code) {
   task.on('state_changed',
     snap => { const p = Math.round(snap.bytesTransferred/snap.totalBytes*100); bar.style.width=p+'%'; pct.textContent=p+'%'; },
     err => { pct.textContent='❌'; },
-    () => { pct.textContent='✅'; setTimeout(()=>{ item.remove(); loadAdminFiles(); }, 1000); }
+    async () => {
+      try {
+        const url = await getDownloadURL(task.snapshot.ref);
+        const club = clubList.find(item => item.code === code);
+        await addDoc(collection(db,'reports',code,'submissions'), {
+          clubCode: code,
+          clubName: club?.name || code,
+          fileName: task.snapshot.ref.name,
+          fileUrl: url,
+          storagePath: task.snapshot.ref.fullPath,
+          fileSize: file.size,
+          contentType: file.type || '',
+          year,
+          submittedAt: serverTimestamp(),
+          uploadedByAdmin: true
+        });
+        pct.textContent='✅';
+      } catch (error) {
+        pct.textContent='⚠️';
+        console.error('보고서 메타데이터 저장 실패:', error);
+      }
+      setTimeout(()=>{ item.remove(); loadAdminFiles(); }, 1000);
+    }
   );
 }
 
