@@ -284,6 +284,31 @@
     .admin-file-icon { font-size: 1.2rem; flex-shrink: 0; }
     .admin-file-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .admin-file-meta { font-size: 0.75rem; color: var(--pcu-gray); flex-shrink: 0; }
+    .file-explorer { display:grid; grid-template-columns:240px minmax(0,1fr); gap:1rem; align-items:start; }
+    .file-sidebar, .file-main { background:var(--bg-white); border:1px solid rgba(0,82,204,0.1); border-radius:14px; box-shadow:var(--shadow-sm); }
+    .file-sidebar { position:sticky; top:128px; overflow:hidden; }
+    .file-sidebar-head { padding:1rem; border-bottom:1px solid var(--pcu-lightgray); }
+    .file-club-list { max-height:620px; overflow-y:auto; padding:0.45rem; }
+    .file-club-btn { width:100%; border:0; background:transparent; padding:0.7rem 0.75rem; border-radius:8px; display:flex; justify-content:space-between; gap:0.5rem; text-align:left; cursor:pointer; font-family:inherit; color:var(--pcu-dark); }
+    .file-club-btn:hover { background:var(--pcu-lightblue); }
+    .file-club-btn.active { background:var(--pcu-blue); color:white; }
+    .file-club-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; font-size:0.8rem; }
+    .file-club-code { flex-shrink:0; font-size:0.67rem; opacity:0.72; font-family:monospace; }
+    .file-toolbar { padding:1rem; border-bottom:1px solid var(--pcu-lightgray); display:flex; gap:0.55rem; flex-wrap:wrap; align-items:center; }
+    .file-toolbar input, .file-toolbar select { border:1.5px solid var(--pcu-lightgray); border-radius:7px; padding:7px 10px; font-size:0.78rem; font-family:inherit; outline:none; }
+    .file-toolbar input { flex:1; min-width:170px; }
+    .file-toolbar input:focus, .file-toolbar select:focus { border-color:var(--pcu-blue); }
+    .file-selection-bar { display:none; padding:0.65rem 1rem; background:#eff6ff; border-bottom:1px solid #bfdbfe; align-items:center; gap:0.5rem; flex-wrap:wrap; }
+    .file-selection-bar.show { display:flex; }
+    .file-row { display:grid; grid-template-columns:28px minmax(180px,1fr) 90px 90px 110px 190px; gap:0.65rem; align-items:center; padding:0.75rem 1rem; border-bottom:1px solid var(--pcu-lightgray); font-size:0.78rem; }
+    .file-row:last-child { border-bottom:0; }
+    .file-row:hover { background:#fafcff; }
+    .file-row-head { background:#f4f7fb; color:var(--pcu-gray); font-weight:700; font-size:0.72rem; }
+    .file-primary { display:flex; align-items:center; gap:0.65rem; min-width:0; }
+    .file-primary-text { min-width:0; }
+    .file-primary-name { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; color:var(--pcu-dark); }
+    .file-primary-sub { display:block; color:var(--pcu-gray); font-size:0.68rem; margin-top:2px; }
+    .file-actions { display:flex; justify-content:flex-end; gap:0.3rem; }
     .upload-prog-item {
       display: flex; align-items: center; gap: 0.6rem;
       background: var(--bg-white); border: 1px solid rgba(0,82,204,0.1);
@@ -343,6 +368,13 @@
       .contest-form-grid #contest-desc { grid-column:auto !important; }
       .admin-file-item { flex-wrap:wrap; }
       .admin-file-meta { width:100%; padding-left:2rem; }
+      .file-explorer { grid-template-columns:1fr; }
+      .file-sidebar { position:static; }
+      .file-club-list { display:flex; overflow-x:auto; max-height:none; padding:0.5rem; }
+      .file-club-btn { min-width:150px; width:auto; }
+      .file-row { grid-template-columns:28px minmax(0,1fr) auto; }
+      .file-row-head, .file-col-year, .file-col-size, .file-col-date { display:none; }
+      .file-actions { grid-column:2 / 4; justify-content:flex-start; padding-left:0; }
     }
 
 
@@ -828,45 +860,70 @@ function logout() { if(window._logout) window._logout(); }
   <!-- ── 파일 관리 탭 ── -->
   <div class="tab-panel" id="tab-files">
     <div class="club-manage-wrap">
-      <h2 style="margin-bottom:var(--spacing-lg)">📁 파일 관리</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:var(--spacing-lg);flex-wrap:wrap">
+        <div>
+          <h2>📁 파일 관리</h2>
+          <p style="font-size:0.78rem;color:var(--pcu-gray);margin-top:4px">동아리를 선택해 제출 파일을 조회·업로드·정리할 수 있습니다.</p>
+        </div>
+        <button class="btn-sm btn-sm-blue" onclick="loadAdminFiles()">🔄 새로고침</button>
+      </div>
 
-      <!-- 동아리 선택 -->
-      <div class="add-club-card" style="margin-bottom:var(--spacing-lg)">
-        <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-          <div class="add-field" style="flex:1;min-width:200px">
-            <label>동아리 선택</label>
-            <select id="fileClubSelect" onchange="loadAdminFiles()">
-              <option value="">-- 동아리를 선택하세요 --</option>
-            </select>
+      <div class="file-explorer">
+        <aside class="file-sidebar">
+          <div class="file-sidebar-head">
+            <input id="fileClubSearch" type="search" placeholder="🔍 동아리 검색"
+              oninput="renderFileClubList()"
+              style="width:100%;border:1.5px solid var(--pcu-lightgray);border-radius:7px;padding:8px 10px;font-size:0.78rem;font-family:inherit;outline:none">
           </div>
-          <button class="btn-sm btn-sm-blue" onclick="loadAdminFiles()" style="align-self:flex-end">🔄 새로고침</button>
-        </div>
-      </div>
+          <div id="fileClubList" class="file-club-list"></div>
+          <select id="fileClubSelect" onchange="selectFileClub(this.value)" style="display:none">
+            <option value="">-- 동아리 선택 --</option>
+          </select>
+        </aside>
 
-      <!-- 관리자 업로드 -->
-      <div class="add-club-card" style="margin-bottom:var(--spacing-lg)">
-        <h3 style="margin-bottom:var(--spacing-md)">⬆️ 파일 업로드 (관리자)</h3>
-        <div class="file-drop-zone-admin" id="adminDropZone">
-          <div style="font-size:1.8rem;margin-bottom:0.4rem">📂</div>
-          <p style="font-weight:700;font-size:0.88rem;margin-bottom:0.2rem">클릭하거나 드래그하여 업로드</p>
-          <p style="font-size:0.75rem;color:var(--pcu-gray)">동아리를 먼저 선택해주세요 · 최대 10MB</p>
-          <input type="file" id="adminFileInput" multiple
-            accept=".pdf,.jpg,.jpeg,.png,.hwp,.docx,.xlsx"
-            style="display:none" onchange="handleAdminFiles(this.files)">
-        </div>
-        <div id="adminUploadProgress" style="margin-top:0.8rem"></div>
-      </div>
+        <section class="file-main">
+          <div class="file-toolbar">
+            <strong id="selectedFileClubName" style="font-size:0.86rem;margin-right:auto">동아리를 선택하세요</strong>
+            <input id="adminFileSearch" type="search" placeholder="파일명 검색" oninput="renderAdminFileList()">
+            <select id="adminFileYear" onchange="renderAdminFileList()">
+              <option value="">전체 연도</option>
+              <option value="2026">2026</option>
+              <option value="2025">2025</option>
+              <option value="2024">2024</option>
+            </select>
+            <select id="adminFileType" onchange="renderAdminFileList()">
+              <option value="">전체 유형</option>
+              <option value="pdf">PDF</option>
+              <option value="image">이미지</option>
+              <option value="document">문서</option>
+              <option value="sheet">엑셀</option>
+            </select>
+            <span class="table-count" id="adminFileCount">0개</span>
+          </div>
 
-      <!-- 파일 목록 -->
-      <div class="club-list-card">
-        <div class="table-head">
-          <h3>파일 목록</h3>
-          <span class="table-count" id="adminFileCount">0개</span>
-        </div>
-        <div id="adminFileList" style="padding:1rem">
-          <div class="empty-state"><div class="empty-icon">📁</div><p>동아리를 선택하면 파일 목록이 표시됩니다.</p></div>
-        </div>
-      </div>
+          <div class="file-selection-bar" id="adminFileSelectionBar">
+            <strong id="adminFileSelectedCount">0개 선택</strong>
+            <button class="btn-sm btn-sm-mint" onclick="downloadSelectedAdminFiles()">선택 다운로드</button>
+            <button class="btn-sm btn-sm-red" onclick="deleteSelectedAdminFiles()">선택 삭제</button>
+            <button class="btn-sm btn-sm-blue" onclick="clearAdminFileSelection()">선택 해제</button>
+          </div>
+
+          <div style="padding:1rem">
+            <div class="file-drop-zone-admin" id="adminDropZone">
+              <div style="font-size:1.5rem;margin-bottom:0.25rem">⬆️</div>
+              <p style="font-weight:700;font-size:0.82rem">클릭하거나 파일을 끌어놓아 업로드</p>
+              <p style="font-size:0.7rem;color:var(--pcu-gray);margin-top:3px">PDF·이미지·HWP·DOCX·XLSX · 파일당 최대 10MB</p>
+              <input type="file" id="adminFileInput" multiple
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.hwp,.doc,.docx,.xls,.xlsx"
+                style="display:none" onchange="handleAdminFiles(this.files)">
+            </div>
+            <div id="adminUploadProgress" style="margin-top:0.8rem"></div>
+          </div>
+
+          <div id="adminFileList">
+            <div class="empty-state"><div class="empty-icon">📁</div><p>왼쪽에서 동아리를 선택해주세요.</p></div>
+          </div>
+      </section>
     </div>
   </div>
 
@@ -1075,7 +1132,7 @@ import {
   query, orderBy, serverTimestamp, onSnapshot, arrayUnion, collectionGroup
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
-  getStorage, ref, uploadBytesResumable, uploadBytes, getBlob, getDownloadURL, listAll, deleteObject
+  getStorage, ref, uploadBytesResumable, uploadBytes, getBlob, getDownloadURL, getMetadata, listAll, deleteObject
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 import {
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
@@ -4378,21 +4435,41 @@ window.exportMembersCSV = async function() {
 // ══ 파일 관리 탭 ══
 function fileIcon(name) {
   const ext = (name.split('.').pop()||'').toLowerCase();
-  return {pdf:'📄',jpg:'🖼️',jpeg:'🖼️',png:'🖼️',hwp:'📝',docx:'📝',xlsx:'📊',zip:'🗜️'}[ext] || '📎';
+  return {pdf:'📄',jpg:'🖼️',jpeg:'🖼️',png:'🖼️',webp:'🖼️',hwp:'📝',doc:'📝',docx:'📝',xls:'📊',xlsx:'📊',zip:'🗜️'}[ext] || '📎';
+}
+
+function escapeFileHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  })[char]);
 }
 
 let adminFileRefs = [];
+let adminFileSelectedPaths = new Set();
+let fileTabBound = false;
 
 function loadFilesTab() {
   const sel = document.getElementById('fileClubSelect');
+  const previousCode = sel.value;
+  const fileYearSelect = document.getElementById('adminFileYear');
+  const previousYear = fileYearSelect.value;
+  const selectedYear = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
+  const baseYear = Number(selectedYear) || new Date().getFullYear();
+  fileYearSelect.innerHTML = '<option value="">전체 연도</option>'
+    + Array.from({length:6}, (_,index) => String(baseYear-index))
+      .map(year => `<option value="${year}">${year}</option>`).join('');
+  if ([...fileYearSelect.options].some(option => option.value === previousYear)) fileYearSelect.value = previousYear;
   sel.innerHTML = '<option value="">-- 동아리를 선택하세요 --</option>';
   clubList.forEach(c => {
     const opt = document.createElement('option');
     opt.value = c.code; opt.textContent = c.name;
     sel.appendChild(opt);
   });
+  if (clubList.some(club => club.code === previousCode)) sel.value = previousCode;
+  renderFileClubList();
 
-  // 드롭존 이벤트
+  if (fileTabBound) return;
+  fileTabBound = true;
   const zone = document.getElementById('adminDropZone');
   zone.addEventListener('click', () => document.getElementById('adminFileInput').click());
   zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
@@ -4403,44 +4480,203 @@ function loadFilesTab() {
   });
 }
 
+window.renderFileClubList = function() {
+  const queryText = (document.getElementById('fileClubSearch')?.value || '').trim().toLowerCase();
+  const selectedCode = document.getElementById('fileClubSelect')?.value || '';
+  const list = document.getElementById('fileClubList');
+  const filtered = clubList.filter(club =>
+    !queryText
+    || (club.name || '').toLowerCase().includes(queryText)
+    || club.code.toLowerCase().includes(queryText)
+  );
+  list.innerHTML = filtered.length
+    ? filtered.map(club => `
+      <button class="file-club-btn ${club.code===selectedCode?'active':''}"
+        onclick="selectFileClub('${club.code}')">
+        <span class="file-club-name">${escapeFileHTML(club.name || club.code)}</span>
+        <span class="file-club-code">${escapeFileHTML(club.code)}</span>
+      </button>`).join('')
+    : '<div style="padding:1rem;text-align:center;color:var(--pcu-gray);font-size:0.76rem">검색 결과가 없습니다.</div>';
+};
+
+window.selectFileClub = function(code) {
+  const select = document.getElementById('fileClubSelect');
+  select.value = code || '';
+  const club = clubList.find(item => item.code === code);
+  document.getElementById('selectedFileClubName').textContent = club ? `${club.name} · ${club.code}` : '동아리를 선택하세요';
+  renderFileClubList();
+  loadAdminFiles();
+};
+
+function getAdminFileType(name) {
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  if (ext === 'pdf') return 'pdf';
+  if (['jpg','jpeg','png','webp'].includes(ext)) return 'image';
+  if (['xls','xlsx'].includes(ext)) return 'sheet';
+  if (['hwp','doc','docx'].includes(ext)) return 'document';
+  return 'other';
+}
+
+function formatAdminFileSize(bytes) {
+  if (!Number.isFinite(bytes)) return '—';
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+}
+
 window.loadAdminFiles = async function() {
   const code = document.getElementById('fileClubSelect').value;
   const listEl = document.getElementById('adminFileList');
   const countEl = document.getElementById('adminFileCount');
-  if (!code) { listEl.innerHTML='<div class="empty-state"><div class="empty-icon">📁</div><p>동아리를 선택하면 파일 목록이 표시됩니다.</p></div>'; return; }
+  adminFileSelectedPaths.clear();
+  updateAdminFileSelectionBar();
+  if (!code) {
+    countEl.textContent = '0개';
+    listEl.innerHTML='<div class="empty-state"><div class="empty-icon">📁</div><p>왼쪽에서 동아리를 선택해주세요.</p></div>';
+    return;
+  }
   listEl.innerHTML='<div class="loading-msg">불러오는 중...</div>';
   try {
     const sel=document.getElementById('yearFilter')?.value||new Date().getFullYear().toString();
-    const years=[...new Set([sel,'2026','2025','2024'])];
+    const baseYear = Number(sel) || new Date().getFullYear();
+    const years = Array.from({length:6}, (_,index) => String(baseYear-index));
     let allItems=[];
     for(const year of years){try{const r=await listAll(ref(storage,`reports/${year}/${code}/`));r.items.forEach(item=>allItems.push({item,year}));}catch(e){}}
-    countEl.textContent=allItems.length+'개';
-    if(!allItems.length){listEl.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--pcu-gray);font-size:0.88rem">업로드된 파일이 없습니다.</div>';return;}
-    const items=await Promise.all(allItems.map(async({item,year})=>({name:item.name.replace(/^\d{13}_/,''),url:await getDownloadURL(item),ref:item,year})));
-    adminFileRefs=items;
-    listEl.innerHTML=items.map((f,i)=>`
-      <div class="admin-file-item">
-        <span class="admin-file-icon">${fileIcon(f.name)}</span>
-        <div style="display:flex;flex-direction:column;min-width:0;flex:1">
-          <span class="admin-file-name" title="${f.name}">${f.name}</span>
-          <span style="font-size:0.72rem;color:var(--pcu-gray)">${f.year}년도</span>
-        </div>
-        <div style="display:flex;gap:0.4rem;flex-shrink:0">
-          <a href="${f.url}" target="_blank" class="btn-sm btn-sm-blue td-btn">보기</a>
-          <a href="${f.url}" download="${f.name}" class="btn-sm btn-sm-mint td-btn">⬇️</a>
-          <button class="btn-sm btn-sm-red td-btn" onclick="deleteAdminFile(${i})">삭제</button>
-        </div>
-      </div>`).join('');
+    const reportSnap = await getDocs(collection(db,'reports',code,'submissions'));
+    const reportByPath = new Map(reportSnap.docs.map(document => [document.data().storagePath, { id:document.id, ...document.data() }]));
+    adminFileRefs = (await Promise.all(allItems.map(async({item,year}) => {
+      const [url, metadata] = await Promise.all([getDownloadURL(item), getMetadata(item)]);
+      const report = reportByPath.get(item.fullPath);
+      return {
+        name:item.name.replace(/^\d{13}_/,''),
+        storedName:item.name,
+        url,
+        ref:item,
+        path:item.fullPath,
+        year,
+        size:metadata.size,
+        contentType:metadata.contentType || '',
+        createdAt:metadata.timeCreated || report?.submittedAt?.toDate?.()?.toISOString?.() || '',
+        source:report?.uploadedByAdmin ? '관리자 업로드' : report ? '동아리 제출' : '기존 파일',
+        reportId:report?.id || ''
+      };
+    }))).sort((a,b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    renderAdminFileList();
   } catch(e){listEl.innerHTML=`<div style="color:#dc2626;padding:1rem;font-size:0.85rem">❌ 오류: ${e.message}</div>`;}
+};
+
+window.renderAdminFileList = function() {
+  const listEl = document.getElementById('adminFileList');
+  const queryText = (document.getElementById('adminFileSearch')?.value || '').trim().toLowerCase();
+  const year = document.getElementById('adminFileYear')?.value || '';
+  const type = document.getElementById('adminFileType')?.value || '';
+  const filtered = adminFileRefs.filter(file =>
+    (!queryText || file.name.toLowerCase().includes(queryText))
+    && (!year || file.year === year)
+    && (!type || getAdminFileType(file.name) === type)
+  );
+  document.getElementById('adminFileCount').textContent = `${filtered.length}개`;
+  if (!filtered.length) {
+    listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>조건에 맞는 파일이 없습니다.</p></div>';
+    return;
+  }
+  listEl.innerHTML = `
+    <div class="file-row file-row-head">
+      <input type="checkbox" title="현재 목록 전체 선택" onchange="toggleAllAdminFiles(this.checked)">
+      <span>파일명</span><span>연도</span><span>용량</span><span>업로드일</span><span style="text-align:right">작업</span>
+    </div>
+    ${filtered.map(file => {
+      const index = adminFileRefs.indexOf(file);
+      const date = file.createdAt ? new Date(file.createdAt).toLocaleDateString('ko-KR') : '—';
+      return `<div class="file-row">
+        <input type="checkbox" ${adminFileSelectedPaths.has(file.path)?'checked':''}
+          onchange="toggleAdminFileSelection(${index},this.checked)">
+        <div class="file-primary">
+          <span class="admin-file-icon">${fileIcon(file.name)}</span>
+          <span class="file-primary-text">
+            <span class="file-primary-name" title="${escapeFileHTML(file.name)}">${escapeFileHTML(file.name)}</span>
+            <span class="file-primary-sub">${escapeFileHTML(file.source)}</span>
+          </span>
+        </div>
+        <span class="file-col-year">${file.year}</span>
+        <span class="file-col-size">${formatAdminFileSize(file.size)}</span>
+        <span class="file-col-date">${date}</span>
+        <span class="file-actions">
+          <button class="btn-sm btn-sm-blue td-btn" onclick="previewAdminFile(${index})">보기</button>
+          <a href="${file.url}" download="${escapeFileHTML(file.name)}" class="btn-sm btn-sm-mint td-btn">⬇️</a>
+          <button class="btn-sm btn-sm-red td-btn" onclick="deleteAdminFile(${index})">삭제</button>
+        </span>
+      </div>`;
+    }).join('')}`;
+};
+
+window.toggleAdminFileSelection = function(index, checked) {
+  const file = adminFileRefs[index];
+  if (!file) return;
+  if (checked) adminFileSelectedPaths.add(file.path);
+  else adminFileSelectedPaths.delete(file.path);
+  updateAdminFileSelectionBar();
+};
+
+window.toggleAllAdminFiles = function(checked) {
+  const queryText = (document.getElementById('adminFileSearch')?.value || '').trim().toLowerCase();
+  const year = document.getElementById('adminFileYear')?.value || '';
+  const type = document.getElementById('adminFileType')?.value || '';
+  adminFileRefs.filter(file =>
+    (!queryText || file.name.toLowerCase().includes(queryText))
+    && (!year || file.year === year)
+    && (!type || getAdminFileType(file.name) === type)
+  ).forEach(file => checked ? adminFileSelectedPaths.add(file.path) : adminFileSelectedPaths.delete(file.path));
+  renderAdminFileList();
+  updateAdminFileSelectionBar();
+};
+
+function updateAdminFileSelectionBar() {
+  const count = adminFileSelectedPaths.size;
+  document.getElementById('adminFileSelectedCount').textContent = `${count}개 선택`;
+  document.getElementById('adminFileSelectionBar').classList.toggle('show', count > 0);
+}
+
+window.clearAdminFileSelection = function() {
+  adminFileSelectedPaths.clear();
+  renderAdminFileList();
+  updateAdminFileSelectionBar();
+};
+
+window.previewAdminFile = function(index) {
+  const file = adminFileRefs[index];
+  if (!file) return;
+  const type = getAdminFileType(file.name);
+  document.getElementById('modalTitle').textContent = file.name;
+  document.getElementById('modalBody').innerHTML = type === 'image'
+    ? `<img src="${file.url}" alt="" style="display:block;max-width:100%;max-height:65vh;margin:auto;border-radius:8px">`
+    : type === 'pdf'
+      ? `<iframe src="${file.url}" title="${escapeFileHTML(file.name)}" style="width:100%;height:65vh;border:0;border-radius:8px"></iframe>`
+      : `<div class="empty-state"><div class="empty-icon">${fileIcon(file.name)}</div><p>이 형식은 브라우저 미리보기를 지원하지 않습니다.</p><a href="${file.url}" download="${escapeFileHTML(file.name)}" class="btn btn-primary" style="display:inline-block;margin-top:1rem;text-decoration:none">다운로드</a></div>`;
+  document.getElementById('detailModal').classList.add('open');
+};
+
+window.downloadSelectedAdminFiles = function() {
+  const selected = adminFileRefs.filter(file => adminFileSelectedPaths.has(file.path));
+  selected.forEach((file,index) => setTimeout(() => {
+    const link = document.createElement('a');
+    link.href = file.url;
+    link.download = file.name;
+    link.click();
+  }, index * 250));
 };
 
 window.handleAdminFiles = function(files) {
   const code = document.getElementById('fileClubSelect').value;
   if (!code) { alert('동아리를 먼저 선택해주세요.'); return; }
+  const allowed = new Set(['pdf','jpg','jpeg','png','webp','hwp','doc','docx','xls','xlsx']);
   [...files].forEach(file => {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!allowed.has(ext)) { alert(`${file.name}: 지원하지 않는 형식입니다.`); return; }
     if (file.size > 10 * 1024 * 1024) { alert(`${file.name}: 10MB 초과`); return; }
     uploadAdminFile(file, code);
   });
+  document.getElementById('adminFileInput').value = '';
 };
 
 function uploadAdminFile(file, code) {
@@ -4491,15 +4727,40 @@ function uploadAdminFile(file, code) {
   );
 }
 
+async function deleteAdminFileRecord(file) {
+  await deleteObject(file.ref);
+  const code = document.getElementById('fileClubSelect').value;
+  if (file.reportId && code) {
+    await deleteDoc(doc(db,'reports',code,'submissions',file.reportId));
+  } else if (code) {
+    const snap = await getDocs(collection(db,'reports',code,'submissions'));
+    const matches = snap.docs.filter(item => item.data().storagePath === file.path);
+    await Promise.all(matches.map(item => deleteDoc(item.ref)));
+  }
+}
+
 window.deleteAdminFile = async function(idx) {
   const f = adminFileRefs[idx];
   if (!f || !confirm(`"${f.name}" 삭제할까요?`)) return;
   try {
-    await deleteObject(f.ref);
+    await deleteAdminFileRecord(f);
     await window.loadAdminFiles();
   } catch(e) {
     alert('삭제 실패: '+e.message);
   }
+};
+
+window.deleteSelectedAdminFiles = async function() {
+  const selected = adminFileRefs.filter(file => adminFileSelectedPaths.has(file.path));
+  if (!selected.length) return;
+  if (!confirm(`${selected.length}개 파일과 제출 기록을 함께 삭제할까요?`)) return;
+  let failed = 0;
+  for (const file of selected) {
+    try { await deleteAdminFileRecord(file); }
+    catch (error) { failed++; console.error(file.name, error); }
+  }
+  await loadAdminFiles();
+  showToast(failed ? `⚠️ ${selected.length-failed}개 삭제, ${failed}개 실패` : `✅ ${selected.length}개 삭제 완료`);
 };
 
 function showAdminMsg(el, text, color) {
