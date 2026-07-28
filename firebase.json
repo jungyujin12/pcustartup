@@ -1,0 +1,16 @@
+{
+  "firestore": {
+    "rules": "final_deploy/firestore.rules"
+  },
+  "storage": {
+    "rules": "final_deploy/storage.rules"
+  },
+  "hosting": {
+    "public": "final_deploy",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  }
+}
