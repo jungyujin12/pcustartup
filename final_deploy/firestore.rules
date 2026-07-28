@@ -16,12 +16,15 @@ service cloud.firestore {
     match /clubs/{clubCode} {
       allow get: if true;
       allow list: if isAdmin();
-      allow create: if request.resource.data.code == clubCode
-        && request.resource.data.name is string
-        && request.resource.data.repName is string
-        && request.resource.data.repTel is string
-        && request.resource.data.repEmail is string
-        && request.resource.data.status == "active";
+      allow create: if isAdmin()
+        || (
+          request.resource.data.code == clubCode
+          && request.resource.data.name is string
+          && request.resource.data.repName is string
+          && request.resource.data.repTel is string
+          && request.resource.data.repEmail is string
+          && request.resource.data.status == "active"
+        );
       allow update, delete: if isAdmin();
     }
 
