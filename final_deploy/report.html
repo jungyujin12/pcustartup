@@ -454,7 +454,12 @@ window.enterCode = async function() {
 
   try {
     const snap = await getDoc(doc(db, 'clubs', code));
-    if (!snap.exists()) { err.classList.add('show'); return; }
+    if (!snap.exists()) { err.textContent = '등록되지 않은 접근코드입니다.'; err.classList.add('show'); return; }
+    if (snap.data().status !== 'active') {
+      err.textContent = '운영이 종료된 동아리입니다. 새 연도 접근코드를 사용하거나 관리자에게 문의해주세요.';
+      err.classList.add('show');
+      return;
+    }
 
     clubCode = code; clubData = snap.data();
     document.getElementById('clubNameBadge').textContent = clubData.name || code;
