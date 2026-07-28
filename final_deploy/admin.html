@@ -647,14 +647,15 @@ function logout() { if(window._logout) window._logout(); }
 
         <hr style="border:none;border-top:1.5px dashed var(--pcu-lightgray);margin:var(--spacing-md) 0">
 
-        <h3>📥 CSV 일괄 등록</h3>
+        <h3>📥 엑셀·CSV 일괄 등록</h3>
         <p style="font-size:0.78rem;color:var(--pcu-gray);margin-bottom:var(--spacing-md);line-height:1.7">
-          파일 형식: <code style="background:#f0f4f8;padding:2px 6px;border-radius:4px;font-size:0.75rem">동아리명,분야,대표자명,연락처,이메일</code><br>
-          첫 행은 헤더로 자동 무시됩니다. 분야는 일반/기술/지식/해당없음 중 하나.
+          <strong>전체 구성원 등록은 엑셀 양식 사용을 권장합니다.</strong><br>
+          같은 동아리의 모든 행에 접근코드와 동아리명을 반복 입력하고, 대표는 정확히 1명으로 지정하세요.<br>
+          CSV는 <code style="background:#f0f4f8;padding:2px 6px;border-radius:4px;font-size:0.75rem">동아리명,분야,대표자명,연락처,이메일</code> 기본정보만 등록합니다.
         </p>
         <div style="display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap">
           <div class="add-field" style="flex:1;min-width:200px">
-            <label>CSV 파일 선택</label>
+            <label>엑셀 또는 CSV 파일 선택</label>
             <input type="file" id="csvFileInput" accept=".xlsx,.xls,.csv"
               style="border:1.5px solid var(--pcu-lightgray);border-radius:8px;padding:8px 12px;font-size:0.85rem;font-family:inherit;width:100%"
               onchange="previewFile(this)">
@@ -1446,56 +1447,96 @@ window.previewFile = async function(input) {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false, dateNF:'yyyy-mm-dd'});
 
-      // 헤더 행 찾기 (연번, 동아리명 포함된 행)
-      let headerIdx = raw.findIndex(r => r.includes('동아리명') || r.includes('연번'));
-      if (headerIdx < 0) headerIdx = 0;
-      const headers = raw[headerIdx];
+      // 헤더 행 찾기. 새 양식은 모든 인원 행에 동아리 코드/이름을 반복합니다.
+      let headerIdx = raw.findIndex(r => {
+        const cells = r.map(v => String(v || '').replace(/\*/g, '').trim());
+        return cells.includes('동아리명') && cells.includes('접근코드');
+      });
+      if (headerIdx < 0) throw new Error('올바른 PCU 일괄등록 양식이 아닙니다. 새 양식을 다운로드해 작성해주세요.');
+      const headers = raw[headerIdx].map(v => String(v || '').replace(/\*/g, '').trim());
       const dataRows = raw.slice(headerIdx + 1).filter(r => r.some(c => c !== '' && c !== null && c !== undefined));
 
       const getCol = (row, ...names) => {
         for (const name of names) {
-          const idx = headers.findIndex(h => String(h||'').includes(name));
+          const idx = headers.findIndex(h => h === name || h.includes(name));
           if (idx >= 0 && row[idx] !== '' && row[idx] !== null && row[idx] !== undefined) {
-            return String(row[idx]);
+            return String(row[idx]).trim();
           }
         }
         return '';
       };
 
-      // 동아리별로 그룹핑
-      const clubs = [];
-      let current = null;
-      for (const row of dataRows) {
-        const num = getCol(row, '연번');
-        const name = getCol(row, '동아리명');
-        const isLeader = String(getCol(row, '팀장') || '').trim().toUpperCase() === 'O';
+      const requiredHeaders = ['접근코드','동아리명','분야','구성원 구분','성명'];
+      const missingHeaders = requiredHeaders.filter(name => !headers.includes(name));
+      if (missingHeaders.length) throw new Error(`필수 열이 없습니다: ${missingHeaders.join(', ')}`);
 
-        if (num && name) {
-          // 새 동아리 시작
-          current = {
-            name: String(name),
-            code: getCol(row, '접근코드') || '',  // 엑셀에 코드 있으면 사용
-            members: [],
-            item: getCol(row, '아이템', '아이디어') || '',
-            bizReg: String(getCol(row, '사업자') || '').includes('예') ? '등록' : '미등록',
-            memberCount: getCol(row, '인원 수') || ''
-          };
-          clubs.push(current);
+      // 접근코드를 단일 연결키로 사용해 동아리와 전체 구성원을 그룹핑합니다.
+      const clubMap = new Map();
+      const errors = [];
+      dataRows.forEach((row, index) => {
+        const rowNo = headerIdx + index + 2;
+        const code = getCol(row, '접근코드').toUpperCase();
+        const name = getCol(row, '동아리명');
+        const field = getCol(row, '분야');
+        const memberType = getCol(row, '구성원 구분');
+        const memberName = getCol(row, '성명');
+        const item = getCol(row, '창업 아이템', '아이디어');
+        const bizRegRaw = getCol(row, '사업자등록 여부', '사업자');
+
+        if (!code || !name || !field || !memberType || !memberName) {
+          errors.push(`${rowNo}행: 필수값(접근코드·동아리명·분야·구성원 구분·성명)을 확인하세요.`);
+          return;
         }
-        if (current) {
-          const memberName = getCol(row, '동아리원');
-          const dept = getCol(row, '학과명');
-          const sno = getCol(row, '학번');
-          const tel = getCol(row, '전화번호');
-          const grade = getCol(row, '학년');
-          if (memberName) {
-            current.members.push({
-              name: String(memberName), dept: String(dept||''),
-              sno: String(sno||''), tel: String(tel||''),
-              grade: String(grade||''), isLeader
-            });
-          }
+        if (!/^[A-Z0-9_-]{4,20}$/.test(code)) {
+          errors.push(`${rowNo}행: 접근코드는 영문 대문자·숫자·_·- 조합 4~20자로 입력하세요.`);
         }
+        if (!['일반','기술','지식','해당없음'].includes(field)) {
+          errors.push(`${rowNo}행: 분야는 드롭다운 값 중 하나여야 합니다.`);
+        }
+        if (!['대표','팀원'].includes(memberType)) {
+          errors.push(`${rowNo}행: 구성원 구분은 대표 또는 팀원이어야 합니다.`);
+        }
+
+        if (!clubMap.has(code)) {
+          clubMap.set(code, {
+            code, name, field, members: [], item,
+            bizReg: bizRegRaw === '등록' ? '등록' : (bizRegRaw === '해당없음' ? '해당없음' : '미등록')
+          });
+        }
+        const club = clubMap.get(code);
+        if (club.name !== name) errors.push(`${rowNo}행: 같은 접근코드에 서로 다른 동아리명이 있습니다.`);
+        if (club.field !== field) errors.push(`${rowNo}행: 같은 동아리의 분야가 서로 다릅니다.`);
+
+        club.members.push({
+          name: memberName,
+          dept: getCol(row, '학과'),
+          stuId: getCol(row, '학번'),
+          grade: getCol(row, '학년'),
+          tel: getCol(row, '전화번호'),
+          email: getCol(row, '이메일'),
+          role: memberType,
+          isLeader: memberType === '대표',
+          note: getCol(row, '비고')
+        });
+      });
+
+      const clubs = [...clubMap.values()];
+      clubs.forEach(club => {
+        const leaders = club.members.filter(member => member.isLeader);
+        if (leaders.length !== 1) errors.push(`${club.name}: 대표는 정확히 1명이어야 합니다. (현재 ${leaders.length}명)`);
+        const memberKeys = new Set();
+        club.members.forEach(member => {
+          const key = `${member.name}|${member.stuId || member.tel || ''}`;
+          if (memberKeys.has(key)) errors.push(`${club.name}: 중복 구성원으로 보이는 행이 있습니다. (${member.name})`);
+          memberKeys.add(key);
+        });
+        club.memberCount = club.members.length;
+      });
+
+      if (!clubs.length) errors.push('등록할 동아리 데이터가 없습니다.');
+      if (errors.length) {
+        window._parsedClubs = null;
+        throw new Error(`업로드 전 수정이 필요합니다.\n\n${errors.slice(0, 12).join('\n')}${errors.length > 12 ? `\n외 ${errors.length - 12}건` : ''}`);
       }
 
       // 미리보기 테이블
@@ -1509,13 +1550,15 @@ window.previewFile = async function(input) {
           <tr style="background:var(--pcu-lightblue)">
             <th style="padding:5px 8px;text-align:left">동아리명</th>
             <th style="padding:5px 8px;text-align:left">접근코드</th>
+            <th style="padding:5px 8px;text-align:left">대표자</th>
             <th style="padding:5px 8px;text-align:left">인원</th>
             <th style="padding:5px 8px;text-align:left">아이템</th>
             <th style="padding:5px 8px;text-align:left">사업자</th>
           </tr>
           ${clubs.map(c=>`<tr style="border-bottom:1px solid var(--pcu-lightblue)">
             <td style="padding:5px 8px">${c.name}</td>
-            <td style="padding:5px 8px;font-family:monospace;font-weight:700;color:${c.code?'var(--pcu-blue)':'#dc2626'}">${c.code||'자동생성'}</td>
+            <td style="padding:5px 8px;font-family:monospace;font-weight:700;color:var(--pcu-blue)">${c.code}</td>
+            <td style="padding:5px 8px">${c.members.find(m=>m.isLeader)?.name||'—'}</td>
             <td style="padding:5px 8px">${c.members.length}명</td>
             <td style="padding:5px 8px;max-width:200px;overflow:hidden;white-space:nowrap">${c.item||'—'}</td>
             <td style="padding:5px 8px">${c.bizReg}</td>
@@ -1533,23 +1576,12 @@ window.previewFile = async function(input) {
 
 // 엑셀 양식 다운로드
 window.downloadExcelTemplate = function() {
-  const wb = XLSX.utils.book_new();
-  const year = document.getElementById('yearFilter')?.value || new Date().getFullYear();
-  const title = [[year+'년 창업동아리 참여자 명단','','','','','','','','','','2026.  .  .','']];;
-  const headers = [['연번','동아리명','접근코드','동아리원','학과명','학번','전화번호','학년','창업 아이템(아이디어) 보유 여부','사업자등록증 보유 여부','동아리 인원 수','팀장여부']];
-  const sample = [
-    [1,'동아리명A','ART44','대표자이름','학과명','2100000','010-0000-0000','2학년','아이디어 내용','아니오',3,'O'],
-    ['','','','팀원2','학과명','2200000','010-0000-0000','3학년','','','','X'],
-    ['','','','팀원3','학과명','2300000','010-0000-0000','1학년','','','','X'],
-    ['','','','','','','','','','','',''],
-    [2,'동아리명B','SEED04','대표자이름','학과명','2100001','010-0000-0001','3학년','아이디어 내용','예',2,'O'],
-    ['','','','팀원2','학과명','2200001','010-0000-0001','2학년','','','','X'],
-  ];
-  const ws = XLSX.utils.aoa_to_sheet([...title, ...headers, ...sample]);
-  ws['!cols'] = [6,18,10,10,18,12,16,8,30,18,12,8].map(w=>({wch:w}));
-  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:10}}];
-  XLSX.utils.book_append_sheet(wb, ws, '창업동아리명단');
-  XLSX.writeFile(wb, '창업동아리_명단_양식.xlsx');
+  const link = document.createElement('a');
+  link.href = 'PCU_창업동아리_일괄등록_양식.xlsx';
+  link.download = 'PCU_창업동아리_일괄등록_양식.xlsx';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 };
 
 
@@ -1564,11 +1596,9 @@ window.uploadCSV = async function() {
 
     const willOverwrite = [];   // 기존 clubs와 코드 겹치는 것
     const codeInBatch = new Map(); // 엑셀 내부 중복 코드
-    const noCode = [];          // 코드 미입력 (자동생성 예정)
 
     parsedClubs.forEach(c => {
       const code = (c.code||'').trim().toUpperCase();
-      if (!code) { noCode.push(c.name); return; }
       if (existingCodes.has(code)) willOverwrite.push({ code, name: c.name, existingName: existingCodes.get(code) });
       if (codeInBatch.has(code)) willOverwrite.push({ code, name: c.name, existingName: `(엑셀 내 중복: ${codeInBatch.get(code)})` });
       codeInBatch.set(code, c.name);
@@ -1581,9 +1611,6 @@ window.uploadCSV = async function() {
         willOverwrite.slice(0,5).map(w => `- ${w.code}: "${w.existingName}" → "${w.name}"`).join('\n') +
         (willOverwrite.length > 5 ? `\n...외 ${willOverwrite.length-5}건` : '') +
         `\n\n계속하면 동일 코드의 팀원 데이터에 새 팀원이 추가됩니다(중복 발생 가능).\n계속하시겠습니까?`;
-    }
-    if (noCode.length) {
-      warnMsg += `\n\n📌 접근코드 미입력 ${noCode.length}건은 자동 코드가 생성됩니다.`;
     }
     if (!confirm(warnMsg)) return;
 
@@ -1600,24 +1627,20 @@ window.uploadCSV = async function() {
     let ok = 0, fail = 0;
     for (const club of parsedClubs) {
       try {
-        let code = (club.code || '').trim().toUpperCase();
-        if (!code) {
-          const nameClean = club.name.replace(/[^a-zA-Z0-9]/g,'').substring(0,6).toUpperCase() || 'CLUB';
-          code = nameClean + Math.floor(Math.random()*900+100);
-          // 자동생성 코드도 중복 방지
-          while (existingCodes.has(code)) code = nameClean + Math.floor(Math.random()*900+100);
-        }
+        const code = club.code.trim().toUpperCase();
+        const leader = club.members.find(member => member.isLeader);
         const hash = await hashCode(code);
         await setDoc(doc(db,'clubs',code), {
           code, codeHash: hash,
           name: club.name,
-          field: '일반',
-          memberCount: club.memberCount || club.members.length,
+          field: club.field,
+          memberCount: club.members.length,
           bizReg: club.bizReg,
           item: club.item,
-          repName: club.members[0]?.name || '',
-          repDept: club.members[0]?.dept || '',
-          repTel: club.members[0]?.tel || '',
+          repName: leader?.name || '',
+          repDept: leader?.dept || '',
+          repTel: leader?.tel || '',
+          repEmail: leader?.email || '',
           status: 'active',
           year: document.getElementById('yearFilter')?.value || new Date().getFullYear().toString(),
           createdAt: serverTimestamp()
@@ -1640,7 +1663,7 @@ window.uploadCSV = async function() {
             await setDoc(doc(db,'members',code,'list',memberId), {
               name: member.name,
               dept: member.dept || '',
-              sno: String(member.sno || ''),
+              stuId: String(member.stuId || ''),
               tel: (function(t) {
                 const s = String(t||'').replace(/[^0-9]/g,'');
                 if (s.length === 10) return s.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
@@ -1648,8 +1671,13 @@ window.uploadCSV = async function() {
                 return s;
               })(member.tel),
               grade: member.grade || '',
+              email: member.email || '',
+              role: member.role || (member.isLeader ? '대표' : '팀원'),
               isLeader: member.isLeader || false,
-              createdAt: serverTimestamp()
+              isRep: member.isLeader || false,
+              note: member.note || '',
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
             });
           }
         }
@@ -2124,9 +2152,9 @@ window.loadDashboard = async function() {
       reportCount: reports.length,
       status: reports.length ? '제출완료' : '미제출',
       latestDate: latest?.submittedAt?.toDate?.()?.toLocaleDateString('ko-KR') || '',
-      item: data.itemName || '—',
-      memberCount: data.memberCount || '—',
-      bizReg: data.bizReg || '—',
+      item: data.itemName || club.item || '—',
+      memberCount: data.memberCount || club.memberCount || '—',
+      bizReg: data.bizReg || club.bizReg || '—',
       budget: calcBudget(data),
       data: { ...data, repName, repDept, repTel, repEmail, memo: club.memo || '' },
       allReports: reports,
@@ -3115,9 +3143,9 @@ window.renderMembersTable = function() {
     const d = c.data || {};
     const map = {
       name: c.name||c.club||'—', code: c.code||'—',
-      repName: d.repName||c.data?.repName||'—',
-      repDept: d.repDept||'—', repTel: d.repTel||'—',
-      repEmail: d.repEmail||'—', memberCount: c.memberCount||'—',
+      repName: d.repName||c.repName||'—',
+      repDept: d.repDept||c.repDept||'—', repTel: d.repTel||c.repTel||'—',
+      repEmail: d.repEmail||c.repEmail||'—', memberCount: c.memberCount||'—',
       field: c.field||'—', bizReg: c.bizReg||'—',
       profName: d.profName||'—'
     };
@@ -3173,7 +3201,7 @@ window.exportMembersExcel = function() {
 
   const getVal = (c,col) => {
     const d = c.data||{};
-    const map = {name:c.name||c.club||'',code:c.code||'',repName:d.repName||'',repDept:d.repDept||'',repTel:d.repTel||'',repEmail:d.repEmail||'',memberCount:c.memberCount||'',field:c.field||'',bizReg:c.bizReg||'',profName:d.profName||''};
+    const map = {name:c.name||c.club||'',code:c.code||'',repName:d.repName||c.repName||'',repDept:d.repDept||c.repDept||'',repTel:d.repTel||c.repTel||'',repEmail:d.repEmail||c.repEmail||'',memberCount:c.memberCount||'',field:c.field||'',bizReg:c.bizReg||'',profName:d.profName||c.profName||''};
     return map[col]||'';
   };
 
