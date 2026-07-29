@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>무료 창업 웹페이지 만들기 | PCU 창업지원</title>
+  <link rel="stylesheet" href="theme.css">
+  <style>
+    body{background:linear-gradient(145deg,#f5f9ff 0%,#fff 48%,#effcf6 100%);min-height:100vh}
+    .builder{max-width:980px;margin:0 auto;padding:2rem 1rem 5rem}
+    .hero{background:#10243e;color:white;border-radius:18px;padding:2rem;position:relative;overflow:hidden;margin-bottom:1rem}
+    .hero:after{content:"";position:absolute;width:260px;height:260px;border-radius:50%;right:-90px;top:-120px;background:rgba(49,179,124,.2)}
+    .hero h1{font-size:clamp(1.55rem,4vw,2.3rem);margin:.4rem 0}.hero p{color:#c9d8eb;line-height:1.7;font-size:.88rem}
+    .free{display:inline-flex;background:#baf3d7;color:#075f3d;border-radius:20px;padding:4px 10px;font-size:.72rem;font-weight:800}
+    .card{background:white;border:1.5px solid #dce9f8;border-radius:14px;padding:1.25rem;margin-top:1rem;box-shadow:0 5px 18px rgba(15,48,87,.05)}
+    .card h2{font-size:1rem;margin-bottom:.9rem}.grid{display:grid;grid-template-columns:1fr 1fr;gap:.85rem}
+    .field{display:flex;flex-direction:column;gap:5px}.field.full{grid-column:1/-1}.field label{font-size:.77rem;font-weight:800;color:#263c55}
+    input,select,textarea{width:100%;border:1.5px solid #d6e1ed;border-radius:8px;padding:10px 12px;font:inherit;font-size:.84rem;background:white}
+    textarea{min-height:180px;resize:vertical;line-height:1.6}input:focus,select:focus,textarea:focus{outline:none;border-color:#0052cc;box-shadow:0 0 0 3px rgba(0,82,204,.08)}
+    .hint{font-size:.7rem;color:#718096;line-height:1.5}.checks{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}
+    .check{border:1.5px solid #dce9f8;border-radius:9px;padding:.7rem;font-size:.78rem;display:flex;gap:6px;align-items:center}.check input{width:auto}
+    .actions{display:flex;gap:.7rem;justify-content:flex-end;margin-top:1rem}.btn-main{border:0;border-radius:9px;background:#0052cc;color:white;padding:12px 22px;font-weight:800;cursor:pointer}.btn-main:disabled{opacity:.5;cursor:not-allowed}
+    .status{display:none;margin-top:1rem;padding:1rem;border-radius:10px;background:#f2f7ff;font-size:.82rem;line-height:1.7}.status.show{display:block}.status.error{background:#fff1f2;color:#b42318}.status.done{background:#edfff5;color:#087443}
+    .progress{height:5px;background:#dce9f8;border-radius:5px;overflow:hidden;margin-top:.7rem}.progress span{display:block;width:35%;height:100%;background:#31b37c;animation:move 1.2s infinite ease-in-out}@keyframes move{from{transform:translateX(-110%)}to{transform:translateX(300%)}}
+    @media(max-width:700px){.grid,.checks{grid-template-columns:1fr}.hero{padding:1.5rem}.builder{padding-top:1rem}.actions{flex-direction:column}.btn-main{width:100%}}
+  </style>
+</head>
+<body>
+  <nav class="navbar"><div class="nav-container"><a href="index.html" class="nav-logo">PCU 창업지원</a><a href="index.html" class="btn btn-secondary" style="padding:7px 12px;font-size:.76rem">홈으로</a></div></nav>
+  <main class="builder">
+    <section class="hero">
+      <span class="free">OLLAMA · 무료 생성</span>
+      <h1>창업 웹페이지 만들기</h1>
+      <p>사업계획서나 활동 내용을 입력하면 목적을 판별해 단일 HTML 웹사이트를 생성합니다.<br>개인정보와 공개하면 안 되는 사업기밀은 입력하지 마세요.</p>
+    </section>
+
+    <section class="card">
+      <h2>1. 원본 내용</h2>
+      <div class="grid">
+        <div class="field"><label for="accessCode">생성 접근코드 *</label><input id="accessCode" type="password" autocomplete="off" placeholder="담당자에게 받은 코드"></div>
+        <div class="field"><label for="pageId">페이지 주소 *</label><input id="pageId" maxlength="32" placeholder="영문 소문자·숫자·하이픈"><div class="hint">완성 주소: /generated-site.html?id=<span id="slugPreview">...</span></div></div>
+        <div class="field"><label for="mode">사이트 유형</label><select id="mode"><option value="auto">내용을 보고 자동 판별</option><option value="student">학생 창업 포트폴리오</option><option value="general">일반 웹사이트</option></select></div>
+        <div class="field"><label for="pdfFile">PDF 불러오기</label><input id="pdfFile" type="file" accept=".pdf,application/pdf"><div id="pdfStatus" class="hint">PDF 텍스트를 아래 입력란에 합칩니다.</div></div>
+        <div class="field full"><label for="sourceText">사업계획서·활동 내용·사이트 요구사항 *</label><textarea id="sourceText" maxlength="50000" placeholder="팀명, 프로젝트명, 해결하려는 문제, 해결 방법, 주요 활동, 성과, 배운 점 등을 붙여넣으세요. 입력에 없는 사실은 AI가 추측하지 않습니다."></textarea><div class="hint"><span id="charCount">0</span> / 50,000자</div></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. 생성 전 확인 항목</h2>
+      <div class="grid">
+        <div class="field"><label for="bannerCount">배너 이미지</label><select id="bannerCount"><option value="0">사용 안 함</option><option value="1">1장</option><option value="2">2장</option><option value="3">3장</option></select></div>
+        <div class="field"><label for="designStyle">디자인 방향</label><select id="designStyle"><option value="auto">내용에 맞게 자동 선택</option><option>미니멀</option><option>밝고 경쾌한</option><option>고급스러운</option><option>테크 느낌</option><option>에디토리얼 매거진풍</option><option>산업적 유틸리티</option></select></div>
+        <div class="field"><label for="commercialized">실제 사업화 여부</label><select id="commercialized"><option value="unknown">내용에서 판단</option><option value="yes">예</option><option value="no">아니오</option></select></div>
+        <div class="field"><label for="footerText">푸터 추가 문구</label><input id="footerText" placeholder="없으면 기본 지원 문구 사용"></div>
+        <div class="field full"><div class="checks">
+          <label class="check"><input id="sectionImages" type="checkbox"> 섹션 이미지 사용</label>
+          <label class="check"><input id="logoImage" type="checkbox"> 로고 이미지 사용</label>
+          <label class="check"><input id="includeFooter" type="checkbox" checked> 푸터 생성</label>
+        </div></div>
+      </div>
+      <div class="actions"><button id="generateBtn" class="btn-main" onclick="submitWebsiteJob()">무료 웹페이지 생성</button></div>
+      <div id="jobStatus" class="status"></div>
+    </section>
+  </main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore,doc,getDoc,setDoc,serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+const app=initializeApp({apiKey:"AIzaSyBzS2q5ML-taevon0IQMVxMO8Ah23IBGNE",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
+const db=getFirestore(app);
+const $=id=>document.getElementById(id);
+const status=(message,type='')=>{const el=$('jobStatus');el.className=`status show ${type}`;el.innerHTML=message};
+
+$('pageId').addEventListener('input',event=>{event.target.value=event.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'');$('slugPreview').textContent=event.target.value||'...'});
+$('sourceText').addEventListener('input',()=>{$('charCount').textContent=$('sourceText').value.length.toLocaleString()});
+$('pdfFile').addEventListener('change',async event=>{
+  const file=event.target.files[0]; if(!file)return;
+  $('pdfStatus').textContent='PDF 텍스트 추출 중...';
+  try{
+    const pdfjs=await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs");
+    pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs";
+    const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
+    let text='';
+    for(let i=1;i<=pdf.numPages;i++){const page=await pdf.getPage(i);const content=await page.getTextContent();text+=content.items.map(item=>item.str).join(' ')+'\\n';}
+    $('sourceText').value=($('sourceText').value+'\\n'+text).trim().slice(0,50000);
+    $('sourceText').dispatchEvent(new Event('input'));
+    $('pdfStatus').textContent=`${pdf.numPages}페이지 텍스트를 불러왔습니다.`;
+  }catch(error){$('pdfStatus').textContent='PDF를 읽지 못했습니다. 텍스트를 직접 붙여넣어 주세요.'}
+});
+
+async function verifyAccess(code){
+  const response=await fetch('/.netlify/functions/createPage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'verify',accessCode:code})});
+  if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.error||'접근코드를 확인할 수 없습니다.')}
+}
+
+window.submitWebsiteJob=async function(){
+  const pageId=$('pageId').value.trim(),sourceText=$('sourceText').value.trim(),accessCode=$('accessCode').value.trim();
+  if(!accessCode){status('생성 접근코드를 입력해주세요.','error');return}
+  if(!/^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])?$/.test(pageId)){status('페이지 주소는 영문 소문자·숫자·하이픈 3~32자로 입력해주세요.','error');return}
+  if(sourceText.length<30){status('분석할 내용을 30자 이상 입력해주세요.','error');return}
+  const btn=$('generateBtn');btn.disabled=true;
+  try{
+    status('접근코드를 확인하고 있습니다.<div class="progress"><span></span></div>');
+    await verifyAccess(accessCode);
+    const ref=doc(db,'website_jobs',pageId);
+    try{
+      await setDoc(ref,{status:'pending',pageId,sourceText,mode:$('mode').value,options:{bannerCount:Number($('bannerCount').value),sectionImages:$('sectionImages').checked,logoImage:$('logoImage').checked,includeFooter:$('includeFooter').checked,footerText:$('footerText').value.trim(),commercialized:$('commercialized').value,designStyle:$('designStyle').value},createdAt:serverTimestamp()});
+    }catch(error){
+      if(error.code==='permission-denied')throw new Error('이미 사용 중인 페이지 주소이거나 생성 권한이 없습니다.');
+      throw error;
+    }
+    status('작업을 등록했습니다. PC에서 AI 실행기가 켜져 있으면 보통 몇 분 안에 완료됩니다.<div class="progress"><span></span></div>');
+    for(let attempt=0;attempt<120;attempt++){
+      await new Promise(resolve=>setTimeout(resolve,3000));
+      let snapshot;try{snapshot=await getDoc(ref)}catch(error){continue}
+      if(!snapshot.exists())continue;const job=snapshot.data();
+      if(job.status==='completed'){const url=`generated-site.html?id=${encodeURIComponent(pageId)}`;status(`웹페이지 생성이 완료됐습니다.<br><a class="btn btn-primary" href="${url}" target="_blank" style="display:inline-block;margin-top:.7rem">결과 열기</a>`,'done');return}
+      if(job.status==='failed')throw new Error(job.error||'AI 생성에 실패했습니다.');
+    }
+    status('작업은 등록됐지만 아직 완료되지 않았습니다. AI 실행기를 켠 후 나중에 같은 결과 주소를 확인하세요.','error');
+  }catch(error){status(error.message||'생성 요청에 실패했습니다.','error')}
+  finally{btn.disabled=false}
+};
+</script>
+</body>
+</html>
