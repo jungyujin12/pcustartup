@@ -156,6 +156,7 @@ window.saveSurvey = async function() {
   try {
     const docRef = await addDoc(collection(db,'surveys'), {
       title,
+      year: new URLSearchParams(location.search).get('year') || new Date().getFullYear().toString(),
       desc: document.getElementById('surveyDesc').value,
       deadline: document.getElementById('surveyDeadline').value,
       target: document.getElementById('surveyTarget').value,
