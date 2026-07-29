@@ -473,10 +473,8 @@ function logout() { if(window._logout) window._logout(); }
     <button class="tab-btn" onclick="switchTab('contest')">🏆 공모전 관리</button>
     <button class="tab-btn" onclick="switchTab('survey')">📝 설문 관리</button>
     <div class="tab-actions" style="margin-left:auto;display:flex;align-items:center;gap:0.8rem;padding:0 1rem">
-      <select id="yearFilter" onchange="changeYear(this.value)" style="border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:4px 10px;font-size:0.78rem;font-family:var(--font-family-base);color:var(--pcu-blue);font-weight:700;outline:none">
-        <option value="2026">2026년도</option>
-        <option value="2025">2025년도</option>
-      </select>
+      <select id="yearFilter" onchange="changeYear(this.value)" style="border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:4px 10px;font-size:0.78rem;font-family:var(--font-family-base);color:var(--pcu-blue);font-weight:700;outline:none"></select>
+      <button class="btn-sm btn-sm-red" onclick="closeSelectedYear()" title="선택 연도의 활성 동아리를 모두 종료">연도 마감</button>
       <div id="notiBell" style="position:relative;cursor:pointer;font-size:1.2rem" onclick="toggleNotiPanel()" title="알림">
         🔔<span id="notiBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#dc2626;color:white;border-radius:10px;padding:1px 5px;font-size:0.55rem;font-weight:700">0</span>
       </div>
@@ -503,10 +501,7 @@ function logout() { if(window._logout) window._logout(); }
         <div style="background:white;border:1.5px solid rgba(0,82,204,0.1);border-radius:14px;padding:1.2rem 1.5rem;box-shadow:var(--shadow-sm);display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
           <span style="font-size:1rem;font-weight:800;color:var(--pcu-dark)">📅 제출 기한 설정</span>
           <div style="display:flex;align-items:center;gap:0.5rem;flex:1;flex-wrap:wrap">
-            <select id="deadlineYear" style="border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:7px 10px;font-size:0.82rem;font-family:var(--font-family-base);outline:none">
-              <option value="2026">2026년도</option>
-              <option value="2025">2025년도</option>
-            </select>
+            <select id="deadlineYear" style="border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:7px 10px;font-size:0.82rem;font-family:var(--font-family-base);outline:none"></select>
             <input type="date" id="deadlineDate" style="border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:7px 10px;font-size:0.82rem;font-family:var(--font-family-base);outline:none">
             <button class="btn-sm btn-sm-blue" onclick="saveDeadline()">저장</button>
             <span id="deadlineMsg" style="font-size:0.78rem;color:var(--pcu-mint);display:none">✅ 저장됨</span>
@@ -771,7 +766,7 @@ function logout() { if(window._logout) window._logout(); }
         <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" class="col-toggle" value="field" checked> 분야</label>
         <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" class="col-toggle" value="bizReg"> 사업자</label>
         <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" class="col-toggle" value="profName"> 지도교수</label>
-        <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="showMembersToggle" onchange="renderMembersTable()"> 팀원 전체 펼치기</label>
+        <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="showMembersToggle" checked onchange="renderMembersTable()"> 팀원 전체 표시</label>
         <div style="margin-left:auto;display:flex;gap:6px">
           <button class="btn-sm btn-sm-mint" onclick="renderMembersTable()">🔄 적용</button>
         <button class="btn-sm btn-sm-blue" onclick="openColEditor()">⚙️ 컬럼 편집</button>
@@ -1081,7 +1076,7 @@ function logout() { if(window._logout) window._logout(); }
     <div class="club-manage-wrap">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--spacing-lg)">
         <h2>📝 설문 관리</h2>
-        <a href="survey-builder.html" target="_blank" class="btn btn-primary" style="font-size:0.82rem;padding:8px 16px;text-decoration:none;border-radius:8px">+ 새 설문 만들기</a>
+        <a href="#" onclick="openSurveyBuilder(event)" class="btn btn-primary" style="font-size:0.82rem;padding:8px 16px;text-decoration:none;border-radius:8px">+ 새 설문 만들기</a>
       </div>
       <div id="surveyList"><div class="empty-state"><p>⏳ 로딩 중...</p></div></div>
     </div>
@@ -1177,6 +1172,23 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const storage = getStorage(app);
 const auth = getAuth(app);
+
+function initializeYearOptions() {
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({length:7}, (_,index) => String(currentYear + 1 - index));
+  for (const id of ['yearFilter','deadlineYear']) {
+    const select = document.getElementById(id);
+    if (!select) continue;
+    select.innerHTML = years.map(year => `<option value="${year}">${year}년도</option>`).join('');
+    select.value = String(currentYear);
+  }
+  const fileYear = document.getElementById('adminFileYear');
+  if (fileYear) {
+    fileYear.innerHTML = '<option value="">전체 연도</option>' +
+      years.map(year => `<option value="${year}">${year}</option>`).join('');
+  }
+}
+initializeYearOptions();
 
 // Firebase Auth 상태 감지
 onAuthStateChanged(auth, (user) => {
@@ -1315,21 +1327,31 @@ function renderClubTable() {
 window.previewCode = function() {
   const name = document.getElementById('newClubName').value.trim();
   if (!name) { document.getElementById('codePreview').textContent = '——'; return; }
-  const code = generateCode(name);
-  document.getElementById('codePreview').textContent = code;
+  document.getElementById('codePreview').textContent = codePrefixFromName(name) + '###';
 };
 
-function generateCode(name) {
-  const existing = clubList.map(c => c.code);
-  const base = name.replace(/[^a-zA-Z0-9가-힣]/g,'').slice(0,4).toUpperCase().padEnd(4,'X');
-  let num = String(clubList.length + 1).padStart(2,'0');
-  let code = base + num;
-  let tries = 0;
-  while (existing.includes(code) && tries < 99) {
-    tries++;
-    code = base + String(clubList.length + 1 + tries).padStart(2,'0');
+function codePrefixFromName(name) {
+  const choseong = ['G','K','N','D','T','R','M','B','P','S','S','O','J','J','C','K','T','P','H'];
+  const letters = [];
+  for (const char of String(name || '').toUpperCase()) {
+    if (/[A-Z]/.test(char)) letters.push(char);
+    else {
+      const code = char.charCodeAt(0);
+      if (code >= 0xAC00 && code <= 0xD7A3) letters.push(choseong[Math.floor((code - 0xAC00) / 588)]);
+    }
+    if (letters.length === 3) break;
   }
-  return code;
+  return letters.join('').padEnd(3, 'X');
+}
+
+async function generateUniqueClubCode(name) {
+  const base = codePrefixFromName(name);
+  for (let tries = 0; tries < 30; tries++) {
+    const number = 100 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900);
+    const code = `${base}${number}`;
+    if (!(await getDoc(doc(db,'clubs',code))).exists()) return code;
+  }
+  throw new Error('중복되지 않는 접근코드를 생성하지 못했습니다. 다시 시도해주세요.');
 }
 
 window.addClub = async function() {
@@ -1339,10 +1361,15 @@ window.addClub = async function() {
   if (!name) { showMsg(msg, '❌ 동아리명을 입력해주세요.', '#dc2626'); return; }
   if (clubList.find(c => c.name === name)) { showMsg(msg, '❌ 이미 등록된 동아리명입니다.', '#dc2626'); return; }
 
-  const code = generateCode(name);
   try {
+    const year = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
+    const code = await generateUniqueClubCode(name);
+    const codeHash = await hashCode(code);
     await setDoc(doc(db, 'clubs', code), {
-      name, code, field, createdAt: serverTimestamp()
+      name, code, codeHash, field, year, status:'active', createdAt: serverTimestamp()
+    });
+    await setDoc(doc(db, 'club_names', await clubNameDocId(name, year)), {
+      clubCode:code, year, createdAt:serverTimestamp()
     });
     showMsg(msg, `✅ ${name} (코드: ${code}) 등록 완료!`, 'var(--pcu-mint)');
     document.getElementById('newClubName').value = '';
@@ -1721,17 +1748,39 @@ window.uploadCSV = async function() {
 
     // ── 사전 검증: 코드 중복, 빈 코드, 형식 오류 점검 ──
     const existingSnap = await getDocs(collection(db,'clubs'));
-    const existingCodes = new Map(existingSnap.docs.map(d => [d.id, d.data().name||d.id]));
+    const existingCodes = new Map(existingSnap.docs.map(d => [d.id, {
+      name:d.data().name||d.id,
+      year:String(d.data().year || '2026')
+    }]));
+    const selectedYear = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
 
     const willOverwrite = [];   // 기존 clubs와 코드 겹치는 것
+    const crossYearCollisions = [];
+    const invalidCodes = [];
     const codeInBatch = new Map(); // 엑셀 내부 중복 코드
 
     parsedClubs.forEach(c => {
       const code = (c.code||'').trim().toUpperCase();
-      if (existingCodes.has(code)) willOverwrite.push({ code, name: c.name, existingName: existingCodes.get(code) });
+      if (!/^[A-Z0-9]{4,12}$/.test(code)) invalidCodes.push(code || '(빈 코드)');
+      if (existingCodes.has(code)) {
+        const existing = existingCodes.get(code);
+        if (existing.year !== selectedYear) crossYearCollisions.push({code, existing});
+        else willOverwrite.push({ code, name: c.name, existingName: existing.name });
+      }
       if (codeInBatch.has(code)) willOverwrite.push({ code, name: c.name, existingName: `(엑셀 내 중복: ${codeInBatch.get(code)})` });
       codeInBatch.set(code, c.name);
     });
+
+    if (invalidCodes.length) {
+      alert(`접근코드는 영문 대문자·숫자 4~12자리여야 합니다.\n오류: ${invalidCodes.slice(0,10).join(', ')}`);
+      return;
+    }
+    if (crossYearCollisions.length) {
+      alert(`다른 연도의 접근코드는 덮어쓸 수 없습니다.\n${crossYearCollisions.slice(0,10).map(item =>
+        `${item.code} (${item.existing.year}년 ${item.existing.name})`
+      ).join('\n')}\n\n엑셀의 접근코드를 새 코드로 변경한 뒤 다시 업로드해주세요.`);
+      return;
+    }
 
     // 경고 메시지 구성
     let warnMsg = `${parsedClubs.length}개 동아리를 등록합니다.`;
@@ -1771,12 +1820,12 @@ window.uploadCSV = async function() {
           repTel: leader?.tel || '',
           repEmail: leader?.email || '',
           status: 'active',
-          year: document.getElementById('yearFilter')?.value || new Date().getFullYear().toString(),
+          year: selectedYear,
           createdAt: serverTimestamp()
         });
         await setDoc(doc(db,'club_names',
-          await hashCode(club.name.normalize('NFKC').trim().toLowerCase())), {
-          clubCode: code, createdAt: serverTimestamp()
+          await clubNameDocId(club.name, selectedYear)), {
+          clubCode: code, year: selectedYear, createdAt: serverTimestamp()
         });
 
         // 기존 팀원 정리 (덮어쓰기 + 사용자가 동의한 경우)
@@ -1841,13 +1890,13 @@ window.uploadCSV = async function() {
     if (!rows.length) { showToast('데이터가 없습니다.'); return; }
     if (!confirm(rows.length + '개 행을 등록할까요?')) return;
     let ok = 0, fail = 0;
+    const selectedYear = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
     for (const line of rows) {
       const vals = line.split(',').map(v=>v.trim().replace(/^"|"$/g,''));
       const name = vals[headers.indexOf('동아리명')] || vals[0];
       if (!name) { fail++; continue; }
       try {
-        const nameClean = name.replace(/[^a-zA-Z0-9]/g,'').substring(0,6).toUpperCase() || 'CLUB';
-        const code = nameClean + Math.floor(Math.random()*900+100);
+        const code = await generateUniqueClubCode(name);
         const hash = await hashCode(code);
         await setDoc(doc(db,'clubs',code), {
           code, codeHash: hash, name,
@@ -1856,12 +1905,12 @@ window.uploadCSV = async function() {
           repTel: vals[headers.indexOf('연락처')] || '',
           repEmail: vals[headers.indexOf('이메일')] || '',
           status: 'active',
-          year: document.getElementById('yearFilter')?.value || new Date().getFullYear().toString(),
+          year: selectedYear,
           createdAt: serverTimestamp()
         });
         await setDoc(doc(db,'club_names',
-          await hashCode(name.normalize('NFKC').trim().toLowerCase())), {
-          clubCode: code, createdAt: serverTimestamp()
+          await clubNameDocId(name, selectedYear)), {
+          clubCode: code, year: selectedYear, createdAt: serverTimestamp()
         });
         ok++;
       } catch(e) { fail++; }
@@ -1937,12 +1986,13 @@ window.editClubName = async function(code, currentName) {
     alert('이미 사용 중인 동아리명입니다.'); return;
   }
   try {
+    const club = clubList.find(item => item.code === code);
+    const clubYear = String(club?.year || document.getElementById('yearFilter')?.value || '2026');
     await setDoc(doc(db,'clubs',code), { name: trimmed }, { merge: true });
-    await deleteDoc(doc(db,'club_names',
-      await hashCode(currentName.normalize('NFKC').trim().toLowerCase())));
+    await deleteClubNameIndex(currentName, clubYear, code);
     await setDoc(doc(db,'club_names',
-      await hashCode(trimmed.normalize('NFKC').trim().toLowerCase())), {
-      clubCode: code, createdAt: serverTimestamp()
+      await clubNameDocId(trimmed, clubYear)), {
+      clubCode: code, year: clubYear, createdAt: serverTimestamp()
     });
     alert(`✅ "${trimmed}"으로 변경됐습니다.`);
     await loadClubs();
@@ -1954,11 +2004,11 @@ window.editClubName = async function(code, currentName) {
 
 // ══ 코드 수정 ══
 window.editCode = function(code, name) {
-  const newCode = prompt(`[${name}] 접근코드 수정\n현재: ${code}\n\n새 코드를 입력하세요 (영문+숫자, 4~12자):`, code);
+  const newCode = prompt(`[${name}] 접근코드 수정\n현재: ${code}\n\n새 코드를 입력하세요 (영문 3자+숫자 3자):`, code);
   if (!newCode || newCode === code) return;
   const cleaned = newCode.trim().toUpperCase();
-  if (!/^[A-Z0-9]{4,12}$/.test(cleaned)) {
-    alert('코드는 영문 대문자+숫자 4~12자로 입력해주세요.');
+  if (!/^[A-Z]{3}[0-9]{3}$/.test(cleaned)) {
+    alert('코드는 영문 대문자 3자+숫자 3자로 입력해주세요. 예: ABC123');
     return;
   }
   if (clubList.find(c => c.code === cleaned)) {
@@ -2154,6 +2204,23 @@ async function hashCode(code) {
   return hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
+async function clubNameDocId(name, year) {
+  const normalizedName = String(name || '').normalize('NFKC').trim().toLowerCase();
+  return `${String(year)}_${await hashCode(normalizedName)}`;
+}
+
+async function deleteClubNameIndex(name, year, code) {
+  if (!name) return;
+  const ids = [await clubNameDocId(name, year)];
+  // 2026년 이전 데이터가 사용하던 전역 색인도, 같은 동아리일 때만 안전하게 정리한다.
+  if (String(year) === '2026') ids.push(await hashCode(String(name).normalize('NFKC').trim().toLowerCase()));
+  for (const id of ids) {
+    const indexRef = doc(db, 'club_names', id);
+    const indexSnap = await getDoc(indexRef);
+    if (indexSnap.exists() && indexSnap.data().clubCode === code) await deleteDoc(indexRef);
+  }
+}
+
 async function updateClubCode(oldCode, newCode, name) {
   try {
     // 1. clubs 코드 변경
@@ -2161,9 +2228,11 @@ async function updateClubCode(oldCode, newCode, name) {
     const codeHash = await hashCode(newCode);
     const data = { ...oldSnap.data(), code: newCode, codeHash };
     await setDoc(doc(db,'clubs',newCode), data);
-    const nameHash = await hashCode((data.name || name || '').normalize('NFKC').trim().toLowerCase());
-    await setDoc(doc(db,'club_names',nameHash), {
+    const clubYear = String(data.year || '2026');
+    const nameIndexId = await clubNameDocId(data.name || name || '', clubYear);
+    await setDoc(doc(db,'club_names',nameIndexId), {
       clubCode: newCode,
+      year: clubYear,
       createdAt: serverTimestamp()
     });
 
@@ -2297,8 +2366,8 @@ window.confirmDelete = async function() {
     try {
       const clubSnap = await getDoc(doc(db,'clubs',code));
       if (clubSnap.exists()) {
-        const nameHash = await hashCode((clubSnap.data().name || '').normalize('NFKC').trim().toLowerCase());
-        await deleteDoc(doc(db,'club_names',nameHash));
+        const clubData = clubSnap.data();
+        await deleteClubNameIndex(clubData.name || '', String(clubData.year || '2026'), code);
       }
     } catch(e){}
     await deleteDoc(doc(db,'clubs',code));
@@ -2757,9 +2826,48 @@ function doExportExcel() {
 
 // ══ 연도 변경 ══
 window.changeYear = function(year) {
+  const deadlineYear = document.getElementById('deadlineYear');
+  if (deadlineYear && [...deadlineYear.options].some(option => option.value === year)) deadlineYear.value = year;
   loadClubs().then(() => loadDashboard());
   loadConsultations();
   loadDeadlineSetting();
+  if (document.getElementById('tab-survey')?.classList.contains('active')) loadSurveys();
+  if (document.getElementById('tab-contest')?.classList.contains('active')) loadContests();
+};
+
+window.openSurveyBuilder = function(event) {
+  event?.preventDefault();
+  const year = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
+  window.open(`survey-builder.html?year=${encodeURIComponent(year)}`, '_blank');
+};
+
+window.closeSelectedYear = async function() {
+  const year = document.getElementById('yearFilter').value;
+  const activeClubs = clubList.filter(club => (club.status || 'active') === 'active');
+  if (!activeClubs.length) {
+    showToast(`${year}년도에 종료할 활성 동아리가 없습니다.`);
+    return;
+  }
+  if (!confirm(`${year}년도 활성 동아리 ${activeClubs.length}개를 모두 종료할까요?\n종료 후 기존 접근코드는 사용할 수 없습니다.`)) return;
+  const confirmYear = prompt(`실수 방지를 위해 마감할 연도 ${year}를 입력해주세요.`);
+  if (confirmYear !== year) {
+    alert('연도가 일치하지 않아 취소했습니다.');
+    return;
+  }
+  try {
+    for (const club of activeClubs) {
+      await updateDoc(doc(db,'clubs',club.code), {
+        status:'completed',
+        endedAt:serverTimestamp(),
+        endedYear:year
+      });
+    }
+    showToast(`✅ ${year}년도 동아리 ${activeClubs.length}개 종료 완료`);
+    await loadClubs();
+    await loadDashboard();
+  } catch (error) {
+    alert('연도 마감 실패: ' + error.message);
+  }
 };
 
 // ══ 상담 신청 관리 ══
@@ -2770,7 +2878,7 @@ window.loadConsultations = async function() {
     const year = document.getElementById('yearFilter').value;
     const snap = await getDocs(query(collection(db,'consultations'), orderBy('createdAt','desc')));
     consultList = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      .filter(d => !year || d.year === year || !d.year);
+      .filter(d => d.year ? String(d.year) === year : year === '2026');
     renderConsultTable(consultList);
     renderConsultCalendar(0);
 
@@ -3041,8 +3149,11 @@ window.loadSurveys = async function() {
   try {
     const { query: q2, orderBy: ob, where } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     const snap = await getDocs(collection(db,'surveys'));
-    if (snap.empty) { list.innerHTML = '<div class="empty-state"><p>설문이 없습니다. 새 설문을 만들어보세요.</p></div>'; return; }
-    const docs = snap.docs.sort((a,b)=>(b.data().createdAt?.seconds||0)-(a.data().createdAt?.seconds||0));
+    const selectedYear = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
+    const docs = snap.docs
+      .filter(d => d.data().year ? String(d.data().year) === selectedYear : selectedYear === '2026')
+      .sort((a,b)=>(b.data().createdAt?.seconds||0)-(a.data().createdAt?.seconds||0));
+    if (!docs.length) { list.innerHTML = `<div class="empty-state"><p>${selectedYear}년도 설문이 없습니다. 새 설문을 만들어보세요.</p></div>`; return; }
     list.innerHTML = docs.map(d => {
       const s = d.data();
       const link = location.origin + '/survey.html?id=' + d.id;
@@ -3051,7 +3162,7 @@ window.loadSurveys = async function() {
           <div>
             <div style="font-weight:800;font-size:0.9rem">${s.title||'제목 없음'}</div>
             <div style="font-size:0.75rem;color:var(--pcu-gray);margin-top:2px">
-              질문 ${(s.questions||[]).length}개 · 응답 ${s.responseCount||0}건
+              ${s.year || '2026'}년 · 질문 ${(s.questions||[]).length}개 · 응답 ${s.responseCount||0}건
               ${s.deadline?` · 마감 ${s.deadline}`:''}
             </div>
           </div>
@@ -3147,17 +3258,19 @@ window.loadContests = async function() {
   if (!list) return;
   try {
     const snap = await getDocs(query(collection(db,'contests'), orderBy('deadline','asc')));
-    if (snap.empty) {
-      list.innerHTML = '<div class="empty-state"><p>등록된 공모전이 없습니다.</p></div>';
+    const selectedYear = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
+    const docs = snap.docs.filter(d => d.data().year ? String(d.data().year) === selectedYear : selectedYear === '2026');
+    if (!docs.length) {
+      list.innerHTML = `<div class="empty-state"><p>${selectedYear}년도에 등록된 공모전이 없습니다.</p></div>`;
       return;
     }
-    list.innerHTML = snap.docs.map(d => {
+    list.innerHTML = docs.map(d => {
       const c = d.data();
       const dday = c.deadline ? Math.ceil((new Date(c.deadline)-new Date())/(1000*60*60*24)) : null;
       return `<div style="background:white;border:1.5px solid var(--pcu-lightblue);border-radius:10px;padding:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
         <div>
           <div style="font-weight:800;font-size:0.88rem">${c.name||'—'}</div>
-          <div style="font-size:0.75rem;color:var(--pcu-gray);margin-top:2px">${c.field||''} · ${c.desc||''}</div>
+          <div style="font-size:0.75rem;color:var(--pcu-gray);margin-top:2px">${c.year || '2026'}년 · ${c.field||''} · ${c.desc||''}</div>
           ${c.url?`<a href="${c.url}" target="_blank" style="font-size:0.72rem;color:var(--pcu-blue)">신청 링크 →</a>`:''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
@@ -3180,7 +3293,8 @@ window.addContest = async function() {
   const desc = document.getElementById('contest-desc').value.trim();
   if (!name) { showToast('공모전명을 입력해주세요.'); return; }
   try {
-    await addDoc(collection(db,'contests'), { name, field, deadline, url, desc, createdAt: serverTimestamp() });
+    const year = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
+    await addDoc(collection(db,'contests'), { name, field, deadline, url, desc, year, createdAt: serverTimestamp() });
     showToast('✅ 공모전 등록 완료');
     ['contest-name','contest-url','contest-desc'].forEach(id => document.getElementById(id).value='');
     loadContests();
@@ -3197,8 +3311,7 @@ window.deleteContest = async function(id) {
 window.matchContest = async function(contestId, contestName, contestField, contestDesc) {
   showToast('⏳ AI 매칭 분석 중...', 3000);
   try {
-    const clubsSnap = await getDocs(collection(db,'clubs'));
-    const clubs = clubsSnap.docs.map(d=>({code:d.id,name:d.data().name||d.id,field:d.data().field||'',desc:d.data().item||''}));
+    const clubs = clubList.map(c=>({code:c.code,name:c.name||c.code,field:c.field||'',desc:c.item||''}));
     const jobRef = await addDoc(collection(db, 'ai_jobs'), {
       type: 'contest_match',
       status: 'pending',
@@ -3321,7 +3434,14 @@ window.renderMembersTable = function() {
   const statusF = document.getElementById('memberStatusFilter')?.value||'';
 
   let data = [...clubList];
-  if (search) data = data.filter(c => (c.name||'').toLowerCase().includes(search) || c.code.toLowerCase().includes(search));
+  if (search) data = data.filter(c =>
+    (c.name||'').toLowerCase().includes(search)
+    || c.code.toLowerCase().includes(search)
+    || (c.membersList||[]).some(member =>
+      [member.name, member.dept, member.stuId, member.sno, member.tel, member.email]
+        .some(value => String(value || '').toLowerCase().includes(search))
+    )
+  );
   if (fieldF) data = data.filter(c => c.field === fieldF);
   if (statusF) data = data.filter(c => (c.status||'active') === statusF);
 
@@ -3355,13 +3475,31 @@ window.renderMembersTable = function() {
         ${cols.map(col=>`<td style="padding:7px 12px;white-space:nowrap">${getVal(c,col)}</td>`).join('')}
       </tr>`;
       if (showMembers && c.membersList?.length) {
-        c.membersList.forEach(m => {
+        c.membersList
+          .slice()
+          .sort((a,b) => Number(Boolean(b.isLeader||b.isRep)) - Number(Boolean(a.isLeader||a.isRep)) || String(a.name||'').localeCompare(String(b.name||''),'ko'))
+          .forEach(m => {
           totalMemberCount++;
-          const mval = col => ({'name':m.name,'repName':m.name,'repDept':m.dept,'repTel':m.tel,'memberCount':m.grade,'field':m.isLeader?'팀장':'팀원','code':'','bizReg':'','profName':''}[col]||'');
+          const mval = col => ({
+            'name':m.name,
+            'repName':m.name,
+            'repDept':m.dept,
+            'repTel':m.tel,
+            'repEmail':m.email,
+            'memberCount':m.grade ? `${m.grade}학년` : '',
+            'field':m.role || ((m.isLeader||m.isRep)?'동아리장':'팀원'),
+            'code':'',
+            'bizReg':'',
+            'profName':''
+          }[col]||'');
           r += `<tr style="background:#f0f6ff;font-size:0.76rem">
-            ${cols.map((col,ci)=>`<td style="padding:4px 12px;color:${ci===0?'var(--pcu-gray)':'#555'};white-space:nowrap">${ci===0?'↳':mval(col)}</td>`).join('')}
+            ${cols.map((col,ci)=>`<td style="padding:4px 12px;color:${ci===0?'var(--pcu-dark)':'#555'};white-space:nowrap">${ci===0?`↳ ${m.name||'이름 없음'}`:mval(col)}</td>`).join('')}
           </tr>`;
         });
+      } else if (showMembers) {
+        r += `<tr style="background:#fff7ed;font-size:0.74rem">
+          <td colspan="${Math.max(cols.length,1)}" style="padding:5px 12px 5px 28px;color:#9a3412">등록된 팀원 명단이 없습니다.</td>
+        </tr>`;
       }
       return r;
     }).join('');
@@ -3498,7 +3636,9 @@ window.loadRiseStats = async function() {
   try {
     // 동아리 집계
     const clubsSnap = await getDocs(collection(db,'clubs'));
-    const activeClubs = clubsSnap.docs.filter(d => d.data().year===String(year) || !d.data().year);
+    const activeClubs = clubsSnap.docs.filter(d =>
+      d.data().year ? String(d.data().year) === String(year) : String(year) === '2026'
+    );
     const totalMembers = activeClubs.reduce((a,d)=>a+(parseInt(d.data().memberCount)||0),0);
     document.getElementById('rise-teams').textContent = activeClubs.length;
     document.getElementById('rise-members').textContent = totalMembers;
@@ -3535,7 +3675,10 @@ window.loadRiseStats = async function() {
       const textToScore={'매우만족':5,'매우 만족':5,'5점':5,'5':5,'만족':4,'4점':4,'4':4,'보통':3,'3점':3,'3':3,'불만족':2,'2점':2,'2':2,'매우불만족':1,'매우 불만족':1,'1점':1,'1':1};
       let ts=0,tc=0;
       const survSnap=await getDocs(collection(db,'surveys'));
-      for (const sd of survSnap.docs) {
+      const yearSurveys = survSnap.docs.filter(sd =>
+        sd.data().year ? String(sd.data().year) === String(year) : String(year) === '2026'
+      );
+      for (const sd of yearSurveys) {
         const rSnap=await getDocs(collection(db,'surveys',sd.id,'responses'));
         rSnap.docs.forEach(rd=>{
           Object.values(rd.data().answers||{}).forEach(v=>{
@@ -3789,8 +3932,8 @@ async function cacheAIScore(clubCode) {
 
 // ══════════════════════════════════════════════
 // 시스템 무결성 진단 — 통합 패널
-// 검사 항목: ①clubs-members 코드 불일치 ②members 중복 ③clubs-reports 불일치
-//          ④clubs 필수필드 누락 ⑤설문 응답 형식 이상 ⑥장기 미응답 상담
+// 검사 항목: ①접근코드 자체 무결성 ②clubs-members 코드 불일치 ③members 중복
+//          ④clubs-reports 불일치 ⑤clubs 필수필드 누락 ⑥설문 형식 ⑦장기 미응답 상담
 // ══════════════════════════════════════════════
 
 let _lastIntegrityReport = null;
@@ -3818,17 +3961,46 @@ window.runIntegrityCheck = async function() {
     orphanReports: [],      // reports에 있는데 clubs에 없는 코드
     staleConsults: [],      // 7일 이상 미처리 상담
     malformedSurveyAnswers: 0,
+    codeIssues: [],         // 문서 ID·code·codeHash·형식 불일치
+    legacyCodeWarnings: [], // 유효하지만 신규 3+3 표준이 아닌 기존 코드
+    nameIndexIssues: [],    // 연도별 동아리명 색인이 실제 코드와 불일치
   };
 
   try {
     addLog('📋 1/6 — 동아리 목록 로드 중...');
     const clubsSnap = await getDocs(collection(db,'clubs'));
-    const clubs = clubsSnap.docs.map(d => ({ code: d.id, ...d.data() }));
+    const clubs = clubsSnap.docs.map(d => ({ ...d.data(), code: d.id, storedCode: d.data().code }));
     const clubCodes = new Set(clubs.map(c => c.code));
     addLog(`✅ clubs ${clubs.length}개 확인`, '#059669');
 
+    // ① 접근코드 자체 + 연도별 동아리명 색인 검사
+    addLog('📋 2/7 — 접근코드 무결성 점검 중...');
+    for (const club of clubs) {
+      const problems = [];
+      if (!/^[A-Z0-9]{4,12}$/.test(club.code)) problems.push('허용 형식 아님');
+      else if (!/^[A-Z]{3}[0-9]{3}$/.test(club.code)) report.legacyCodeWarnings.push({code:club.code,name:club.name||club.code});
+      const storedCode = club.storedCode;
+      if (storedCode && storedCode !== club.code) problems.push(`code 필드=${storedCode}`);
+      const expectedHash = await hashCode(club.code);
+      if (!club.codeHash || club.codeHash !== expectedHash) problems.push('codeHash 불일치');
+      if (problems.length) report.codeIssues.push({code:club.code, name:club.name||club.code, problems});
+
+      if (club.name) {
+        const clubYear = String(club.year || '2026');
+        const indexSnap = await getDoc(doc(db,'club_names',await clubNameDocId(club.name,clubYear)));
+        if (!indexSnap.exists() || indexSnap.data().clubCode !== club.code || String(indexSnap.data().year || '2026') !== clubYear) {
+          report.nameIndexIssues.push({code:club.code,name:club.name,year:clubYear});
+        }
+      }
+    }
+    if (report.codeIssues.length) addLog(`⚠️ 접근코드 이상 ${report.codeIssues.length}개 발견`, '#dc2626');
+    else addLog('✅ 접근코드 형식·해시 정상', '#059669');
+    if (report.legacyCodeWarnings.length) addLog(`ℹ️ 정상 사용 가능한 구형 코드 ${report.legacyCodeWarnings.length}개 — 신규 등록부터 3+3 표준 적용`, '#2563eb');
+    if (report.nameIndexIssues.length) addLog(`⚠️ 동아리명-코드 색인 불일치 ${report.nameIndexIssues.length}개 발견`, '#d97706');
+    else addLog('✅ 연도별 동아리명-코드 색인 정상', '#059669');
+
     // ① clubs 필수 필드 누락 검사
-    addLog('📋 2/6 — 동아리 필수 필드 점검 중...');
+    addLog('📋 3/7 — 동아리 필수 필드 점검 중...');
     clubs.forEach(c => {
       const missing = [];
       if (!c.name) missing.push('동아리명');
@@ -3843,7 +4015,7 @@ window.runIntegrityCheck = async function() {
     }
 
     // ② members 고아 데이터 + 중복 검사 (collectionGroup 사용)
-    addLog('📋 3/6 — 팀원 데이터 정합성 점검 중...');
+    addLog('📋 4/7 — 팀원 데이터 정합성 점검 중...');
     let listSnap;
     try {
       listSnap = await getDocs(collectionGroup(db, 'list'));
@@ -3887,7 +4059,7 @@ window.runIntegrityCheck = async function() {
     else addLog('✅ 팀원 중복 없음', '#059669');
 
     // ③ reports 고아 데이터 검사
-    addLog('📋 4/6 — 보고서 데이터 정합성 점검 중...');
+    addLog('📋 5/7 — 보고서 데이터 정합성 점검 중...');
     try {
       let reportParents = new Set();
       try {
@@ -3915,7 +4087,7 @@ window.runIntegrityCheck = async function() {
     }
 
     // ④ 장기 미처리 상담 검사 (7일 이상 pending)
-    addLog('📋 5/6 — 상담 신청 처리 현황 점검 중...');
+    addLog('📋 6/7 — 상담 신청 처리 현황 점검 중...');
     try {
       const consultSnap = await getDocs(collection(db,'consultations'));
       const now = Date.now();
@@ -3935,7 +4107,7 @@ window.runIntegrityCheck = async function() {
     }
 
     // ⑤ 설문 응답 형식 점검
-    addLog('📋 6/6 — 설문 응답 형식 점검 중...');
+    addLog('📋 7/7 — 설문 응답 형식 점검 중...');
     try {
       const survSnap = await getDocs(collection(db,'surveys'));
       let malformed = 0;
@@ -3958,7 +4130,8 @@ window.runIntegrityCheck = async function() {
     // ── 요약 카드 렌더링 ──
     const totalIssues = report.orphanMembers.length + report.duplicateMembers.length +
       report.missingFields.length + report.orphanReports.length +
-      report.staleConsults.length + report.malformedSurveyAnswers;
+      report.staleConsults.length + report.malformedSurveyAnswers +
+      report.codeIssues.length + report.nameIndexIssues.length;
 
     const summaryCard = (label, count, color) => `
       <div style="background:${count>0?color+'15':'#f0fdf4'};border:1.5px solid ${count>0?color+'44':'#05966944'};border-radius:10px;padding:0.7rem 1rem;min-width:140px">
@@ -3967,6 +4140,9 @@ window.runIntegrityCheck = async function() {
       </div>`;
 
     summaryEl.innerHTML = `
+      ${summaryCard('접근코드 이상', report.codeIssues.length, '#dc2626')}
+      ${summaryCard('사용 가능한 구형 코드', report.legacyCodeWarnings.length, '#2563eb')}
+      ${summaryCard('코드 색인 불일치', report.nameIndexIssues.length, '#d97706')}
       ${summaryCard('미연결 팀원', report.orphanMembers.length, '#dc2626')}
       ${summaryCard('중복 팀원', report.duplicateMembers.reduce((s,d)=>s+d.count,0), '#dc2626')}
       ${summaryCard('필드 누락', report.missingFields.length, '#d97706')}
@@ -3984,6 +4160,9 @@ window.runIntegrityCheck = async function() {
 
     // ── 조치 버튼 렌더링 ──
     const actions = [];
+    if (report.codeIssues.length || report.nameIndexIssues.length) {
+      actions.push(`<button class="btn-sm btn-sm-blue" onclick="repairCodeIntegrity()">🔐 코드 해시·색인 자동 복구</button>`);
+    }
     if (report.duplicateMembers.length) {
       actions.push(`<button class="btn-sm btn-sm-red" onclick="fixDuplicateMembers()">🧹 중복 팀원 ${report.duplicateMembers.reduce((s,d)=>s+d.count,0)}건 일괄 제거</button>`);
     }
@@ -4006,6 +4185,34 @@ window.runIntegrityCheck = async function() {
     showToast('진단 실패: ' + e.message);
   }
   btn.disabled = false; btn.textContent = '🔍 전체 진단 실행';
+};
+
+// ── 조치 ①: 접근코드 해시·연도별 이름 색인 복구 ──
+window.repairCodeIntegrity = async function() {
+  if (!_lastIntegrityReport) return;
+  const codeIssues = _lastIntegrityReport.codeIssues || [];
+  const indexIssues = _lastIntegrityReport.nameIndexIssues || [];
+  if (!confirm(`접근코드의 code 필드·해시 ${codeIssues.length}건과 연도별 이름 색인 ${indexIssues.length}건을 복구할까요?\n구형 코드 자체는 연결 데이터 보호를 위해 자동 변경하지 않습니다.`)) return;
+  try {
+    for (const item of codeIssues) {
+      if (!/^[A-Z0-9]{4,12}$/.test(item.code)) continue;
+      await setDoc(doc(db,'clubs',item.code), {
+        code:item.code,
+        codeHash:await hashCode(item.code)
+      }, {merge:true});
+    }
+    for (const item of indexIssues) {
+      await setDoc(doc(db,'club_names',await clubNameDocId(item.name,item.year)), {
+        clubCode:item.code,
+        year:String(item.year),
+        createdAt:serverTimestamp()
+      });
+    }
+    showToast('✅ 접근코드 해시·색인 복구 완료');
+    await runIntegrityCheck();
+  } catch (error) {
+    alert('접근코드 복구 실패: ' + error.message);
+  }
 };
 
 // ── 조치 ①: 중복 팀원 일괄 제거 ──
@@ -4284,6 +4491,7 @@ async function loadMembersTab() {
       try {
         const snap = await getDocs(collection(db,'members',c.code,'list'));
         c.membersList = snap.docs.map(d=>({id:d.id,...d.data()}));
+        c.memberCount = c.membersList.length;
       } catch(e) { c.membersList = []; }
     }));
     renderMembersTable(); // 팀원 포함해서 다시 렌더링
