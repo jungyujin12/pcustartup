@@ -470,8 +470,8 @@ function logout() { if(window._logout) window._logout(); }
     <button class="tab-btn" onclick="switchTab('consult')">💬 상담 신청 <span id="consultBadge" style="display:none;background:#dc2626;color:white;border-radius:10px;padding:1px 6px;font-size:0.65rem;margin-left:4px">0</span></button>
     <button class="tab-btn" onclick="switchTab('ailog')">🤖 AI 분석 기록</button>
     <button class="tab-btn" onclick="switchTab('rise')">📊 RISE 실적</button>
-    <button class="tab-btn" onclick="switchTab('contest')">🏆 공모전 관리</button>
     <button class="tab-btn" onclick="switchTab('survey')">📝 설문 관리</button>
+    <button class="tab-btn" onclick="switchTab('contest')" title="현재 사용할 수 없는 기능입니다">🏆 공모전 관리 (작동 안 함)</button>
     <div class="tab-actions" style="margin-left:auto;display:flex;align-items:center;gap:0.8rem;padding:0 1rem">
       <select id="yearFilter" onchange="changeYear(this.value)" style="border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:4px 10px;font-size:0.78rem;font-family:var(--font-family-base);color:var(--pcu-blue);font-weight:700;outline:none"></select>
       <button class="btn-sm btn-sm-red" onclick="closeSelectedYear()" title="선택 연도의 활성 동아리를 모두 종료">연도 마감</button>
@@ -753,29 +753,19 @@ function logout() { if(window._logout) window._logout(); }
   <div class="tab-panel" id="tab-members">
     <div class="club-manage-wrap">
       <h2 style="margin-bottom:var(--spacing-lg)">👥 인원 관리</h2>
-      <!-- 컬럼 선택 + 필터 + 엑셀 -->
-      <div style="background:white;border:1.5px solid var(--pcu-lightblue);border-radius:12px;padding:1rem 1.2rem;margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:0.8rem;align-items:center">
-        <div style="font-size:0.78rem;font-weight:700;color:var(--pcu-dark)">표시 컬럼:</div>
-        <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" class="col-toggle" value="name" checked> 동아리명</label>
-        <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" class="col-toggle" value="code" checked> 코드</label>
-        <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" class="col-toggle" value="repName" checked> 대표자</label>
-        <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" class="col-toggle" value="repDept"> 학과</label>
-        <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" class="col-toggle" value="repTel"> 연락처</label>
-        <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" class="col-toggle" value="repEmail" checked> 이메일</label>
-        <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" class="col-toggle" value="memberCount" checked> 인원</label>
-        <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" class="col-toggle" value="field" checked> 분야</label>
-        <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" class="col-toggle" value="bizReg"> 사업자</label>
-        <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" class="col-toggle" value="profName"> 지도교수</label>
-        <label style="font-size:0.76rem;display:flex;align-items:center;gap:4px"><input type="checkbox" id="showMembersToggle" checked onchange="renderMembersTable()"> 팀원 전체 표시</label>
-        <div style="margin-left:auto;display:flex;gap:6px">
-          <button class="btn-sm btn-sm-mint" onclick="renderMembersTable()">🔄 적용</button>
-        <button class="btn-sm btn-sm-blue" onclick="openColEditor()">⚙️ 컬럼 편집</button>
-          <button class="btn-sm btn-sm-blue" onclick="exportMembersExcel()">📥 엑셀 다운</button>
+      <div id="memberStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:0.7rem;margin-bottom:1rem"></div>
+      <div style="background:white;border:1.5px solid var(--pcu-lightblue);border-radius:12px;padding:1rem 1.2rem;margin-bottom:1rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.8rem;flex-wrap:wrap">
+          <div>
+            <strong style="font-size:0.9rem">전체 구성원 명단</strong>
+            <div style="font-size:0.73rem;color:var(--pcu-gray);margin-top:3px">동아리 요약이 아닌 실제 저장된 구성원 1명당 1행으로 표시됩니다.</div>
+          </div>
+          <button class="btn-sm btn-sm-blue" onclick="exportMembersExcel()">📥 전체 명단 엑셀(.xlsx)</button>
         </div>
       </div>
       <!-- 필터 바 -->
       <div style="display:flex;gap:8px;margin-bottom:0.8rem;flex-wrap:wrap">
-        <input type="text" id="memberSearch" placeholder="🔍 이름/코드 검색" oninput="renderMembersTable()"
+        <input type="text" id="memberSearch" placeholder="🔍 동아리·이름·학번·학과 검색" oninput="renderMembersTable()"
           style="border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:7px 12px;font-size:0.82rem;font-family:var(--font-family-base);outline:none;flex:1;min-width:150px">
         <select id="memberFieldFilter" onchange="renderMembersTable()"
           style="border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:7px 12px;font-size:0.82rem;font-family:var(--font-family-base);outline:none">
@@ -790,11 +780,19 @@ function logout() { if(window._logout) window._logout(); }
           <option value="active">활동중</option>
           <option value="completed">종료</option>
         </select>
+        <select id="memberRoleFilter" onchange="renderMembersTable()"
+          style="border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:7px 12px;font-size:0.82rem;font-family:var(--font-family-base);outline:none">
+          <option value="">전체 구성원</option>
+          <option value="leader">동아리장</option>
+          <option value="member">팀원</option>
+          <option value="missing">명단 미등록</option>
+        </select>
       </div>
       <div id="membersTableWrap" style="overflow-x:auto">
         <div class="empty-state"><p>⏳ 로딩 중...</p></div>
       </div>
 
+      <h3 style="margin:1.5rem 0 0.7rem">선택 동아리 상세 편집</h3>
       <!-- 동아리 선택 -->
       <div class="add-club-card" style="margin-bottom:var(--spacing-lg)">
         <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
@@ -804,7 +802,7 @@ function logout() { if(window._logout) window._logout(); }
               <option value="">-- 동아리를 선택하세요 --</option>
             </select>
           </div>
-          <button class="btn-sm btn-sm-mint" onclick="exportMembersCSV()" style="align-self:flex-end">📥 전체 명단 엑셀</button>
+          <button class="btn-sm btn-sm-mint" onclick="exportMembersExcel()" style="align-self:flex-end">📥 전체 명단 엑셀</button>
         </div>
       </div>
 
@@ -1053,6 +1051,9 @@ function logout() { if(window._logout) window._logout(); }
   <div class="tab-panel" id="tab-contest">
     <div class="club-manage-wrap">
       <h2 style="margin-bottom:var(--spacing-lg)">🏆 공모전 DB 관리</h2>
+      <div style="background:#fff7ed;border:1.5px solid #fdba74;color:#9a3412;border-radius:10px;padding:0.8rem 1rem;margin-bottom:1rem;font-size:0.8rem;font-weight:700">
+        ⚠️ 현재 운영하지 않는 기능입니다. 데이터 입력 및 AI 매칭 결과는 보장되지 않습니다.
+      </div>
       <div style="background:white;border:1.5px solid var(--pcu-lightblue);border-radius:12px;padding:1.2rem 1.5rem;margin-bottom:1rem">
         <div style="font-size:0.88rem;font-weight:800;color:var(--pcu-dark);margin-bottom:0.8rem">+ 공모전 등록</div>
         <div class="contest-form-grid">
@@ -1229,7 +1230,7 @@ window._logout = window.logout = async function() {
 
 // ══ 탭 ══
 window.switchTab = function(tab) {
-  const tabs = ['dashboard','clubs','members','files','consult','ailog','rise','contest','survey'];
+  const tabs = ['dashboard','clubs','members','files','consult','ailog','rise','survey','contest'];
   document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', tabs[i]===tab));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
@@ -2825,12 +2826,15 @@ function doExportExcel() {
 }
 
 // ══ 연도 변경 ══
-window.changeYear = function(year) {
+window.changeYear = async function(year) {
   const deadlineYear = document.getElementById('deadlineYear');
   if (deadlineYear && [...deadlineYear.options].some(option => option.value === year)) deadlineYear.value = year;
-  loadClubs().then(() => loadDashboard());
-  loadConsultations();
-  loadDeadlineSetting();
+  await loadClubs();
+  await loadDashboard();
+  await loadConsultations();
+  await loadDeadlineSetting();
+  if (document.getElementById('tab-ailog')?.classList.contains('active')) populateAILogClubs();
+  if (document.getElementById('tab-rise')?.classList.contains('active')) loadRiseStats();
   if (document.getElementById('tab-survey')?.classList.contains('active')) loadSurveys();
   if (document.getElementById('tab-contest')?.classList.contains('active')) loadContests();
 };
@@ -2877,8 +2881,11 @@ window.loadConsultations = async function() {
   try {
     const year = document.getElementById('yearFilter').value;
     const snap = await getDocs(query(collection(db,'consultations'), orderBy('createdAt','desc')));
-    consultList = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    consultList = snap.docs.map(d => ({ status:'대기', id: d.id, ...d.data() }))
       .filter(d => d.year ? String(d.year) === year : year === '2026');
+    const now = new Date();
+    calYear = Number(year);
+    calMonth = calYear === now.getFullYear() ? now.getMonth() : 0;
     renderConsultTable(consultList);
     renderConsultCalendar(0);
 
@@ -3147,30 +3154,37 @@ window.loadSurveys = async function() {
   const list = document.getElementById('surveyList');
   if (!list) return;
   try {
-    const { query: q2, orderBy: ob, where } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
     const snap = await getDocs(collection(db,'surveys'));
     const selectedYear = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
     const docs = snap.docs
       .filter(d => d.data().year ? String(d.data().year) === selectedYear : selectedYear === '2026')
       .sort((a,b)=>(b.data().createdAt?.seconds||0)-(a.data().createdAt?.seconds||0));
     if (!docs.length) { list.innerHTML = `<div class="empty-state"><p>${selectedYear}년도 설문이 없습니다. 새 설문을 만들어보세요.</p></div>`; return; }
-    list.innerHTML = docs.map(d => {
-      const s = d.data();
-      const link = location.origin + '/survey.html?id=' + d.id;
+    const surveys = await Promise.all(docs.map(async surveyDoc => {
+      try {
+        const responses = await getDocs(collection(db,'surveys',surveyDoc.id,'responses'));
+        return {id:surveyDoc.id,data:surveyDoc.data(),responseCount:responses.size};
+      } catch(e) {
+        return {id:surveyDoc.id,data:surveyDoc.data(),responseCount:surveyDoc.data().responseCount||0};
+      }
+    }));
+    list.innerHTML = surveys.map(item => {
+      const s = item.data;
+      const link = location.origin + '/survey.html?id=' + item.id;
       return `<div style="background:white;border:1.5px solid var(--pcu-lightblue);border-radius:10px;padding:1rem 1.2rem;margin-bottom:0.8rem">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem">
           <div>
             <div style="font-weight:800;font-size:0.9rem">${s.title||'제목 없음'}</div>
             <div style="font-size:0.75rem;color:var(--pcu-gray);margin-top:2px">
-              ${s.year || '2026'}년 · 질문 ${(s.questions||[]).length}개 · 응답 ${s.responseCount||0}건
+              ${s.year || '2026'}년 · 질문 ${(s.questions||[]).length}개 · 응답 ${item.responseCount}건
               ${s.deadline?` · 마감 ${s.deadline}`:''}
             </div>
           </div>
           <div style="display:flex;gap:6px;align-items:center">
             <button class="btn-sm btn-sm-blue" onclick="navigator.clipboard.writeText('${link}').then(()=>showToast('링크 복사됨'))">링크 복사</button>
-            <button class="btn-sm btn-sm-mint" onclick="viewSurveyResults('${d.id}','${s.title}')">결과 보기</button>
+            <button class="btn-sm btn-sm-mint" onclick="viewSurveyResults('${item.id}')">결과 보기</button>
             <a href="${link}" target="_blank" class="btn-sm btn-sm-blue">미리보기</a>
-            <button class="btn-sm btn-sm-red" onclick="deleteSurvey('${d.id}')">삭제</button>
+            <button class="btn-sm btn-sm-red" onclick="deleteSurvey('${item.id}')">삭제</button>
           </div>
         </div>
       </div>`;
@@ -3178,12 +3192,13 @@ window.loadSurveys = async function() {
   } catch(e) { list.innerHTML = '<div class="empty-state"><p>로딩 실패</p></div>'; }
 };
 
-window.viewSurveyResults = async function(surveyId, surveyTitle) {
+window.viewSurveyResults = async function(surveyId) {
   try {
     const snap = await getDocs(collection(db,'surveys',surveyId,'responses'));
     const surveySnap = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js")
       .then(({getDoc,doc:d2})=>getDoc(d2(db,'surveys',surveyId)));
     const surveyData = surveySnap.data();
+    const surveyTitle = surveyData.title || '제목 없음';
     const questions = surveyData.questions || [];
     const responses = snap.docs.map(d=>d.data());
 
@@ -3428,91 +3443,72 @@ function getSelectedCols() {
 }
 
 window.renderMembersTable = function() {
-  const cols = getSelectedCols();
-  const search = (document.getElementById('memberSearch')?.value||'').toLowerCase();
+  const search = (document.getElementById('memberSearch')?.value||'').trim().toLowerCase();
   const fieldF = document.getElementById('memberFieldFilter')?.value||'';
   const statusF = document.getElementById('memberStatusFilter')?.value||'';
+  const roleF = document.getElementById('memberRoleFilter')?.value||'';
 
   let data = [...clubList];
-  if (search) data = data.filter(c =>
-    (c.name||'').toLowerCase().includes(search)
-    || c.code.toLowerCase().includes(search)
-    || (c.membersList||[]).some(member =>
-      [member.name, member.dept, member.stuId, member.sno, member.tel, member.email]
-        .some(value => String(value || '').toLowerCase().includes(search))
-    )
-  );
   if (fieldF) data = data.filter(c => c.field === fieldF);
   if (statusF) data = data.filter(c => (c.status||'active') === statusF);
-
-  // 소팅
-  data.sort((a,b) => {
-    const av = String(a[membersSortKey]||a.data?.[membersSortKey]||'');
-    const bv = String(b[membersSortKey]||b.data?.[membersSortKey]||'');
-    return membersSortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
-  });
-
-  const getVal = (c, col) => {
-    const d = c.data || {};
-    const map = {
-      name: c.name||c.club||'—', code: c.code||'—',
-      repName: d.repName||c.repName||'—',
-      repDept: d.repDept||c.repDept||'—', repTel: d.repTel||c.repTel||'—',
-      repEmail: d.repEmail||c.repEmail||'—', memberCount: c.memberCount||'—',
-      field: c.field||'—', bizReg: c.bizReg||'—',
-      profName: d.profName||'—'
-    };
-    return map[col]||'—';
-  };
+  if (roleF === 'missing') data = data.filter(c => !(c.membersList||[]).length);
+  data.sort((a,b) => String(a.name||'').localeCompare(String(b.name||''),'ko'));
 
   const wrap = document.getElementById('membersTableWrap');
-  if (!data.length) { wrap.innerHTML = '<div class="empty-state"><p>해당하는 동아리가 없습니다.</p></div>'; return; }
+  if (!data.length) { wrap.innerHTML = '<div class="empty-state"><p>해당하는 동아리 또는 구성원이 없습니다.</p></div>'; return; }
 
-      const showMembers = document.getElementById('showMembersToggle')?.checked;
-    let totalMemberCount = 0;
-    const baseRows = data.map((c,i) => {
-      let r = `<tr style="border-bottom:1px solid var(--pcu-lightblue);background:${i%2?'#fafbff':'white'}">
-        ${cols.map(col=>`<td style="padding:7px 12px;white-space:nowrap">${getVal(c,col)}</td>`).join('')}
-      </tr>`;
-      if (showMembers && c.membersList?.length) {
-        c.membersList
-          .slice()
-          .sort((a,b) => Number(Boolean(b.isLeader||b.isRep)) - Number(Boolean(a.isLeader||a.isRep)) || String(a.name||'').localeCompare(String(b.name||''),'ko'))
-          .forEach(m => {
-          totalMemberCount++;
-          const mval = col => ({
-            'name':m.name,
-            'repName':m.name,
-            'repDept':m.dept,
-            'repTel':m.tel,
-            'repEmail':m.email,
-            'memberCount':m.grade ? `${m.grade}학년` : '',
-            'field':m.role || ((m.isLeader||m.isRep)?'동아리장':'팀원'),
-            'code':'',
-            'bizReg':'',
-            'profName':''
-          }[col]||'');
-          r += `<tr style="background:#f0f6ff;font-size:0.76rem">
-            ${cols.map((col,ci)=>`<td style="padding:4px 12px;color:${ci===0?'var(--pcu-dark)':'#555'};white-space:nowrap">${ci===0?`↳ ${m.name||'이름 없음'}`:mval(col)}</td>`).join('')}
-          </tr>`;
-        });
-      } else if (showMembers) {
-        r += `<tr style="background:#fff7ed;font-size:0.74rem">
-          <td colspan="${Math.max(cols.length,1)}" style="padding:5px 12px 5px 28px;color:#9a3412">등록된 팀원 명단이 없습니다.</td>
-        </tr>`;
-      }
-      return r;
-    }).join('');
-    wrap.innerHTML = `
-    <table style="width:100%;border-collapse:collapse;font-size:0.8rem">
+  let visibleMembers = 0;
+  const rows = [];
+  data.forEach(club => {
+    let members = (club.membersList||[]).slice().sort((a,b) =>
+      Number(Boolean(b.isLeader||b.isRep)) - Number(Boolean(a.isLeader||a.isRep))
+      || String(a.name||'').localeCompare(String(b.name||''),'ko')
+    );
+    if (roleF === 'leader') members = members.filter(m => m.isLeader||m.isRep);
+    if (roleF === 'member') members = members.filter(m => !(m.isLeader||m.isRep));
+    if (search) members = members.filter(m =>
+      [club.name,club.code,m.name,m.dept,m.grade,m.stuId,m.sno,m.tel,m.email,m.role]
+        .some(value => String(value||'').toLowerCase().includes(search))
+    );
+    if (!members.length) {
+      const clubMatches = !search || [club.name,club.code].some(value => String(value||'').toLowerCase().includes(search));
+      if (roleF === 'missing' && clubMatches) rows.push(`
+        <tr style="background:#fff7ed">
+          <td>${escapeFileHTML(club.name||'—')}</td><td><code>${escapeFileHTML(club.code)}</code></td>
+          <td colspan="8" style="color:#9a3412">명단 미등록</td>
+          <td><button class="btn-sm btn-sm-blue" onclick="selectMemberClub('${club.code}')">등록</button></td>
+        </tr>`);
+      return;
+    }
+    members.forEach(member => {
+      visibleMembers++;
+      const leader = Boolean(member.isLeader||member.isRep);
+      rows.push(`<tr style="border-bottom:1px solid var(--pcu-lightblue)">
+        <td><strong>${escapeFileHTML(club.name||'—')}</strong></td>
+        <td><code style="color:var(--pcu-blue);font-weight:700">${escapeFileHTML(club.code)}</code></td>
+        <td><span class="tb ${leader?'tb-mint':'tb-blue'}">${leader?'동아리장':'팀원'}</span></td>
+        <td><strong>${escapeFileHTML(member.name||'—')}</strong></td>
+        <td>${escapeFileHTML(member.dept||'—')}</td>
+        <td>${escapeFileHTML(member.grade||'—')}</td>
+        <td>${escapeFileHTML(member.stuId||member.sno||'—')}</td>
+        <td>${escapeFileHTML(member.tel||'—')}</td>
+        <td>${escapeFileHTML(member.email||'—')}</td>
+        <td>${escapeFileHTML(member.role||'—')}</td>
+        <td><button class="btn-sm btn-sm-blue" onclick="selectMemberClub('${club.code}')">상세</button></td>
+      </tr>`);
+    });
+  });
+
+  wrap.innerHTML = rows.length ? `
+    <table style="width:100%;border-collapse:collapse;font-size:0.78rem;min-width:1120px">
       <thead><tr style="background:var(--pcu-lightblue)">
-        ${cols.map(col=>`<th style="padding:8px 12px;text-align:left;font-weight:700;cursor:pointer;white-space:nowrap" onclick="sortMembers('${col}')">
-          ${COL_LABELS[col]||col} ${membersSortKey===col?(membersSortAsc?'↑':'↓'):''}
-        </th>`).join('')}
+        <th>동아리</th><th>코드</th><th>구분</th><th>이름</th><th>학과</th>
+        <th>학년</th><th>학번</th><th>연락처</th><th>이메일</th><th>역할</th><th>관리</th>
       </tr></thead>
-      <tbody>${baseRows}</tbody>
+      <tbody>${rows.join('')}</tbody>
     </table>
-    <div style="font-size:0.75rem;color:var(--pcu-gray);margin-top:6px">총 ${data.length}팀${showMembers&&totalMemberCount?' / '+totalMemberCount+'명':''}</div>`;
+    <div style="font-size:0.75rem;color:var(--pcu-gray);margin-top:7px">검색 결과 ${visibleMembers}명</div>`
+    : '<div class="empty-state"><p>검색 조건에 맞는 구성원이 없습니다.</p></div>';
 };
 
 
@@ -3523,42 +3519,42 @@ window.sortMembers = function(key) {
 };
 
 window.exportMembersExcel = function() {
-  const cols = getSelectedCols();
-  const search = (document.getElementById('memberSearch')?.value||'').toLowerCase();
-  const fieldF = document.getElementById('memberFieldFilter')?.value||'';
-  let data = [...clubList];
-  if (search) data = data.filter(c=>(c.name||'').toLowerCase().includes(search)||c.code.toLowerCase().includes(search));
-  if (fieldF) data = data.filter(c=>c.field===fieldF);
-
-  const getVal = (c,col) => {
-    const d = c.data||{};
-    const map = {name:c.name||c.club||'',code:c.code||'',repName:d.repName||c.repName||'',repDept:d.repDept||c.repDept||'',repTel:d.repTel||c.repTel||'',repEmail:d.repEmail||c.repEmail||'',memberCount:c.memberCount||'',field:c.field||'',bizReg:c.bizReg||'',profName:d.profName||c.profName||''};
-    return map[col]||'';
-  };
-
-  const rows = [cols.map(c=>COL_LABELS[c]||c)];
-  data.forEach(c => rows.push(cols.map(col=>getVal(c,col))));
-
-  // 팀원 전체 펼치기 체크시 팀원도 포함
-  const showMembersExp = document.getElementById('showMembersToggle')?.checked;
-  if (showMembersExp) {
-    data.forEach(c => {
-      (c.membersList||[]).forEach(m => {
-        rows.push(cols.map(col => {
-          const mv = {name:m.name,repName:m.name,repDept:m.dept,repTel:m.tel,memberCount:m.grade,field:m.isLeader?'팀장':'팀원'}[col]||'';
-          return mv;
-        }));
+  const year = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
+  const roster = [];
+  const summary = [];
+  clubList.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'ko')).forEach(club => {
+    const members = club.membersList || [];
+    summary.push({
+      연도:year, 동아리명:club.name||'', 접근코드:club.code, 분야:club.field||'',
+      상태:(club.status||'active')==='active'?'활동중':'종료',
+      대표자:club.repName||'', 구성원수:members.length,
+      명단상태:members.length?'등록':'미등록'
+    });
+    members.slice().sort((a,b)=>
+      Number(Boolean(b.isLeader||b.isRep))-Number(Boolean(a.isLeader||a.isRep))
+      || String(a.name||'').localeCompare(String(b.name||''),'ko')
+    ).forEach(member => {
+      roster.push({
+        연도:year, 동아리명:club.name||'', 접근코드:club.code, 분야:club.field||'',
+        구분:(member.isLeader||member.isRep)?'동아리장':'팀원',
+        이름:member.name||'', 학과:member.dept||'', 학년:member.grade||'',
+        학번:member.stuId||member.sno||'', 연락처:member.tel||'',
+        이메일:member.email||'', 역할:member.role||'', 비고:member.note||''
       });
     });
-  }
-  const csv = rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
-  const bom = '﻿';
-  const blob = new Blob([bom+csv], {type:'text/csv;charset=utf-8'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `동아리명부_${new Date().toLocaleDateString('ko-KR').replace(/\./g,'').replace(/ /g,'')}.csv`;
-  a.click();
-  showToast('✅ 엑셀 다운로드 완료');
+  });
+  if (!roster.length) { showToast('내려받을 구성원 명단이 없습니다.'); return; }
+  const wb = XLSX.utils.book_new();
+  const rosterSheet = XLSX.utils.json_to_sheet(roster);
+  rosterSheet['!cols'] = [7,18,12,10,10,12,18,7,13,16,26,14,20].map(wch=>({wch}));
+  rosterSheet['!autofilter'] = {ref:rosterSheet['!ref']};
+  XLSX.utils.book_append_sheet(wb,rosterSheet,'전체 구성원 명단');
+  const summarySheet = XLSX.utils.json_to_sheet(summary);
+  summarySheet['!cols'] = [7,18,12,10,10,12,10,12].map(wch=>({wch}));
+  summarySheet['!autofilter'] = {ref:summarySheet['!ref']};
+  XLSX.utils.book_append_sheet(wb,summarySheet,'동아리 요약');
+  XLSX.writeFile(wb,`PCU_창업동아리_${year}_전체인원_${new Date().toISOString().slice(0,10)}.xlsx`);
+  showToast(`✅ ${roster.length}명 엑셀 다운로드 완료`);
 };
 
 
@@ -3613,6 +3609,12 @@ window.addProgramHistory = async function(code) {
 };
 
 // ══ RISE 실적 집계 ══
+async function countStorageFilesRecursively(folderRef) {
+  const result = await listAll(folderRef);
+  const childCounts = await Promise.all(result.prefixes.map(prefix => countStorageFilesRecursively(prefix)));
+  return result.items.length + childCounts.reduce((sum,count)=>sum+count,0);
+}
+
 window.loadRiseStats = async function() {
   const period = document.getElementById('risePeriod').value;
   const year = parseInt(document.getElementById('yearFilter').value);
@@ -3639,7 +3641,15 @@ window.loadRiseStats = async function() {
     const activeClubs = clubsSnap.docs.filter(d =>
       d.data().year ? String(d.data().year) === String(year) : String(year) === '2026'
     );
-    const totalMembers = activeClubs.reduce((a,d)=>a+(parseInt(d.data().memberCount)||0),0);
+    const memberCounts = await Promise.all(activeClubs.map(async clubDoc => {
+      try {
+        const members = await getDocs(collection(db,'members',clubDoc.id,'list'));
+        return members.size;
+      } catch(e) {
+        return parseInt(clubDoc.data().memberCount)||0;
+      }
+    }));
+    const totalMembers = memberCounts.reduce((sum,count)=>sum+count,0);
     document.getElementById('rise-teams').textContent = activeClubs.length;
     document.getElementById('rise-members').textContent = totalMembers;
 
@@ -3663,8 +3673,7 @@ window.loadRiseStats = async function() {
     let fileCount = 0;
     for (const cd of activeClubs) {
       try {
-        const fl = await listAll(ref(storage,`reports/${year}/${cd.id}/`));
-        fileCount += fl.items.length;
+        fileCount += await countStorageFilesRecursively(ref(storage,`reports/${year}/${cd.id}/`));
       } catch(e) {}
     }
     document.getElementById('rise-files').textContent = fileCount;
@@ -3770,32 +3779,38 @@ async function loadAILogAll() {
   container.innerHTML = '<div class="empty-state"><p>⏳ 로딩 중...</p></div>';
   try {
     const allRecords = [];
+    let loadFailures = 0;
     for (const c of clubList) {
       try {
         const fs = await getDocs(collection(db,'ai_history',c.code,'files'));
         for (const fd of fs.docs) {
           const rs = await getDocs(query(collection(db,'ai_history',c.code,'files',fd.id,'records'),orderBy('createdAt','desc')));
           rs.docs.slice(0,2).forEach(r => {
-            allRecords.push({ clubName:c.name, clubCode:c.code, fileName:fd.id.replace(/_/g,'.'), ...r.data() });
+            allRecords.push({
+              clubName:c.name,
+              clubCode:c.code,
+              fileName:fd.data().fileName || fd.id.replace(/_/g,'.'),
+              ...r.data()
+            });
           });
         }
-      } catch(e) {}
+      } catch(e) { loadFailures++; }
     }
     allRecords.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     if (!allRecords.length) { container.innerHTML = '<div class="empty-state"><p>AI 분석 기록이 없습니다.</p></div>'; return; }
     container.innerHTML = allRecords.slice(0,20).map(r => `
       <div style="background:white;border:1.5px solid var(--pcu-lightblue);border-radius:10px;padding:1rem;margin-bottom:0.8rem">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
-          <span style="font-weight:800;font-size:0.88rem">${r.clubName}</span>
+          <span style="font-weight:800;font-size:0.88rem">${escapeFileHTML(r.clubName)}</span>
           <span style="font-size:0.72rem;color:var(--pcu-gray)">${r.createdAt?.toDate?.().toLocaleString('ko-KR')||''}</span>
         </div>
-        <div style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.5rem">📄 ${r.fileName}</div>
+        <div style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.5rem">📄 ${escapeFileHTML(r.fileName)}</div>
         ${Object.entries(r.results||{}).map(([mode,text])=>`
           <details style="margin-top:4px">
             <summary style="font-size:0.75rem;font-weight:700;color:var(--pcu-blue);cursor:pointer">${{'양식':'📋 양식','내용':'💬 내용','보완':'🎯 보완'}[mode]||mode}</summary>
             <div style="font-size:0.78rem;line-height:1.6;color:#333;margin-top:4px;padding:6px;background:#f8fafc;border-radius:6px">${(text||'').substring(0,300)}${text?.length>300?'...':''}</div>
           </details>`).join('')}
-      </div>`).join('');
+      </div>`).join('') + (loadFailures ? `<div style="font-size:0.74rem;color:#b45309;padding:0.5rem">일부 동아리 ${loadFailures}개의 기록을 불러오지 못했습니다.</div>` : '');
   } catch(e) { container.innerHTML = '<div class="empty-state"><p>로딩 실패</p></div>'; }
 }
 
@@ -3803,7 +3818,7 @@ window.loadAILog = async function() {
   const code = document.getElementById('ailogClub').value;
   const container = document.getElementById('ailogList');
   if (!code) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-icon">🤖</div><p>동아리를 선택하면 AI 분석 기록이 표시됩니다.</p></div>';
+    await loadAILogAll();
     return;
   }
   container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--pcu-gray)">⏳ 로딩 중...</div>';
@@ -3821,14 +3836,14 @@ window.loadAILog = async function() {
 
     let html = '';
     for (const fileDoc of filesSnap.docs) {
-      const fileName = fileDoc.id.replace(/_/g,'.');
+      const fileName = fileDoc.data().fileName || fileDoc.id.replace(/_/g,'.');
       const recordsRef = collection(db, 'ai_history', code, 'files', fileDoc.id, 'records');
       const recordsSnap = await getDocs(query(recordsRef, orderBy('createdAt','desc')));
 
       html += `<div style="background:white;border:1.5px solid var(--pcu-lightblue);border-radius:12px;margin-bottom:1rem;overflow:hidden">
         <div style="background:var(--pcu-lightblue);padding:10px 16px;display:flex;align-items:center;gap:8px">
           <span style="font-size:1.1rem">📄</span>
-          <span style="font-size:0.88rem;font-weight:800;color:var(--pcu-dark)">${fileName}</span>
+          <span style="font-size:0.88rem;font-weight:800;color:var(--pcu-dark)">${escapeFileHTML(fileName)}</span>
           <span style="margin-left:auto;font-size:0.72rem;color:var(--pcu-blue);font-weight:700">${recordsSnap.size}건</span>
         </div>`;
 
@@ -4494,6 +4509,18 @@ async function loadMembersTab() {
         c.memberCount = c.membersList.length;
       } catch(e) { c.membersList = []; }
     }));
+    const allMembers = clubList.flatMap(c => c.membersList||[]);
+    const leaderCount = allMembers.filter(member => member.isLeader||member.isRep).length;
+    const missingCount = clubList.filter(c => !(c.membersList||[]).length).length;
+    const stats = document.getElementById('memberStats');
+    if (stats) {
+      const stat = (label,value,color='var(--pcu-blue)') => `<div style="background:white;border:1.5px solid var(--pcu-lightblue);border-radius:11px;padding:0.8rem 1rem">
+        <div style="font-size:0.72rem;color:var(--pcu-gray)">${label}</div>
+        <div style="font-size:1.25rem;font-weight:800;color:${color};margin-top:2px">${value}</div>
+      </div>`;
+      stats.innerHTML = stat('동아리',`${clubList.length}팀`) + stat('전체 구성원',`${allMembers.length}명`,'#059669') +
+        stat('동아리장',`${leaderCount}명`) + stat('명단 미등록',`${missingCount}팀`,missingCount?'#dc2626':'#059669');
+    }
     renderMembersTable(); // 팀원 포함해서 다시 렌더링
   } catch(e) {}
   // 기존 셀렉트 박스도 유지
@@ -4508,12 +4535,20 @@ async function loadMembersTab() {
   }
 }
 
+window.selectMemberClub = async function(code) {
+  const select = document.getElementById('memberClubSelect');
+  if (!select) return;
+  select.value = code;
+  await window.loadMembersByClub();
+  select.closest('.add-club-card')?.scrollIntoView({behavior:'smooth',block:'start'});
+};
+
 window.loadMembersByClub = async function() {
   const code = document.getElementById('memberClubSelect').value;
   if (!code) {
     document.getElementById('repInfoCard').style.display = 'none';
     document.getElementById('memberTableBody2').innerHTML =
-      '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">👥</div><p>동아리를 선택하면 팀원 목록이 표시됩니다.</p></div></td></tr>';
+      '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">👥</div><p>동아리를 선택하면 팀원 목록이 표시됩니다.</p></div></td></tr>';
     return;
   }
   currentMemberClub = code;
@@ -4538,14 +4573,20 @@ window.loadMembersByClub = async function() {
   // 팀원 목록
   const snap = await getDocs(collection(db,'members',code,'list'));
   const members = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+  const cachedClub = clubList.find(club => club.code === code);
+  if (cachedClub) {
+    cachedClub.membersList = members;
+    cachedClub.memberCount = members.length;
+  }
   renderMemberTable(members, code);
+  renderMembersTable();
 };
 
 function renderMemberTable(members, code) {
   document.getElementById('memberCount2').textContent = members.length + '명';
   const tbody = document.getElementById('memberTableBody2');
   if (!members.length) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state empty-state-sm"><p>보고서 제출 시 자동 등록됩니다.<br>또는 아래에서 직접 추가하세요.</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state empty-state-sm"><p>등록된 구성원이 없습니다.<br>아래에서 직접 추가하거나 최신 명단을 일괄 업로드하세요.</p></div></td></tr>';
     return;
   }
   tbody.innerHTML = members.map((m,i) => `
