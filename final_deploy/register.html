@@ -240,11 +240,25 @@ async function hashCode(code) {
 }
 
 // ── 코드 생성 ──
+function codePrefixFromName(name) {
+  const choseong = ['G','K','N','D','T','R','M','B','P','S','S','O','J','J','C','K','T','P','H'];
+  const letters = [];
+  for (const char of String(name || '').toUpperCase()) {
+    if (/[A-Z]/.test(char)) letters.push(char);
+    else {
+      const code = char.charCodeAt(0);
+      if (code >= 0xAC00 && code <= 0xD7A3) letters.push(choseong[Math.floor((code - 0xAC00) / 588)]);
+    }
+    if (letters.length === 3) break;
+  }
+  return letters.join('').padEnd(3, 'X');
+}
+
 async function generateUniqueCode(name) {
-  const base = name.replace(/[^a-zA-Z0-9가-힣]/g,'').slice(0,4).toUpperCase().padEnd(4,'X');
-  for (let tries = 0; tries < 10; tries++) {
-    const random = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000;
-    const code = base + String(random).padStart(6,'0');
+  const base = codePrefixFromName(name);
+  for (let tries = 0; tries < 30; tries++) {
+    const random = 100 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900);
+    const code = base + String(random);
     if (!(await getDoc(doc(db, 'clubs', code))).exists()) return code;
   }
   throw new Error('접근코드를 생성하지 못했습니다. 다시 시도해주세요.');
@@ -285,15 +299,18 @@ window.submitReg = async function() {
     const codeHash = await hashCode(code);
     const normalizedName = name.normalize('NFKC').trim().toLowerCase();
     const nameHash = await hashCode(normalizedName);
+    const registrationYear = new Date().getFullYear().toString();
 
     await runTransaction(db, async transaction => {
-      const nameRef = doc(db, 'club_names', nameHash);
+      const nameRef = doc(db, 'club_names', `${registrationYear}_${nameHash}`);
+      const legacyNameRef = registrationYear === '2026' ? doc(db, 'club_names', nameHash) : null;
       const clubRef = doc(db, 'clubs', code);
-      const [nameSnap, clubSnap] = await Promise.all([
+      const [nameSnap, clubSnap, legacyNameSnap] = await Promise.all([
         transaction.get(nameRef),
-        transaction.get(clubRef)
+        transaction.get(clubRef),
+        legacyNameRef ? transaction.get(legacyNameRef) : Promise.resolve(null)
       ]);
-      if (nameSnap.exists()) throw new Error('duplicate-name');
+      if (nameSnap.exists() || legacyNameSnap?.exists()) throw new Error('duplicate-name');
       if (clubSnap.exists()) throw new Error('code-collision');
 
       transaction.set(clubRef, {
@@ -302,10 +319,11 @@ window.submitReg = async function() {
         codeHash,
         createdAt: serverTimestamp(),
         status: 'active',
-        year: new Date().getFullYear().toString()
+        year: registrationYear
       });
       transaction.set(nameRef, {
         clubCode: code,
+        year: registrationYear,
         createdAt: serverTimestamp()
       });
     });
