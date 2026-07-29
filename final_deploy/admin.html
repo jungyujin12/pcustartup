@@ -885,6 +885,14 @@ function logout() { if(window._logout) window._logout(); }
           <div class="file-toolbar">
             <strong id="selectedFileClubName" style="font-size:0.86rem;margin-right:auto">동아리를 선택하세요</strong>
             <input id="adminFileSearch" type="search" placeholder="파일명 검색" oninput="renderAdminFileList()">
+            <select id="adminDocumentCategory" onchange="renderAdminFileList()">
+              <option value="">전체 문서</option>
+              <option value="application">최초 신청</option>
+              <option value="monthly">월별 보고</option>
+              <option value="final">최종 결과</option>
+              <option value="expense">지출결의</option>
+              <option value="other">기타</option>
+            </select>
             <select id="adminFileYear" onchange="renderAdminFileList()">
               <option value="">전체 연도</option>
               <option value="2026">2026</option>
@@ -900,6 +908,7 @@ function logout() { if(window._logout) window._logout(); }
             </select>
             <span class="table-count" id="adminFileCount">0개</span>
           </div>
+          <div id="fileDocumentSummary" style="display:flex;gap:0.45rem;flex-wrap:wrap;padding:0.65rem 1rem;border-bottom:1px solid var(--pcu-lightgray);background:#fbfdff"></div>
 
           <div class="file-selection-bar" id="adminFileSelectionBar">
             <strong id="adminFileSelectedCount">0개 선택</strong>
@@ -909,10 +918,28 @@ function logout() { if(window._logout) window._logout(); }
           </div>
 
           <div style="padding:1rem">
+            <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.7rem">
+              <select id="adminUploadCategory" onchange="toggleAdminUploadMonth()"
+                style="flex:1;min-width:170px;border:1.5px solid var(--pcu-lightgray);border-radius:7px;padding:8px;font-family:inherit">
+                <option value="application">최초 신청 문서</option>
+                <option value="monthly">월별 보고 문서</option>
+                <option value="final">최종 결과보고서</option>
+                <option value="expense">지출결의서</option>
+                <option value="other">기타 문서</option>
+              </select>
+              <select id="adminUploadMonth" style="display:none;min-width:110px;border:1.5px solid var(--pcu-lightgray);border-radius:7px;padding:8px;font-family:inherit">
+                <option value="1">1월</option><option value="2">2월</option>
+                <option value="3">3월</option><option value="4">4월</option>
+                <option value="5">5월</option><option value="6">6월</option>
+                <option value="7">7월</option><option value="8">8월</option>
+                <option value="9">9월</option><option value="10">10월</option>
+                <option value="11">11월</option><option value="12">12월</option>
+              </select>
+            </div>
             <div class="file-drop-zone-admin" id="adminDropZone">
               <div style="font-size:1.5rem;margin-bottom:0.25rem">⬆️</div>
               <p style="font-weight:700;font-size:0.82rem">클릭하거나 파일을 끌어놓아 업로드</p>
-              <p style="font-size:0.7rem;color:var(--pcu-gray);margin-top:3px">PDF·이미지·HWP·DOCX·XLSX · 파일당 최대 10MB</p>
+              <p style="font-size:0.7rem;color:var(--pcu-gray);margin-top:3px">HWP 권장 · PDF·이미지·DOCX·XLSX 지원 · 파일당 최대 10MB</p>
               <input type="file" id="adminFileInput" multiple
                 accept=".pdf,.jpg,.jpeg,.png,.webp,.hwp,.doc,.docx,.xls,.xlsx"
                 style="display:none" onchange="handleAdminFiles(this.files)">
@@ -4524,6 +4551,25 @@ function getAdminFileType(name) {
   return 'other';
 }
 
+const DOCUMENT_CATEGORY_LABELS = {
+  application:'최초 신청', monthly:'월별 보고', final:'최종 결과',
+  expense:'지출결의', other:'기타'
+};
+
+function inferDocumentCategory(name) {
+  const normalized = String(name || '').replace(/\s/g,'').toLowerCase();
+  if (normalized.includes('지출결의') || normalized.includes('지출')) return 'expense';
+  if (normalized.includes('최종') || normalized.includes('결과보고')) return 'final';
+  if (normalized.includes('월별') || normalized.includes('월간') || /\d{1,2}월/.test(normalized)) return 'monthly';
+  if (normalized.includes('신청') || normalized.includes('사업계획')) return 'application';
+  return 'other';
+}
+
+window.toggleAdminUploadMonth = function() {
+  const monthly = document.getElementById('adminUploadCategory').value === 'monthly';
+  document.getElementById('adminUploadMonth').style.display = monthly ? 'block' : 'none';
+};
+
 function formatAdminFileSize(bytes) {
   if (!Number.isFinite(bytes)) return '—';
   if (bytes < 1024) return `${bytes}B`;
@@ -4539,6 +4585,7 @@ window.loadAdminFiles = async function() {
   updateAdminFileSelectionBar();
   if (!code) {
     countEl.textContent = '0개';
+    document.getElementById('fileDocumentSummary').innerHTML = '';
     listEl.innerHTML='<div class="empty-state"><div class="empty-icon">📁</div><p>왼쪽에서 동아리를 선택해주세요.</p></div>';
     return;
   }
@@ -4567,6 +4614,8 @@ window.loadAdminFiles = async function() {
           contentType:metadata.contentType || '',
           createdAt:metadata.timeCreated || report?.submittedAt?.toDate?.()?.toISOString?.() || '',
           source:report?.uploadedByAdmin ? '관리자 업로드' : report ? '동아리 제출' : '기존 파일',
+          documentCategory:report?.documentCategory || inferDocumentCategory(item.name),
+          reportMonth:report?.reportMonth || null,
           reportId:report?.id || ''
         };
       } catch (error) {
@@ -4583,11 +4632,21 @@ window.renderAdminFileList = function() {
   const queryText = (document.getElementById('adminFileSearch')?.value || '').trim().toLowerCase();
   const year = document.getElementById('adminFileYear')?.value || '';
   const type = document.getElementById('adminFileType')?.value || '';
+  const category = document.getElementById('adminDocumentCategory')?.value || '';
   const filtered = adminFileRefs.filter(file =>
     (!queryText || file.name.toLowerCase().includes(queryText))
     && (!year || file.year === year)
     && (!type || getAdminFileType(file.name) === type)
+    && (!category || file.documentCategory === category)
   );
+  const categoryCounts = adminFileRefs.reduce((counts,file) => {
+    counts[file.documentCategory] = (counts[file.documentCategory] || 0) + 1;
+    return counts;
+  }, {});
+  document.getElementById('fileDocumentSummary').innerHTML = [
+    ['application','최초 신청'], ['monthly','월별 보고'],
+    ['final','최종 결과'], ['expense','지출결의']
+  ].map(([key,label]) => `<span class="tb ${categoryCounts[key]?'tb-mint':'tb-gray'}">${label} ${categoryCounts[key]||0}건</span>`).join('');
   document.getElementById('adminFileCount').textContent = `${filtered.length}개`;
   if (!filtered.length) {
     listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>조건에 맞는 파일이 없습니다.</p></div>';
@@ -4608,7 +4667,7 @@ window.renderAdminFileList = function() {
           <span class="admin-file-icon">${fileIcon(file.name)}</span>
           <span class="file-primary-text">
             <span class="file-primary-name" title="${escapeFileHTML(file.name)}">${escapeFileHTML(file.name)}</span>
-            <span class="file-primary-sub">${escapeFileHTML(file.source)}</span>
+            <span class="file-primary-sub">${escapeFileHTML(DOCUMENT_CATEGORY_LABELS[file.documentCategory] || '기타')}${file.reportMonth ? ` · ${file.reportMonth}월` : ''} · ${escapeFileHTML(file.source)}</span>
           </span>
         </div>
         <span class="file-col-year">${file.year}</span>
@@ -4635,10 +4694,12 @@ window.toggleAllAdminFiles = function(checked) {
   const queryText = (document.getElementById('adminFileSearch')?.value || '').trim().toLowerCase();
   const year = document.getElementById('adminFileYear')?.value || '';
   const type = document.getElementById('adminFileType')?.value || '';
+  const category = document.getElementById('adminDocumentCategory')?.value || '';
   adminFileRefs.filter(file =>
     (!queryText || file.name.toLowerCase().includes(queryText))
     && (!year || file.year === year)
     && (!type || getAdminFileType(file.name) === type)
+    && (!category || file.documentCategory === category)
   ).forEach(file => checked ? adminFileSelectedPaths.add(file.path) : adminFileSelectedPaths.delete(file.path));
   renderAdminFileList();
   updateAdminFileSelectionBar();
@@ -4696,6 +4757,10 @@ function uploadAdminFile(file, code) {
   const progressEl = document.getElementById('adminUploadProgress');
   const safeFileName = file.name.replace(/[#$\[\]]/g, '_');
   const year = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
+  const documentCategory = document.getElementById('adminUploadCategory').value;
+  const reportMonth = documentCategory === 'monthly'
+    ? Number(document.getElementById('adminUploadMonth').value)
+    : null;
   const storageRef = ref(storage, `reports/${year}/${code}/${Date.now()}_${safeFileName}`);
   const task = uploadBytesResumable(storageRef, file);
 
@@ -4726,6 +4791,8 @@ function uploadAdminFile(file, code) {
           storagePath: task.snapshot.ref.fullPath,
           fileSize: file.size,
           contentType: file.type || '',
+          documentCategory,
+          reportMonth,
           year,
           submittedAt: serverTimestamp(),
           uploadedByAdmin: true
