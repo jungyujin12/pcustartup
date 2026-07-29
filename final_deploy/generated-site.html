@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>생성된 웹페이지 | PCU 창업지원</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;font-family:"Noto Sans KR",sans-serif;background:#eef3f8;color:#18283b}
+    .bar{height:58px;background:#10243e;color:white;display:flex;align-items:center;gap:10px;padding:0 16px;position:sticky;top:0;z-index:2}
+    .bar strong{margin-right:auto}.bar button,.bar a{border:1px solid #8aa1ba;background:transparent;color:white;border-radius:7px;padding:7px 11px;text-decoration:none;cursor:pointer}
+    iframe{display:block;width:100%;height:calc(100vh - 58px);border:0;background:white}.message{padding:4rem 1rem;text-align:center}
+    @media(max-width:600px){.bar{height:auto;min-height:58px;flex-wrap:wrap;padding:9px}.bar strong{width:100%}iframe{height:calc(100vh - 100px)}}
+  </style>
+</head>
+<body>
+  <header class="bar"><strong>PCU 생성 웹페이지</strong><button id="downloadBtn" hidden>HTML 다운로드</button><a href="website-builder.html">새로 만들기</a></header>
+  <main id="content"><div class="message">웹페이지를 불러오는 중입니다.</div></main>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {getFirestore,doc,getDoc} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+const app=initializeApp({apiKey:"AIzaSyBzS2q5ML-taevon0IQMVxMO8Ah23IBGNE",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
+const db=getFirestore(app),id=new URLSearchParams(location.search).get('id'),content=document.getElementById('content');
+let html='';
+try{
+  if(!id)throw new Error('페이지 주소가 없습니다.');
+  const snapshot=await getDoc(doc(db,'website_jobs',id));
+  if(!snapshot.exists())throw new Error('생성 요청을 찾을 수 없습니다.');
+  const job=snapshot.data();
+  if(job.status==='pending'||job.status==='processing')throw new Error('아직 AI가 웹페이지를 생성하고 있습니다. 잠시 후 새로고침해주세요.');
+  if(job.status!=='completed'||!job.html)throw new Error(job.error||'생성된 웹페이지가 없습니다.');
+  html=job.html;
+  const iframe=document.createElement('iframe');
+  iframe.sandbox='allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox';
+  iframe.srcdoc=html;iframe.title=job.title||id;content.replaceChildren(iframe);
+  document.title=`${job.title||id} | PCU`;
+  const download=document.getElementById('downloadBtn');download.hidden=false;
+  download.onclick=()=>{const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`${id}.html`;a.click();URL.revokeObjectURL(url)};
+}catch(error){content.innerHTML=`<div class="message"><h2>페이지를 표시할 수 없습니다.</h2><p>${String(error.message||error).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</p></div>`}
+</script>
+</body>
+</html>
