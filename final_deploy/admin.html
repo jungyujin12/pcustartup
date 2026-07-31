@@ -838,7 +838,7 @@ function logout() { if(window._logout) window._logout(); }
           <div class="add-field"><label>이름 *</label><input type="text" id="newMemberName" placeholder="이름 입력"></div>
           <div class="add-field"><label>학과</label><input type="text" id="newMemberDept" placeholder="소속 학과명"></div>
           <div class="add-field" style="max-width:80px"><label>학년</label><input type="text" id="newMemberGrade" placeholder="3"></div>
-          <div class="add-field"><label>학번</label><input type="text" id="newMemberStuId" placeholder="학번"></div>
+          <div class="add-field"><label>학번 *</label><input type="text" id="newMemberStuId" inputmode="numeric" placeholder="학번"></div>
           <div class="add-field"><label>연락처</label><input type="tel" id="newMemberTel" placeholder="010-XXXX-XXXX"></div>
           <div class="add-field"><label>이메일</label><input type="email" id="newMemberEmail" placeholder="이메일 주소 입력"></div>
           <div class="add-field"><label>역할</label><input type="text" id="newMemberRole" placeholder="개발 / 대표"></div>
@@ -1487,7 +1487,7 @@ async function syncClubMemberCount(code) {
 
 window.deleteMemberFromList = async function(clubCode, memberId) {
   if (!confirm('팀원을 삭제할까요?')) return;
-  await deleteDoc(doc(db,'members',clubCode,'list',memberId));
+  await removeStudentMembership(clubCode,memberId);
   await syncClubMemberCount(clubCode);
   loadMembersList(clubCode);
   showToast('✅ 팀원 삭제 완료');
@@ -1500,7 +1500,7 @@ window.openAddMemberModal = function(code) {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem">
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">이름 *</label><input id="add-m-name" class="edit-input" placeholder="이름"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">학과</label><input id="add-m-dept" class="edit-input" placeholder="학과명"></div>
-        <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">학번</label><input id="add-m-sno" class="edit-input" placeholder="학번"></div>
+        <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">학번 *</label><input id="add-m-sno" class="edit-input" inputmode="numeric" placeholder="학번"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">연락처</label><input id="add-m-tel" class="edit-input" placeholder="010-0000-0000"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">학년</label><input id="add-m-grade" class="edit-input" placeholder="3학년"></div>
       </div>
@@ -1514,17 +1514,23 @@ window.openAddMemberModal = function(code) {
 
 window.saveMemberToList = async function(code) {
   const name = document.getElementById('add-m-name').value.trim();
+  const studentNumber = normalizeStudentId(document.getElementById('add-m-sno').value);
   if (!name) { showToast('이름을 입력해주세요.'); return; }
+  if (!/^\d{6,12}$/.test(studentNumber)) { showToast('학번을 6~12자리 숫자로 입력해주세요.'); return; }
   try {
-    await addDoc(collection(db,'members',code,'list'), {
+    const club = clubList.find(item => item.code === code);
+    await writeStudentMembership(code,{
       name, 
       dept: document.getElementById('add-m-dept').value.trim(),
-      sno: document.getElementById('add-m-sno').value.trim(),
-      stuId: document.getElementById('add-m-sno').value.trim(),
+      sno: studentNumber,
+      stuId: studentNumber,
       tel: document.getElementById('add-m-tel').value.trim(),
       grade: document.getElementById('add-m-grade').value.trim(),
-      createdAt: serverTimestamp()
-    });
+      role:'팀원',
+      isLeader:false,
+      isRep:false,
+      createdAt:serverTimestamp()
+    },String(club?.year || '2026'));
     await syncClubMemberCount(code);
     showToast('✅ 팀원 추가 완료');
     closeModal();
@@ -1571,8 +1577,10 @@ window.updateMember = async function(clubCode, memberId) {
   const studentNumber = document.getElementById('em-sno').value.trim();
   const isLeader = document.getElementById('em-leader').value === 'true';
   if (!name) { showToast('이름을 입력해주세요.'); return; }
+  if (!/^\d{6,12}$/.test(normalizeStudentId(studentNumber))) { showToast('학번을 6~12자리 숫자로 입력해주세요.'); return; }
   try {
-    await updateDoc(doc(db,'members',clubCode,'list',memberId), {
+    const club = clubList.find(item => item.code === clubCode);
+    await writeStudentMembership(clubCode,{
       name,
       dept: document.getElementById('em-dept').value.trim(),
       sno: studentNumber,
@@ -1581,7 +1589,7 @@ window.updateMember = async function(clubCode, memberId) {
       grade: document.getElementById('em-grade').value.trim(),
       isLeader,
       isRep: isLeader,
-    });
+    },String(club?.year || '2026'),memberId);
     showToast('✅ 팀원 정보 수정 완료');
     closeModal();
     loadMembersList(clubCode);
@@ -1627,12 +1635,13 @@ window.previewFile = async function(input) {
         return '';
       };
 
-      const requiredHeaders = ['접근코드','동아리명','분야','구성원 구분','성명'];
+      const requiredHeaders = ['접근코드','동아리명','분야','구성원 구분','성명','학번'];
       const missingHeaders = requiredHeaders.filter(name => !headers.includes(name));
       if (missingHeaders.length) throw new Error(`필수 열이 없습니다: ${missingHeaders.join(', ')}`);
 
       // 접근코드를 단일 연결키로 사용해 동아리와 전체 구성원을 그룹핑합니다.
       const clubMap = new Map();
+      const studentClubMap = new Map();
       const errors = [];
       dataRows.forEach((row, index) => {
         const rowNo = headerIdx + index + 2;
@@ -1641,13 +1650,19 @@ window.previewFile = async function(input) {
         const field = getCol(row, '분야');
         const memberType = getCol(row, '구성원 구분');
         const memberName = getCol(row, '성명');
+        const studentId = normalizeStudentId(getCol(row, '학번'));
         const item = getCol(row, '창업 아이템', '아이디어');
         const bizRegRaw = getCol(row, '사업자등록 여부', '사업자');
 
-        if (!code || !name || !field || !memberType || !memberName) {
-          errors.push(`${rowNo}행: 필수값(접근코드·동아리명·분야·구성원 구분·성명)을 확인하세요.`);
+        if (!code || !name || !field || !memberType || !memberName || !studentId) {
+          errors.push(`${rowNo}행: 필수값(접근코드·동아리명·분야·구성원 구분·성명·학번)을 확인하세요.`);
           return;
         }
+        if (!/^\d{6,12}$/.test(studentId)) errors.push(`${rowNo}행: 학번은 6~12자리 숫자여야 합니다.`);
+        if (studentClubMap.has(studentId) && studentClubMap.get(studentId) !== code) {
+          errors.push(`${rowNo}행: 학번 ${studentId}이 같은 연도에 ${studentClubMap.get(studentId)}, ${code} 두 동아리에 중복돼 있습니다.`);
+        }
+        studentClubMap.set(studentId,code);
         if (!/^[A-Z0-9_-]{4,20}$/.test(code)) {
           errors.push(`${rowNo}행: 접근코드는 영문 대문자·숫자·_·- 조합 4~20자로 입력하세요.`);
         }
@@ -1671,7 +1686,7 @@ window.previewFile = async function(input) {
         club.members.push({
           name: memberName,
           dept: getCol(row, '학과'),
-          stuId: getCol(row, '학번'),
+          stuId: studentId,
           grade: getCol(row, '학년'),
           tel: getCol(row, '전화번호'),
           email: getCol(row, '이메일'),
@@ -1687,7 +1702,7 @@ window.previewFile = async function(input) {
         if (leaders.length !== 1) errors.push(`${club.name}: 대표는 정확히 1명이어야 합니다. (현재 ${leaders.length}명)`);
         const memberKeys = new Set();
         club.members.forEach(member => {
-          const key = `${member.name}|${member.stuId || member.tel || ''}`;
+          const key = member.stuId;
           if (memberKeys.has(key)) errors.push(`${club.name}: 중복 구성원으로 보이는 행이 있습니다. (${member.name})`);
           memberKeys.add(key);
         });
@@ -1808,6 +1823,20 @@ window.uploadCSV = async function() {
       ).join('\n')}\n\n기존 코드를 엑셀에 사용하거나, 관리자 화면의 [코드] 변경 기능으로 코드를 이전해주세요.`);
       return;
     }
+    const studentConflicts = [];
+    for (const club of parsedClubs) {
+      for (const member of club.members) {
+        const studentId = normalizeStudentId(member.stuId);
+        const membershipSnap = await getDoc(doc(db,'memberships',membershipDocId(selectedYear,studentId)));
+        if (membershipSnap.exists() && membershipSnap.data().clubCode !== club.code) {
+          studentConflicts.push(`${studentId}: 기존 ${membershipSnap.data().clubCode} / 업로드 ${club.code}`);
+        }
+      }
+    }
+    if (studentConflicts.length) {
+      alert(`같은 학번은 한 연도에 하나의 동아리에만 등록할 수 있습니다.\n${studentConflicts.slice(0,12).join('\n')}`);
+      return;
+    }
 
     // 경고 메시지 구성
     let warnMsg = `${parsedClubs.length}개 동아리를 등록합니다.`;
@@ -1858,14 +1887,15 @@ window.uploadCSV = async function() {
         // 기존 팀원 정리 (덮어쓰기 + 사용자가 동의한 경우)
         if (clearExistingMembers && existingCodes.has(code)) {
           const oldMembers = await getDocs(collection(db,'members',code,'list'));
-          await Promise.all(oldMembers.docs.map(d => deleteDoc(d.ref)));
+          for (const oldMember of oldMembers.docs) {
+            await removeStudentMembership(code,oldMember.id,oldMember.data());
+          }
         }
 
-        // 팀원 전체 Firebase에 저장 (고유 ID 사용 — addDoc 대신 setDoc with custom id)
+        // 학번을 학생 원천키로, 연도+학번을 소속키로 저장한다.
         for (const member of club.members) {
           if (member.name) {
-            const memberId = `m_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
-            await setDoc(doc(db,'members',code,'list',memberId), {
+            await writeStudentMembership(code,{
               name: member.name,
               dept: member.dept || '',
               stuId: String(member.stuId || ''),
@@ -1883,7 +1913,7 @@ window.uploadCSV = async function() {
               note: member.note || '',
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp()
-            });
+            },selectedYear);
           }
         }
         ok++;
@@ -2176,7 +2206,10 @@ window.deleteSelected = async function() {
       for (const yr of Array.from({length:6},(_,i)=>String(baseYear-3+i))) {
         try { const fl=await listAll(ref(storage,`reports/${yr}/${code}/`)); await Promise.all(fl.items.map(i=>deleteObject(i))); } catch(e){}
       }
-      try { const ms = await getDocs(collection(db,'members',code,'list')); await Promise.all(ms.docs.map(d=>deleteDoc(d.ref))); } catch(e){}
+      try {
+        const ms = await getDocs(collection(db,'members',code,'list'));
+        for (const memberDoc of ms.docs) await removeStudentMembership(code,memberDoc.id,memberDoc.data());
+      } catch(e){}
       try { const rs = await getDocs(collection(db,'reports',code,'submissions')); await Promise.all(rs.docs.map(d=>deleteDoc(d.ref))); } catch(e){}
       try {
         const fs = await getDocs(collection(db,'ai_history',code,'files'));
@@ -2268,6 +2301,69 @@ function normalizeClubName(name) {
   return String(name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+function normalizeStudentId(value) {
+  return String(value || '').trim().replace(/[^0-9]/g,'');
+}
+
+function membershipDocId(year, studentId) {
+  return `${String(year)}_${normalizeStudentId(studentId)}`;
+}
+
+async function writeStudentMembership(code, member, year, previousMemberId = '') {
+  const studentId = normalizeStudentId(member.stuId || member.sno);
+  if (!/^\d{6,12}$/.test(studentId)) throw new Error(`${member.name || '구성원'}의 학번을 확인해주세요.`);
+  const normalizedYear = String(year || '2026');
+  const membershipRef = doc(db,'memberships',membershipDocId(normalizedYear,studentId));
+  const membershipSnap = await getDoc(membershipRef);
+  if (membershipSnap.exists() && membershipSnap.data().clubCode !== code) {
+    throw new Error(`${studentId} 학번은 ${normalizedYear}년에 이미 ${membershipSnap.data().clubCode} 동아리에 등록돼 있습니다.`);
+  }
+  const studentPayload = {
+    studentId,
+    name:String(member.name || '').trim(),
+    dept:String(member.dept || '').trim(),
+    grade:String(member.grade || '').trim(),
+    tel:String(member.tel || '').trim(),
+    email:String(member.email || '').trim(),
+    updatedAt:serverTimestamp()
+  };
+  const membershipPayload = {
+    studentId,
+    clubCode:code,
+    year:normalizedYear,
+    role:member.role || ((member.isLeader || member.isRep) ? '대표' : '팀원'),
+    isLeader:Boolean(member.isLeader || member.isRep),
+    updatedAt:serverTimestamp()
+  };
+  await setDoc(doc(db,'students',studentId),studentPayload,{merge:true});
+  await setDoc(membershipRef,membershipPayload,{merge:true});
+  await setDoc(doc(db,'members',code,'list',studentId),{
+    ...member,
+    stuId:studentId,
+    sno:studentId,
+    studentId,
+    year:normalizedYear,
+    updatedAt:serverTimestamp()
+  },{merge:true});
+  if (previousMemberId && previousMemberId !== studentId) {
+    await deleteDoc(doc(db,'members',code,'list',previousMemberId));
+  }
+  return studentId;
+}
+
+async function removeStudentMembership(code, memberId, memberData = null) {
+  const data = memberData || (await getDoc(doc(db,'members',code,'list',memberId))).data() || {};
+  const studentId = normalizeStudentId(data.studentId || data.stuId || data.sno || memberId);
+  const club = clubList.find(item => item.code === code);
+  const year = String(data.year || club?.year || document.getElementById('yearFilter')?.value || '2026');
+  await deleteDoc(doc(db,'members',code,'list',memberId));
+  if (studentId) {
+    const membershipRef = doc(db,'memberships',membershipDocId(year,studentId));
+    const membershipSnap = await getDoc(membershipRef);
+    if (membershipSnap.exists() && membershipSnap.data().clubCode === code) await deleteDoc(membershipRef);
+  }
+}
+
 async function clubNameDocId(name, year) {
   const normalizedName = normalizeClubName(name);
   return `${String(year)}_${await hashCode(normalizedName)}`;
@@ -2352,7 +2448,32 @@ async function updateClubCode(oldCode, newCode, name) {
       const mSnap = await getDocs(collection(db,'members',oldCode,'list'));
       if (!mSnap.empty) {
         for (const md of mSnap.docs) {
-          await setDoc(doc(db,'members',newCode,'list',md.id), md.data());
+          const memberData = md.data();
+          const studentId = normalizeStudentId(memberData.studentId || memberData.stuId || memberData.sno || md.id);
+          if (/^\d{6,12}$/.test(studentId)) {
+            await setDoc(doc(db,'students',studentId),{
+              studentId,
+              name:memberData.name || '',
+              dept:memberData.dept || '',
+              grade:memberData.grade || '',
+              tel:memberData.tel || '',
+              email:memberData.email || '',
+              updatedAt:serverTimestamp()
+            },{merge:true});
+            await setDoc(doc(db,'memberships',membershipDocId(clubYear,studentId)),{
+              studentId,
+              clubCode:newCode,
+              year:clubYear,
+              role:memberData.role || ((memberData.isLeader || memberData.isRep) ? '대표' : '팀원'),
+              isLeader:Boolean(memberData.isLeader || memberData.isRep),
+              updatedAt:serverTimestamp()
+            },{merge:true});
+            await setDoc(doc(db,'members',newCode,'list',studentId),{
+              ...memberData,studentId,stuId:studentId,sno:studentId,year:clubYear
+            },{merge:true});
+          } else {
+            await setDoc(doc(db,'members',newCode,'list',md.id),memberData);
+          }
           await deleteDoc(md.ref);
         }
       }
@@ -2490,7 +2611,10 @@ window.confirmDelete = async function() {
     for (const yr of Array.from({length:6},(_,i)=>String(baseYear-3+i))) {
       try { const fl=await listAll(ref(storage,`reports/${yr}/${code}/`)); await Promise.all(fl.items.map(i=>deleteObject(i))); } catch(e){}
     }
-    try { const ms = await getDocs(collection(db,'members',code,'list')); await Promise.all(ms.docs.map(d=>deleteDoc(d.ref))); } catch(e){}
+    try {
+      const ms = await getDocs(collection(db,'members',code,'list'));
+      for (const memberDoc of ms.docs) await removeStudentMembership(code,memberDoc.id,memberDoc.data());
+    } catch(e){}
     try { const rs = await getDocs(collection(db,'reports',code,'submissions')); await Promise.all(rs.docs.map(d=>deleteDoc(d.ref))); } catch(e){}
     try {
       const fs = await getDocs(collection(db,'ai_history',code,'files'));
@@ -4109,6 +4233,9 @@ window.runIntegrityCheck = async function() {
     duplicateClubs: [],     // 같은 연도·같은 이름인데 코드가 둘 이상인 동아리
     orphanMembers: [],      // members에 있는데 clubs에 없는 코드
     duplicateMembers: [],   // {clubCode, clubName, count} 동일 동아리 내 중복
+    legacyStudentKeys: [],  // 학번이 아닌 난수 문서 ID를 쓰는 기존 팀원
+    missingStudentIds: [],  // 학번이 없거나 형식이 잘못된 팀원
+    studentMembershipConflicts: [], // 동일 연도·동일 학번의 복수 동아리 소속
     missingFields: [],      // clubs 문서인데 필수 필드 누락
     orphanReports: [],      // reports에 있는데 clubs에 없는 코드
     mismatchedReports: [],  // reports 경로 코드와 문서 clubCode 불일치
@@ -4215,6 +4342,29 @@ window.runIntegrityCheck = async function() {
     const memberParentCodes = Object.keys(memberDocsByParent);
     report.orphanMembers = memberParentCodes.filter(c => !clubCodes.has(c));
 
+    const studentYearClubs = new Map();
+    memberParentCodes.filter(code => clubCodes.has(code)).forEach(code => {
+      const club = clubs.find(item => item.code === code);
+      const year = String(club?.year || '2026');
+      memberDocsByParent[code].forEach(memberDoc => {
+        const data = memberDoc.data();
+        const studentId = normalizeStudentId(data.studentId || data.stuId || data.sno);
+        if (!/^\d{6,12}$/.test(studentId)) {
+          report.missingStudentIds.push({code,memberId:memberDoc.id,name:data.name || ''});
+          return;
+        }
+        if (memberDoc.id !== studentId) {
+          report.legacyStudentKeys.push({code,memberId:memberDoc.id,studentId,name:data.name || '',year});
+        }
+        const key = `${year}_${studentId}`;
+        if (!studentYearClubs.has(key)) studentYearClubs.set(key,new Set());
+        studentYearClubs.get(key).add(code);
+      });
+    });
+    studentYearClubs.forEach((codes,key) => {
+      if (codes.size > 1) report.studentMembershipConflicts.push({key,codes:[...codes]});
+    });
+
     // 중복 검사: clubs에 연결된 코드만 대상
     memberParentCodes.filter(c => clubCodes.has(c)).forEach(code => {
       const docs = memberDocsByParent[code];
@@ -4237,6 +4387,12 @@ window.runIntegrityCheck = async function() {
     else addLog('✅ 모든 팀원 데이터가 동아리와 정상 연결됨', '#059669');
     if (report.duplicateMembers.length) addLog(`⚠️ 중복 팀원 보유 동아리 ${report.duplicateMembers.length}개 발견`, '#d97706');
     else addLog('✅ 팀원 중복 없음', '#059669');
+    if (report.legacyStudentKeys.length) addLog(`⚠️ 학번 키 전환이 필요한 기존 팀원 ${report.legacyStudentKeys.length}명`, '#d97706');
+    if (report.missingStudentIds.length) addLog(`⚠️ 학번 누락·형식 오류 팀원 ${report.missingStudentIds.length}명`, '#dc2626');
+    if (report.studentMembershipConflicts.length) addLog(`⚠️ 동일 연도 복수 동아리 소속 학번 ${report.studentMembershipConflicts.length}건`, '#dc2626');
+    if (!report.legacyStudentKeys.length && !report.missingStudentIds.length && !report.studentMembershipConflicts.length) {
+      addLog('✅ 학생 학번키·연도별 소속키 정상', '#059669');
+    }
 
     // ③ reports 고아 데이터 검사
     addLog('📋 5/7 — 보고서 데이터 정합성 점검 중...');
@@ -4351,7 +4507,8 @@ window.runIntegrityCheck = async function() {
       report.codeIssues.length + report.nameIndexIssues.length +
       report.mismatchedReports.length + report.orphanConsultations.length +
       report.orphanSurveyResponses.length + report.orphanPrograms.length +
-      report.orphanAIHistory.length;
+      report.orphanAIHistory.length + report.legacyStudentKeys.length +
+      report.missingStudentIds.length + report.studentMembershipConflicts.length;
 
     const summaryCard = (label, count, color) => `
       <div style="background:${count>0?color+'15':'#f0fdf4'};border:1.5px solid ${count>0?color+'44':'#05966944'};border-radius:10px;padding:0.7rem 1rem;min-width:140px">
@@ -4366,6 +4523,9 @@ window.runIntegrityCheck = async function() {
       ${summaryCard('코드 색인 불일치', report.nameIndexIssues.length, '#d97706')}
       ${summaryCard('미연결 팀원', report.orphanMembers.length, '#dc2626')}
       ${summaryCard('중복 팀원', report.duplicateMembers.reduce((s,d)=>s+d.count,0), '#dc2626')}
+      ${summaryCard('학번키 전환 대상', report.legacyStudentKeys.length, '#d97706')}
+      ${summaryCard('학번 오류', report.missingStudentIds.length, '#dc2626')}
+      ${summaryCard('소속 충돌', report.studentMembershipConflicts.length, '#dc2626')}
       ${summaryCard('필드 누락', report.missingFields.length, '#d97706')}
       ${summaryCard('미연결 보고서', report.orphanReports.length, '#d97706')}
       ${summaryCard('보고서 코드 불일치', report.mismatchedReports.length, '#dc2626')}
@@ -4389,6 +4549,9 @@ window.runIntegrityCheck = async function() {
     }
     if (report.duplicateMembers.length) {
       actions.push(`<button class="btn-sm btn-sm-red" onclick="fixDuplicateMembers()">🧹 중복 팀원 ${report.duplicateMembers.reduce((s,d)=>s+d.count,0)}건 일괄 제거</button>`);
+    }
+    if (report.legacyStudentKeys.length) {
+      actions.push(`<button class="btn-sm btn-sm-blue" onclick="migrateStudentKeys()">🎓 기존 팀원을 학번키로 전환</button>`);
     }
     if (report.orphanMembers.length) {
       actions.push(`<button class="btn-sm btn-sm-blue" onclick="openMemberRepairUI()">🔗 미연결 팀원 ${report.orphanMembers.length}개 수동 연결</button>`);
@@ -4437,6 +4600,35 @@ window.repairCodeIntegrity = async function() {
   } catch (error) {
     alert('접근코드 복구 실패: ' + error.message);
   }
+};
+
+window.migrateStudentKeys = async function() {
+  const targets = _lastIntegrityReport?.legacyStudentKeys || [];
+  if (!targets.length) return;
+  if (!confirm(`${targets.length}명의 기존 팀원 문서 ID를 학번으로 전환하고 학생 원장·연도별 소속을 생성할까요?\n학번 누락 또는 같은 연도 복수 동아리 충돌 자료는 자동 변경하지 않습니다.`)) return;
+  let migrated = 0;
+  let skipped = 0;
+  for (const item of targets) {
+    try {
+      const conflict = (_lastIntegrityReport.studentMembershipConflicts || [])
+        .some(entry => entry.key === `${item.year}_${item.studentId}`);
+      if (conflict) {
+        skipped++;
+        continue;
+      }
+      const sourceSnap = await getDoc(doc(db,'members',item.code,'list',item.memberId));
+      if (!sourceSnap.exists()) continue;
+      await writeStudentMembership(item.code,sourceSnap.data(),item.year,item.memberId);
+      migrated++;
+    } catch (error) {
+      console.error('학번키 전환 실패:',item,error);
+      skipped++;
+    }
+  }
+  for (const club of clubList) await syncClubMemberCount(club.code).catch(()=>{});
+  showToast(`✅ 학번키 ${migrated}명 전환${skipped ? ` · ${skipped}명 확인 필요` : ''}`);
+  await loadClubs();
+  await runIntegrityCheck();
 };
 
 // ── 조치 ①: 중복 팀원 일괄 제거 ──
@@ -4832,6 +5024,7 @@ window.addMemberDirect = async function() {
   // ── 검증 ──
   if (!code) { showAdminMsg(msg,'❌ 동아리를 먼저 선택해주세요.','#dc2626'); return; }
   if (!name) { showAdminMsg(msg,'❌ 이름을 입력해주세요.','#dc2626'); return; }
+  if (!/^\d{6,12}$/.test(normalizeStudentId(stuId))) { showAdminMsg(msg,'❌ 학번을 6~12자리 숫자로 입력해주세요.','#dc2626'); return; }
   if (name.length > 20) { showAdminMsg(msg,'❌ 이름이 너무 깁니다 (20자 이내).','#dc2626'); return; }
   if (tel && !/^01[0-9]-?\d{3,4}-?\d{4}$/.test(tel.replace(/\s/g,''))) {
     showAdminMsg(msg,'❌ 전화번호 형식이 올바르지 않습니다 (예: 010-1234-5678).','#dc2626'); return;
@@ -4841,27 +5034,14 @@ window.addMemberDirect = async function() {
   }
 
   try {
-    // 중복 검사: 같은 동아리 내 이름+학번 일치 시 경고
     const editingId = document.getElementById('editingMemberId').value || '';
-    const existSnap = await getDocs(collection(db,'members',code,'list'));
-    const dup = existSnap.docs.find(d => {
-      const data = d.data();
-      if (d.id === editingId) return false; // 수정 중인 본인은 제외
-      return (data.name||'').trim() === name && (!stuId || (data.stuId||data.sno||'') === stuId);
-    });
-    if (dup && !confirm(`"${name}"(${stuId||'학번없음'})은(는) 이미 등록된 팀원과 이름이 같습니다.\n그래도 추가하시겠습니까?`)) {
-      return;
-    }
-
-    // 고유 ID: 수정 모드면 기존 ID 재사용, 신규면 timestamp 기반 고유값
-    const memberId = editingId || `m_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
-
-    await setDoc(doc(db,'members',code,'list',memberId), {
+    const club = clubList.find(item => item.code === code);
+    await writeStudentMembership(code,{
       name, dept, grade, stuId, sno: stuId, tel, email, role,
       updatedAt: serverTimestamp(),
       isRep: role.includes('대표') || false,
       isLeader: role.includes('대표') || false,
-    });
+    },String(club?.year || '2026'),editingId);
     await syncClubMemberCount(code);
     showAdminMsg(msg, `✅ ${name} 저장 완료!`, 'var(--pcu-mint)');
     ['newMemberName','newMemberDept','newMemberGrade','newMemberStuId',
@@ -4893,7 +5073,7 @@ window.editMember = function(id, name, dept, grade, stuId, tel, email, role) {
 window.deleteMember = async function(memberId) {
   if (!confirm(`${memberId.replace(/_/g,' ')} 팀원을 삭제할까요?`)) return;
   try {
-    await deleteDoc(doc(db,'members',currentMemberClub,'list',memberId));
+    await removeStudentMembership(currentMemberClub,memberId);
     await syncClubMemberCount(currentMemberClub);
     await window.loadMembersByClub();
   } catch(e) {
