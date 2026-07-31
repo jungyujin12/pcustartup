@@ -247,6 +247,27 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+async function hashAccessCode(code) {
+  const bytes = new TextEncoder().encode(String(code).trim().toUpperCase());
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function resolveClubByAccessCode(code) {
+  const normalized = String(code).trim().toUpperCase();
+  const direct = await getDoc(doc(db,'clubs',normalized));
+  if (direct.exists()) {
+    const current = String(direct.data().accessCode || direct.data().code || direct.id).toUpperCase();
+    if (current === normalized) return direct;
+  }
+  const index = await getDoc(doc(db,'club_codes',await hashAccessCode(normalized)));
+  if (!index.exists() || !index.data().clubId) return null;
+  const club = await getDoc(doc(db,'clubs',index.data().clubId));
+  if (!club.exists()) return null;
+  const current = String(club.data().accessCode || club.data().code || club.id).toUpperCase();
+  return current === normalized ? club : null;
+}
+
 let selectedTopic = '';
 let selectedTime = '';
 
@@ -304,7 +325,7 @@ window.submitConsult = async function() {
   const email = document.getElementById('cEmail').value.trim();
   const date = document.getElementById('cDate').value;
   const content = document.getElementById('cContent').value.trim();
-  const clubCode = document.getElementById('cClubCode').value.trim().toUpperCase();
+  let clubCode = document.getElementById('cClubCode').value.trim().toUpperCase();
 
   // 검증
   let valid = true;
@@ -331,10 +352,11 @@ window.submitConsult = async function() {
     let clubName = '';
     let clubYear = '';
     if (clubCode) {
-      const clubSnap = await getDoc(doc(db,'clubs',clubCode));
-      if (!clubSnap.exists()) throw new Error('등록되지 않은 동아리 코드입니다.');
+      const clubSnap = await resolveClubByAccessCode(clubCode);
+      if (!clubSnap) throw new Error('등록되지 않은 동아리 코드입니다.');
       const clubData = clubSnap.data();
       if (clubData.status !== 'active') throw new Error('운영이 종료된 동아리 코드입니다.');
+      clubCode = clubSnap.id;
       clubName = clubData.name || '';
       clubYear = String(clubData.year || '');
     }
