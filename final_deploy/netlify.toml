@@ -1,0 +1,16 @@
+[build]
+  publish = "final_deploy"
+  functions = "netlify/functions"
+
+  # Firebase Web API keys are public project identifiers and must be present in
+  # the browser bundle. Keep Netlify secret scanning enabled for real secrets,
+  # but ignore this one reviewed Firebase-only value.
+  [build.environment]
+    SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
