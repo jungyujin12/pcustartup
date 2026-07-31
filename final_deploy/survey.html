@@ -58,6 +58,27 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
+async function hashAccessCode(code) {
+  const bytes = new TextEncoder().encode(String(code).trim().toUpperCase());
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function resolveClubByAccessCode(code) {
+  const normalized = String(code).trim().toUpperCase();
+  const direct = await getDoc(doc(db,'clubs',normalized));
+  if (direct.exists()) {
+    const current = String(direct.data().accessCode || direct.data().code || direct.id).toUpperCase();
+    if (current === normalized) return direct;
+  }
+  const index = await getDoc(doc(db,'club_codes',await hashAccessCode(normalized)));
+  if (!index.exists() || !index.data().clubId) return null;
+  const club = await getDoc(doc(db,'clubs',index.data().clubId));
+  if (!club.exists()) return null;
+  const current = String(club.data().accessCode || club.data().code || club.id).toUpperCase();
+  return current === normalized ? club : null;
+}
+
 const params = new URLSearchParams(location.search);
 const surveyId = params.get('id');
 const wrap = document.getElementById('surveyWrap');
@@ -162,15 +183,16 @@ window.submitSurvey = async function() {
       return;
     }
   }
-  const clubCode = document.getElementById('clubCodeInput')?.value.trim()||'';
+  let clubCode = document.getElementById('clubCodeInput')?.value.trim().toUpperCase()||'';
   if (surveyData.target==='club' && !clubCode) { alert('동아리 코드를 입력해주세요.'); return; }
   if (surveyData.target==='club') {
-    const clubSnap = await getDoc(doc(db,'clubs',clubCode));
-    if (!clubSnap.exists()) { alert('등록되지 않은 동아리 코드입니다.'); return; }
+    const clubSnap = await resolveClubByAccessCode(clubCode);
+    if (!clubSnap) { alert('등록되지 않은 동아리 코드입니다.'); return; }
     if (clubSnap.data().status !== 'active') {
       alert('운영이 종료된 동아리는 설문에 응답할 수 없습니다.');
       return;
     }
+    clubCode = clubSnap.id;
   }
 
   const btn = document.querySelector('.btn-submit');
