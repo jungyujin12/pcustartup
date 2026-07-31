@@ -409,6 +409,27 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
+async function hashAccessCode(code) {
+  const bytes = new TextEncoder().encode(String(code).trim().toUpperCase());
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function resolveClubByAccessCode(code) {
+  const normalized = String(code).trim().toUpperCase();
+  const direct = await getDoc(doc(db,'clubs',normalized));
+  if (direct.exists()) {
+    const current = String(direct.data().accessCode || direct.data().code || direct.id).toUpperCase();
+    if (current === normalized) return direct;
+  }
+  const index = await getDoc(doc(db,'club_codes',await hashAccessCode(normalized)));
+  if (!index.exists() || !index.data().clubId) return null;
+  const club = await getDoc(doc(db,'clubs',index.data().clubId));
+  if (!club.exists()) return null;
+  const current = String(club.data().accessCode || club.data().code || club.id).toUpperCase();
+  return current === normalized ? club : null;
+}
+
 // ── 상태 ──
 let clubCode = '';
 let clubData = {};
@@ -482,18 +503,18 @@ window.enterCode = async function() {
   err.classList.remove('show');
 
   try {
-    const snap = await getDoc(doc(db, 'clubs', code));
-    if (!snap.exists()) { err.textContent = '등록되지 않은 접근코드입니다.'; err.classList.add('show'); return; }
+    const snap = await resolveClubByAccessCode(code);
+    if (!snap) { err.textContent = '등록되지 않은 접근코드입니다.'; err.classList.add('show'); return; }
     if (snap.data().status !== 'active') {
       err.textContent = '운영이 종료된 동아리입니다. 새 연도 접근코드를 사용하거나 관리자에게 문의해주세요.';
       err.classList.add('show');
       return;
     }
 
-    clubCode = code; clubData = snap.data();
+    clubCode = snap.id; clubData = snap.data();
     document.getElementById('clubNameBadge').textContent = clubData.name || code;
     document.getElementById('clubFieldBadge').textContent = (clubData.field || '') + ' 창업';
-    document.getElementById('clubCodeBadge').textContent = code;
+    document.getElementById('clubCodeBadge').textContent = clubData.accessCode || clubData.code || code;
 
     document.getElementById('codeScreen').style.display = 'none';
     document.getElementById('mainScreen').style.display = 'block';
