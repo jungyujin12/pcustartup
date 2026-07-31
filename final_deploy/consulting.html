@@ -233,7 +233,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getFirestore, collection, addDoc, serverTimestamp
+  getFirestore, collection, doc, getDoc, addDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -304,7 +304,7 @@ window.submitConsult = async function() {
   const email = document.getElementById('cEmail').value.trim();
   const date = document.getElementById('cDate').value;
   const content = document.getElementById('cContent').value.trim();
-  const clubCode = document.getElementById('cClubCode').value.trim();
+  const clubCode = document.getElementById('cClubCode').value.trim().toUpperCase();
 
   // 검증
   let valid = true;
@@ -328,6 +328,16 @@ window.submitConsult = async function() {
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '제출 중...'; }
 
   try {
+    let clubName = '';
+    let clubYear = '';
+    if (clubCode) {
+      const clubSnap = await getDoc(doc(db,'clubs',clubCode));
+      if (!clubSnap.exists()) throw new Error('등록되지 않은 동아리 코드입니다.');
+      const clubData = clubSnap.data();
+      if (clubData.status !== 'active') throw new Error('운영이 종료된 동아리 코드입니다.');
+      clubName = clubData.name || '';
+      clubYear = String(clubData.year || '');
+    }
     // 신청번호 생성
     const num = 'C' + Date.now().toString().slice(-6);
 
@@ -336,7 +346,7 @@ window.submitConsult = async function() {
       topic: selectedTopic,
       date: date || '미정',
       time: selectedTime || '미정',
-      content, clubCode,
+      content, clubCode, clubName, clubYear,
       status: '대기',
       createdAt: serverTimestamp(),
       year: new Date().getFullYear().toString()
