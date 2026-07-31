@@ -136,6 +136,32 @@
     table.mt td { padding:12px 16px; border-bottom:1px solid var(--pcu-lightgray); vertical-align:middle; }
     table.mt tr:last-child td { border-bottom:none; }
     table.mt tr:hover td { background:rgba(0,82,204,0.02); }
+    #dashboardClubTable { min-width:1180px; table-layout:fixed; }
+    #dashboardClubTable th:nth-child(1) { width:64px; }
+    #dashboardClubTable th:nth-child(2) { width:130px; }
+    #dashboardClubTable th:nth-child(3) { width:105px; }
+    #dashboardClubTable th:nth-child(4) { width:235px; }
+    #dashboardClubTable th:nth-child(5) { width:76px; }
+    #dashboardClubTable th:nth-child(6) { width:70px; }
+    #dashboardClubTable th:nth-child(7) { width:82px; }
+    #dashboardClubTable th:nth-child(8) { width:115px; }
+    #dashboardClubTable th:nth-child(9) { width:82px; }
+    #dashboardClubTable th:nth-child(10) { width:105px; }
+    #dashboardClubTable th:nth-child(11) { width:92px; }
+    #dashboardClubTable th:nth-child(12) { width:76px; }
+    #dashboardClubTable td:nth-child(2),
+    #dashboardClubTable td:nth-child(3),
+    #dashboardClubTable td:nth-child(5),
+    #dashboardClubTable td:nth-child(6),
+    #dashboardClubTable td:nth-child(7),
+    #dashboardClubTable td:nth-child(8),
+    #dashboardClubTable td:nth-child(9),
+    #dashboardClubTable td:nth-child(10),
+    #dashboardClubTable td:nth-child(11),
+    #dashboardClubTable td:nth-child(12) { white-space:nowrap; }
+    #dashboardClubTable .td-item { white-space:normal; overflow-wrap:anywhere; line-height:1.45; }
+    .dashboard-row-index { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+    .dashboard-row-index .accordion-btn { flex:0 0 auto; width:22px; height:22px; padding:0; }
 
     /* 배지 */
     .tb { display:inline-block; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:700; white-space:nowrap; }
@@ -632,7 +658,7 @@ function logout() { if(window._logout) window._logout(); }
             <span class="table-count" id="tableCount">0건</span>
           </div>
           <div class="table-wrap">
-            <table class="mt">
+            <table class="mt" id="dashboardClubTable">
               <thead>
                 <tr>
                   <th><input type="checkbox" id="checkAll" onclick="toggleAllClubs(this)" style="width:14px;height:14px;cursor:pointer"></th><th>동아리명</th><th>대표자</th><th>아이템</th>
@@ -1251,7 +1277,15 @@ window.loadClubs = async function loadClubs() {
   const snap = await getDocs(query(collection(db,'clubs'), orderBy('createdAt','asc')));
   const selectedYear = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
   clubList = snap.docs
-    .map(d => ({ code: d.id, ...d.data() }))
+    .map(d => {
+      const data = d.data();
+      return {
+        ...data,
+        clubId: d.id,
+        code: d.id,
+        accessCode: data.accessCode || data.code || d.id
+      };
+    })
     .filter(club => club.year ? String(club.year) === selectedYear : selectedYear === '2026');
   renderClubTable();
   // 인원관리 탭이 활성화돼 있으면 membersList도 갱신
@@ -1273,7 +1307,9 @@ function renderClubTable() {
   const fieldF = document.getElementById('clubFieldFilter')?.value||'';
   const statusF = document.getElementById('clubStatusFilter')?.value||'';
   let list = clubList.filter(c => {
-    if (search && !(c.name||'').toLowerCase().includes(search) && !c.code.toLowerCase().includes(search)) return false;
+    if (search && !(c.name||'').toLowerCase().includes(search)
+      && !c.code.toLowerCase().includes(search)
+      && !(c.accessCode||'').toLowerCase().includes(search)) return false;
     if (fieldF && (c.field||'일반') !== fieldF) return false;
     if (statusF && (c.status||'active') !== statusF) return false;
     return true;
@@ -1292,15 +1328,15 @@ function renderClubTable() {
       </td>
       <td><strong>${c.name}</strong>${c.repName?`<span class="td-sub">${c.repName}</span>`:''}</td>
       <td>
-        <span style="font-family:monospace;font-weight:800;color:var(--pcu-blue);letter-spacing:1px">${c.code}</span>
+        <span style="font-family:monospace;font-weight:800;color:var(--pcu-blue);letter-spacing:1px">${c.accessCode}</span>
         <button class="btn-sm btn-sm-blue td-btn" style="margin-left:6px"
-          onclick="window.copyCode('${c.code}',this)" title="코드 복사">📋</button>
+          onclick="window.copyCode('${c.accessCode}',this)" title="코드 복사">📋</button>
       </td>
       <td><span class="tb tb-blue">${c.field||'일반'}</span></td>
       <td class="td-date">${c.createdAt?.toDate?.()?.toLocaleDateString('ko-KR')||'—'}</td>
       <td>
         <button class="btn-sm btn-sm-blue td-btn" onclick="window.editClubName('${c.code}','${c.name}')">이름</button>
-        <button class="btn-sm btn-sm-blue td-btn" onclick="window.editCode('${c.code}','${c.name}')">코드</button>
+        <button class="btn-sm btn-sm-blue td-btn" onclick="window.editCode('${c.code}','${c.name}','${c.accessCode}')">코드</button>
         <button class="btn-sm btn-sm-mint td-btn" onclick="window.editClubInfo('${c.code}')">정보수정</button>
       </td>
       <td>
@@ -1371,7 +1407,7 @@ window.addClub = async function() {
     const code = await generateUniqueClubCode(name);
     const codeHash = await hashCode(code);
     await setDoc(doc(db, 'clubs', code), {
-      name, code, codeHash, field, year, status:'active', createdAt: serverTimestamp()
+      name, code, accessCode:code, codeHash, field, year, status:'active', createdAt: serverTimestamp()
     });
     await setDoc(doc(db, 'club_names', await clubNameDocId(name, year)), {
       clubCode:code, year, createdAt:serverTimestamp()
@@ -1865,7 +1901,7 @@ window.uploadCSV = async function() {
         const leader = club.members.find(member => member.isLeader);
         const hash = await hashCode(code);
         await setDoc(doc(db,'clubs',code), {
-          code, codeHash: hash,
+          code, accessCode:code, codeHash: hash,
           name: club.name,
           field: club.field,
           memberCount: club.members.length,
@@ -1962,7 +1998,7 @@ window.uploadCSV = async function() {
         const code = await generateUniqueClubCode(name);
         const hash = await hashCode(code);
         await setDoc(doc(db,'clubs',code), {
-          code, codeHash: hash, name,
+          code, accessCode:code, codeHash: hash, name,
           field: vals[headers.indexOf('분야')] || '일반',
           repName: vals[headers.indexOf('대표자명')] || '',
           repTel: vals[headers.indexOf('연락처')] || '',
@@ -2068,19 +2104,19 @@ window.editClubName = async function(code, currentName) {
 };
 
 // ══ 코드 수정 ══
-window.editCode = function(code, name) {
-  const newCode = prompt(`[${name}] 접근코드 수정\n현재: ${code}\n\n새 코드를 입력하세요 (영문 3자+숫자 3자):`, code);
-  if (!newCode || newCode === code) return;
+window.editCode = function(clubId, name, currentAccessCode) {
+  const newCode = prompt(`[${name}] 접근코드 수정\n현재: ${currentAccessCode}\n\n새 코드를 입력하세요 (영문 3자+숫자 3자):`, currentAccessCode);
+  if (!newCode || newCode.trim().toUpperCase() === currentAccessCode) return;
   const cleaned = newCode.trim().toUpperCase();
   if (!/^[A-Z]{3}[0-9]{3}$/.test(cleaned)) {
     alert('코드는 영문 대문자 3자+숫자 3자로 입력해주세요. 예: ABC123');
     return;
   }
-  if (clubList.find(c => c.code === cleaned)) {
+  if (clubList.find(c => c.accessCode === cleaned && c.code !== clubId)) {
     alert('이미 사용 중인 코드입니다.');
     return;
   }
-  updateClubCode(code, cleaned, name);
+  updateClubCode(clubId, cleaned, name);
 };
 
 
@@ -2426,6 +2462,46 @@ async function copyStorageTree(oldPath, newPath, oldRefs) {
 
 async function updateClubCode(oldCode, newCode, name) {
   try {
+    // oldCode is the immutable Firestore document ID (clubId).  Only the
+    // student-facing access code changes; members, reports and Storage keep
+    // using clubId, so no data copy or path migration is required.
+    const clubsSnap = await getDocs(collection(db,'clubs'));
+    const collision = clubsSnap.docs.find(clubDoc => {
+      if (clubDoc.id === oldCode) return false;
+      const club = clubDoc.data();
+      return String(club.accessCode || club.code || clubDoc.id).toUpperCase() === newCode;
+    });
+    if (collision) {
+      throw new Error(`코드 ${newCode}는 이미 다른 동아리에서 사용 중입니다.`);
+    }
+    const sourceClubSnap = await getDoc(doc(db,'clubs',oldCode));
+    if (!sourceClubSnap.exists()) throw new Error('변경할 동아리 원천 데이터를 찾을 수 없습니다.');
+    const previousAccessCode = String(
+      sourceClubSnap.data().accessCode || sourceClubSnap.data().code || oldCode
+    ).toUpperCase();
+    const newAccessCodeHash = await hashCode(newCode);
+    await updateDoc(sourceClubSnap.ref,{
+      accessCode:newCode,
+      codeHash:newAccessCodeHash,
+      accessCodeUpdatedAt:serverTimestamp()
+    });
+    await setDoc(doc(db,'club_codes',newAccessCodeHash),{
+      clubId:oldCode,
+      accessCode:newCode,
+      updatedAt:serverTimestamp()
+    });
+    const previousIndexRef = doc(db,'club_codes',await hashCode(previousAccessCode));
+    const previousIndexSnap = await getDoc(previousIndexRef);
+    if (previousIndexSnap.exists() && previousIndexSnap.data().clubId === oldCode) {
+      await deleteDoc(previousIndexRef);
+    }
+    showToast(`✅ 접근코드 ${previousAccessCode} → ${newCode} 변경 완료 (기존 팀원·파일 유지)`);
+    await loadClubs();
+    renderClubTable();
+    return;
+
+    /* Legacy path-migration implementation retained below only for historical
+       reference. It is unreachable because access codes are no longer keys. */
     const collisionSnap = await getDoc(doc(db,'clubs',newCode));
     if (collisionSnap.exists()) {
       throw new Error(`코드 ${newCode}는 다른 연도 또는 동아리에서 이미 사용 중입니다.`);
@@ -2845,8 +2921,10 @@ function renderTable(data) {
   tbody.innerHTML = data.map((d,i) => `
     <tr class="${d.status==='미제출'?'row-pending':''}" data-club-row="${d.code}">
       <td class="td-num">
-        <button class="accordion-btn" onclick="toggleMembers('${d.code}',event)" title="팀원 보기">▶</button>
-        ${i+1}
+        <span class="dashboard-row-index">
+          <button class="accordion-btn" onclick="toggleMembers('${d.code}',event)" title="팀원 보기">▶</button>
+          <span>${i+1}</span>
+        </span>
       </td>
       <td><strong>${d.club}</strong>${d.reportCount>0?`<span class="td-sub">${d.reportCount}건 제출</span>`:''}</td>
       <td>${d.data?.repName||'—'}<span class="td-sub">${d.data?.repDept||''}</span></td>
@@ -4253,7 +4331,12 @@ window.runIntegrityCheck = async function() {
   try {
     addLog('📋 1/6 — 동아리 목록 로드 중...');
     const clubsSnap = await getDocs(collection(db,'clubs'));
-    const clubs = clubsSnap.docs.map(d => ({ ...d.data(), code: d.id, storedCode: d.data().code }));
+    const clubs = clubsSnap.docs.map(d => ({
+      ...d.data(),
+      code:d.id,
+      storedCode:d.data().code,
+      accessCode:d.data().accessCode || d.data().code || d.id
+    }));
     const clubCodes = new Set(clubs.map(c => c.code));
     addLog(`✅ clubs ${clubs.length}개 확인`, '#059669');
 
@@ -4284,13 +4367,18 @@ window.runIntegrityCheck = async function() {
     addLog('📋 2/7 — 접근코드 무결성 점검 중...');
     for (const club of clubs) {
       const problems = [];
-      if (!/^[A-Z0-9]{4,12}$/.test(club.code)) problems.push('허용 형식 아님');
-      else if (!/^[A-Z]{3}[0-9]{3}$/.test(club.code)) report.legacyCodeWarnings.push({code:club.code,name:club.name||club.code});
+      if (!/^[A-Z0-9]{4,12}$/.test(club.accessCode)) problems.push('접근코드 허용 형식 아님');
+      else if (!/^[A-Z]{3}[0-9]{3}$/.test(club.accessCode)) report.legacyCodeWarnings.push({code:club.accessCode,name:club.name||club.code});
       const storedCode = club.storedCode;
       if (storedCode && storedCode !== club.code) problems.push(`code 필드=${storedCode}`);
-      const expectedHash = await hashCode(club.code);
+      const expectedHash = await hashCode(club.accessCode);
       if (!club.codeHash || club.codeHash !== expectedHash) problems.push('codeHash 불일치');
-      if (problems.length) report.codeIssues.push({code:club.code, name:club.name||club.code, problems});
+      if (problems.length) report.codeIssues.push({
+        code:club.code,
+        accessCode:club.accessCode,
+        name:club.name||club.code,
+        problems
+      });
 
       if (club.name) {
         const clubYear = String(club.year || '2026');
@@ -4582,11 +4670,19 @@ window.repairCodeIntegrity = async function() {
   if (!confirm(`접근코드의 code 필드·해시 ${codeIssues.length}건과 연도별 이름 색인 ${indexIssues.length}건을 복구할까요?\n구형 코드 자체는 연결 데이터 보호를 위해 자동 변경하지 않습니다.`)) return;
   try {
     for (const item of codeIssues) {
-      if (!/^[A-Z0-9]{4,12}$/.test(item.code)) continue;
+      const accessCode = String(item.accessCode || item.code).toUpperCase();
+      if (!/^[A-Z0-9]{4,12}$/.test(accessCode)) continue;
+      const accessCodeHash = await hashCode(accessCode);
       await setDoc(doc(db,'clubs',item.code), {
         code:item.code,
-        codeHash:await hashCode(item.code)
+        accessCode,
+        codeHash:accessCodeHash
       }, {merge:true});
+      await setDoc(doc(db,'club_codes',accessCodeHash),{
+        clubId:item.code,
+        accessCode,
+        updatedAt:serverTimestamp()
+      },{merge:true});
     }
     for (const item of indexIssues) {
       await setDoc(doc(db,'club_names',await clubNameDocId(item.name,item.year)), {
@@ -4698,7 +4794,7 @@ window.openMemberRepairUI = function() {
           <span style="color:#9ca3af;font-size:0.8rem">→</span>
           <select data-orphan="${oc}" style="flex:1;min-width:160px;border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:5px 8px;font-size:0.78rem;font-family:var(--font-family-base)">
             <option value="">— 연결 안 함 —</option>
-            ${clubs.map(c => `<option value="${c.code}">${c.name} (${c.code})</option>`).join('')}
+            ${clubs.map(c => `<option value="${c.code}">${c.name} (${c.accessCode || c.code})</option>`).join('')}
           </select>
           <button class="btn-sm btn-sm-red" onclick="deleteSingleOrphan('${oc}', this)" style="flex-shrink:0">🗑️</button>
         </div>`).join('')}
@@ -5160,13 +5256,14 @@ window.renderFileClubList = function() {
     !queryText
     || (club.name || '').toLowerCase().includes(queryText)
     || club.code.toLowerCase().includes(queryText)
+    || (club.accessCode || '').toLowerCase().includes(queryText)
   );
   list.innerHTML = filtered.length
     ? filtered.map(club => `
       <button class="file-club-btn ${club.code===selectedCode?'active':''}"
         onclick="selectFileClub('${club.code}')">
         <span class="file-club-name">${escapeFileHTML(club.name || club.code)}</span>
-        <span class="file-club-code">${escapeFileHTML(club.code)}</span>
+        <span class="file-club-code">${escapeFileHTML(club.accessCode || club.code)}</span>
       </button>`).join('')
     : '<div style="padding:1rem;text-align:center;color:var(--pcu-gray);font-size:0.76rem">검색 결과가 없습니다.</div>';
 };
@@ -5175,7 +5272,7 @@ window.selectFileClub = function(code) {
   const select = document.getElementById('fileClubSelect');
   select.value = code || '';
   const club = clubList.find(item => item.code === code);
-  document.getElementById('selectedFileClubName').textContent = club ? `${club.name} · ${club.code}` : '동아리를 선택하세요';
+  document.getElementById('selectedFileClubName').textContent = club ? `${club.name} · ${club.accessCode || club.code}` : '동아리를 선택하세요';
   renderFileClubList();
   loadAdminFiles();
 };
