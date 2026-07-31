@@ -1152,7 +1152,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import {
   getFirestore, collection, doc, getDocs, getDoc,
   setDoc, deleteDoc, addDoc, updateDoc,
-  query, orderBy, serverTimestamp, onSnapshot, arrayUnion, collectionGroup
+  query, where, orderBy, serverTimestamp, onSnapshot, arrayUnion, collectionGroup
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   getStorage, ref, uploadBytesResumable, uploadBytes, getBlob, getDownloadURL, getMetadata, listAll, deleteObject
@@ -1360,10 +1360,14 @@ window.addClub = async function() {
   const field = document.getElementById('newClubField').value;
   const msg = document.getElementById('addClubMsg');
   if (!name) { showMsg(msg, '❌ 동아리명을 입력해주세요.', '#dc2626'); return; }
-  if (clubList.find(c => c.name === name)) { showMsg(msg, '❌ 이미 등록된 동아리명입니다.', '#dc2626'); return; }
 
   try {
     const year = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
+    const existingClub = await findClubByNameYear(name, year);
+    if (existingClub) {
+      showMsg(msg, `❌ ${year}년에 이미 등록된 동아리명입니다. (${existingClub.code})`, '#dc2626');
+      return;
+    }
     const code = await generateUniqueClubCode(name);
     const codeHash = await hashCode(code);
     await setDoc(doc(db, 'clubs', code), {
@@ -1753,23 +1757,39 @@ window.uploadCSV = async function() {
       name:d.data().name||d.id,
       year:String(d.data().year || '2026')
     }]));
+    const existingNameYear = new Map();
+    existingSnap.docs.forEach(d => {
+      const data = d.data();
+      const key = `${String(data.year || '2026')}|${normalizeClubName(data.name)}`;
+      if (!existingNameYear.has(key)) existingNameYear.set(key, []);
+      existingNameYear.get(key).push(d.id);
+    });
     const selectedYear = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
 
     const willOverwrite = [];   // 기존 clubs와 코드 겹치는 것
     const crossYearCollisions = [];
+    const nameCollisions = [];
     const invalidCodes = [];
     const codeInBatch = new Map(); // 엑셀 내부 중복 코드
+    const nameInBatch = new Map();
 
     parsedClubs.forEach(c => {
       const code = (c.code||'').trim().toUpperCase();
+      const nameKey = `${selectedYear}|${normalizeClubName(c.name)}`;
       if (!/^[A-Z0-9]{4,12}$/.test(code)) invalidCodes.push(code || '(빈 코드)');
       if (existingCodes.has(code)) {
         const existing = existingCodes.get(code);
         if (existing.year !== selectedYear) crossYearCollisions.push({code, existing});
         else willOverwrite.push({ code, name: c.name, existingName: existing.name });
       }
+      const otherCodes = (existingNameYear.get(nameKey) || []).filter(existingCode => existingCode !== code);
+      if (otherCodes.length) nameCollisions.push({name:c.name, code, otherCodes});
       if (codeInBatch.has(code)) willOverwrite.push({ code, name: c.name, existingName: `(엑셀 내 중복: ${codeInBatch.get(code)})` });
       codeInBatch.set(code, c.name);
+      if (nameInBatch.has(nameKey) && nameInBatch.get(nameKey) !== code) {
+        nameCollisions.push({name:c.name, code, otherCodes:[nameInBatch.get(nameKey)]});
+      }
+      nameInBatch.set(nameKey, code);
     });
 
     if (invalidCodes.length) {
@@ -1780,6 +1800,12 @@ window.uploadCSV = async function() {
       alert(`다른 연도의 접근코드는 덮어쓸 수 없습니다.\n${crossYearCollisions.slice(0,10).map(item =>
         `${item.code} (${item.existing.year}년 ${item.existing.name})`
       ).join('\n')}\n\n엑셀의 접근코드를 새 코드로 변경한 뒤 다시 업로드해주세요.`);
+      return;
+    }
+    if (nameCollisions.length) {
+      alert(`같은 연도에 동일한 동아리명을 다른 코드로 중복 등록할 수 없습니다.\n${nameCollisions.slice(0,10).map(item =>
+        `${item.name}: 업로드 ${item.code} / 기존 ${item.otherCodes.join(', ')}`
+      ).join('\n')}\n\n기존 코드를 엑셀에 사용하거나, 관리자 화면의 [코드] 변경 기능으로 코드를 이전해주세요.`);
       return;
     }
 
@@ -1897,6 +1923,12 @@ window.uploadCSV = async function() {
       const name = vals[headers.indexOf('동아리명')] || vals[0];
       if (!name) { fail++; continue; }
       try {
+        const existingClub = await findClubByNameYear(name, selectedYear);
+        if (existingClub) {
+          console.warn(`동일 연도 동아리명 중복으로 건너뜀: ${name} (${existingClub.code})`);
+          fail++;
+          continue;
+        }
         const code = await generateUniqueClubCode(name);
         const hash = await hashCode(code);
         await setDoc(doc(db,'clubs',code), {
@@ -1983,12 +2015,14 @@ window.editClubName = async function(code, currentName) {
   const newName = prompt(`동아리명 수정\n현재: ${currentName}\n\n새 동아리명:`, currentName);
   if (!newName || newName.trim() === currentName) return;
   const trimmed = newName.trim();
-  if (clubList.find(c => c.name === trimmed && c.code !== code)) {
-    alert('이미 사용 중인 동아리명입니다.'); return;
-  }
   try {
     const club = clubList.find(item => item.code === code);
     const clubYear = String(club?.year || document.getElementById('yearFilter')?.value || '2026');
+    const existingClub = await findClubByNameYear(trimmed, clubYear, code);
+    if (existingClub) {
+      alert(`이미 사용 중인 동아리명입니다. (${existingClub.code})`);
+      return;
+    }
     await setDoc(doc(db,'clubs',code), { name: trimmed }, { merge: true });
     await deleteClubNameIndex(currentName, clubYear, code);
     await setDoc(doc(db,'club_names',
@@ -2050,7 +2084,8 @@ window.editClubInfo = async function(code) {
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">아이템</label>
           <input id="ei-item" class="edit-input" value="${d.item||''}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">인원수</label>
-          <input id="ei-memberCount" class="edit-input" type="number" value="${d.memberCount||''}"></div>
+          <input id="ei-memberCount" class="edit-input" type="number" value="${d.memberCount||0}" disabled
+            title="팀원 목록에서 자동 계산됩니다."></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">사업자등록</label>
           <select id="ei-bizReg" class="edit-input">
             <option value="미등록" ${(!d.bizReg||d.bizReg==='미등록')?'selected':''}>미등록</option>
@@ -2070,18 +2105,35 @@ window.editClubInfo = async function(code) {
 
 window.saveClubInfo = async function(code) {
   try {
+    const currentSnap = await getDoc(doc(db,'clubs',code));
+    if (!currentSnap.exists()) throw new Error('동아리 문서를 찾을 수 없습니다.');
+    const currentData = currentSnap.data();
+    const oldName = String(currentData.name || '').trim();
+    const newName = document.getElementById('ei-name').value.trim();
+    const clubYear = String(currentData.year || document.getElementById('yearFilter')?.value || '2026');
+    if (!newName) throw new Error('동아리명을 입력해주세요.');
+    const existingClub = await findClubByNameYear(newName, clubYear, code);
+    if (existingClub) throw new Error(`같은 연도에 이미 사용 중인 동아리명입니다. (${existingClub.code})`);
+    const membersSnap = await getDocs(collection(db,'members',code,'list'));
     await updateDoc(doc(db,'clubs',code), {
-      name: document.getElementById('ei-name').value.trim(),
+      name: newName,
       field: document.getElementById('ei-field').value,
       repName: document.getElementById('ei-repName').value.trim(),
       repTel: document.getElementById('ei-repTel').value.trim(),
       repEmail: document.getElementById('ei-repEmail').value.trim(),
       repDept: document.getElementById('ei-repDept').value.trim(),
       item: document.getElementById('ei-item').value.trim(),
-      memberCount: parseInt(document.getElementById('ei-memberCount').value)||0,
+      memberCount: membersSnap.size,
+      memberCountUpdatedAt: serverTimestamp(),
       bizReg: document.getElementById('ei-bizReg').value,
       profName: document.getElementById('ei-profName').value.trim(),
     });
+    if (normalizeClubName(oldName) !== normalizeClubName(newName)) {
+      await deleteClubNameIndex(oldName, clubYear, code);
+      await setDoc(doc(db,'club_names',await clubNameDocId(newName,clubYear)), {
+        clubCode:code, year:clubYear, createdAt:serverTimestamp()
+      });
+    }
     showToast('✅ 정보 수정 완료');
     closeModal();
     await loadClubs();
@@ -2132,6 +2184,13 @@ window.deleteSelected = async function() {
           const rr = await getDocs(collection(db,'ai_history',code,'files',fd.id,'records'));
           await Promise.all(rr.docs.map(d=>deleteDoc(d.ref)));
           await deleteDoc(fd.ref);
+        }
+      } catch(e){}
+      try {
+        const clubSnap = await getDoc(doc(db,'clubs',code));
+        if (clubSnap.exists()) {
+          const data = clubSnap.data();
+          await deleteClubNameIndex(data.name || '', String(data.year || '2026'), code);
         }
       } catch(e){}
       await deleteDoc(doc(db,'clubs',code)); ok++;
@@ -2205,9 +2264,41 @@ async function hashCode(code) {
   return hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
+function normalizeClubName(name) {
+  return String(name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 async function clubNameDocId(name, year) {
-  const normalizedName = String(name || '').normalize('NFKC').trim().toLowerCase();
+  const normalizedName = normalizeClubName(name);
   return `${String(year)}_${await hashCode(normalizedName)}`;
+}
+
+async function findClubByNameYear(name, year, excludeCode = '') {
+  const normalizedName = normalizeClubName(name);
+  if (!normalizedName) return null;
+  const normalizedYear = String(year || '2026');
+  const indexSnap = await getDoc(doc(db,'club_names',await clubNameDocId(name,normalizedYear)));
+  if (indexSnap.exists()) {
+    const indexedCode = indexSnap.data().clubCode;
+    if (indexedCode && indexedCode !== excludeCode) {
+      const clubSnap = await getDoc(doc(db,'clubs',indexedCode));
+      if (clubSnap.exists()) {
+        const data = clubSnap.data();
+        if (String(data.year || '2026') === normalizedYear && normalizeClubName(data.name) === normalizedName) {
+          return {code:indexedCode,...data};
+        }
+      }
+    }
+  }
+  // 과거 데이터는 색인이 없거나 덮어써졌을 수 있으므로 clubs 전체를 한 번 더 확인한다.
+  const clubsSnap = await getDocs(collection(db,'clubs'));
+  const duplicate = clubsSnap.docs.find(item => {
+    const data = item.data();
+    return item.id !== excludeCode
+      && String(data.year || '2026') === normalizedYear
+      && normalizeClubName(data.name) === normalizedName;
+  });
+  return duplicate ? {code:duplicate.id,...duplicate.data()} : null;
 }
 
 async function deleteClubNameIndex(name, year, code) {
@@ -2222,8 +2313,27 @@ async function deleteClubNameIndex(name, year, code) {
   }
 }
 
+async function copyStorageTree(oldPath, newPath, oldRefs) {
+  const listing = await listAll(ref(storage,oldPath));
+  for (const item of listing.items) {
+    const blob = await getBlob(item);
+    const relativeName = item.fullPath.slice(oldPath.replace(/\/$/,'').length + 1);
+    const target = ref(storage,`${newPath.replace(/\/$/,'')}/${relativeName}`);
+    await uploadBytes(target,blob,{contentType:blob.type || 'application/octet-stream'});
+    oldRefs.push(item);
+  }
+  for (const prefix of listing.prefixes) {
+    const relativePrefix = prefix.fullPath.slice(oldPath.replace(/\/$/,'').length + 1);
+    await copyStorageTree(prefix.fullPath,`${newPath.replace(/\/$/,'')}/${relativePrefix}`,oldRefs);
+  }
+}
+
 async function updateClubCode(oldCode, newCode, name) {
   try {
+    const collisionSnap = await getDoc(doc(db,'clubs',newCode));
+    if (collisionSnap.exists()) {
+      throw new Error(`코드 ${newCode}는 다른 연도 또는 동아리에서 이미 사용 중입니다.`);
+    }
     // 1. clubs 코드 변경
     const oldSnap = await getDoc(doc(db,'clubs',oldCode));
     const codeHash = await hashCode(newCode);
@@ -2319,6 +2429,32 @@ async function updateClubCode(oldCode, newCode, name) {
         await deleteDoc(programDoc.ref);
       }
     } catch(pe) { console.warn('프로그램 이력 이전 실패:', pe.message); }
+
+    // 8. 코드 문자열을 보관하는 독립 컬렉션도 새 코드로 맞춘다.
+    const consultSnap = await getDocs(query(collection(db,'consultations'),where('clubCode','==',oldCode)));
+    for (const consultDoc of consultSnap.docs) {
+      await updateDoc(consultDoc.ref,{clubCode:newCode,clubName:data.name || name || '',clubYear});
+    }
+    const surveysSnap = await getDocs(collection(db,'surveys'));
+    for (const surveyDoc of surveysSnap.docs) {
+      const responsesSnap = await getDocs(collection(db,'surveys',surveyDoc.id,'responses'));
+      for (const responseDoc of responsesSnap.docs) {
+        if (responseDoc.data().clubCode === oldCode) await updateDoc(responseDoc.ref,{clubCode:newCode});
+      }
+    }
+    const aiJobsSnap = await getDocs(query(collection(db,'ai_jobs'),where('clubCode','==',oldCode)));
+    for (const jobDoc of aiJobsSnap.docs) {
+      await updateDoc(jobDoc.ref,{clubCode:newCode,clubName:data.name || name || ''});
+    }
+    const emailJobsSnap = await getDocs(query(collection(db,'email_jobs'),where('payload.clubCode','==',oldCode)));
+    for (const jobDoc of emailJobsSnap.docs) {
+      const payload = jobDoc.data().payload || {};
+      await updateDoc(jobDoc.ref,{payload:{...payload,clubCode:newCode,clubName:data.name || name || ''}});
+    }
+
+    // 9. 서명과 동아리 첨부 경로도 코드 기준으로 이전한다.
+    await copyStorageTree(`signs/${oldCode}`,`signs/${newCode}`,oldStorageRefs);
+    await copyStorageTree(`clubs/${oldCode}`,`clubs/${newCode}`,oldStorageRefs);
 
     // 새 데이터가 모두 준비된 뒤에만 기존 Storage 파일을 삭제
     await Promise.all(oldStorageRefs.map(item => deleteObject(item)));
@@ -3970,10 +4106,16 @@ window.runIntegrityCheck = async function() {
   };
 
   const report = {
+    duplicateClubs: [],     // 같은 연도·같은 이름인데 코드가 둘 이상인 동아리
     orphanMembers: [],      // members에 있는데 clubs에 없는 코드
     duplicateMembers: [],   // {clubCode, clubName, count} 동일 동아리 내 중복
     missingFields: [],      // clubs 문서인데 필수 필드 누락
     orphanReports: [],      // reports에 있는데 clubs에 없는 코드
+    mismatchedReports: [],  // reports 경로 코드와 문서 clubCode 불일치
+    orphanConsultations: [], // 상담의 clubCode가 clubs에 없음
+    orphanSurveyResponses: [], // 설문응답의 clubCode가 clubs에 없음
+    orphanPrograms: [],     // 프로그램 이력의 상위 코드가 clubs에 없음
+    orphanAIHistory: [],    // AI 기록의 상위 코드가 clubs에 없음
     staleConsults: [],      // 7일 이상 미처리 상담
     malformedSurveyAnswers: 0,
     codeIssues: [],         // 문서 ID·code·codeHash·형식 불일치
@@ -3987,6 +4129,29 @@ window.runIntegrityCheck = async function() {
     const clubs = clubsSnap.docs.map(d => ({ ...d.data(), code: d.id, storedCode: d.data().code }));
     const clubCodes = new Set(clubs.map(c => c.code));
     addLog(`✅ clubs ${clubs.length}개 확인`, '#059669');
+
+    const clubsByNameYear = new Map();
+    clubs.forEach(club => {
+      const key = `${String(club.year || '2026')}|${normalizeClubName(club.name)}`;
+      if (!normalizeClubName(club.name)) return;
+      if (!clubsByNameYear.has(key)) clubsByNameYear.set(key, []);
+      clubsByNameYear.get(key).push(club);
+    });
+    report.duplicateClubs = [...clubsByNameYear.values()]
+      .filter(group => group.length > 1)
+      .map(group => ({
+        name:group[0].name,
+        year:String(group[0].year || '2026'),
+        codes:group.map(club => club.code)
+      }));
+    if (report.duplicateClubs.length) {
+      addLog(`⚠️ 동일 연도·동일 이름 중복 동아리 ${report.duplicateClubs.length}건`, '#dc2626');
+      report.duplicateClubs.forEach(item =>
+        addLog(`  ↳ ${item.year} ${item.name}: ${item.codes.join(', ')}`, '#dc2626')
+      );
+    } else {
+      addLog('✅ 연도별 동아리명 중복 없음', '#059669');
+    }
 
     // ① 접근코드 자체 + 연도별 동아리명 색인 검사
     addLog('📋 2/7 — 접근코드 무결성 점검 중...');
@@ -4082,7 +4247,12 @@ window.runIntegrityCheck = async function() {
         const reportsListSnap = await getDocs(collectionGroup(db, 'submissions'));
         reportsListSnap.docs.forEach(d => {
           const parts = d.ref.path.split('/');
-          if (parts[0] === 'reports' && parts[2] === 'submissions') reportParents.add(parts[1]);
+          if (parts[0] === 'reports' && parts[2] === 'submissions') {
+            reportParents.add(parts[1]);
+            if (d.data().clubCode && d.data().clubCode !== parts[1]) {
+              report.mismatchedReports.push({path:d.ref.path,storedCode:d.data().clubCode,parentCode:parts[1]});
+            }
+          }
         });
       } catch(cge) {
         // collectionGroup 권한 없으면 clubs 기준으로 개별 조회
@@ -4097,6 +4267,7 @@ window.runIntegrityCheck = async function() {
       report.orphanReports = [...reportParents].filter(c => !clubCodes.has(c));
       if (report.orphanReports.length) addLog(`⚠️ 미연결 보고서 그룹 ${report.orphanReports.length}개 발견`, '#d97706');
       else addLog('✅ 모든 보고서가 동아리와 정상 연결됨', '#059669');
+      if (report.mismatchedReports.length) addLog(`⚠️ 경로와 clubCode가 다른 보고서 ${report.mismatchedReports.length}건`, '#dc2626');
     } catch(re) {
       addLog(`⚠️ 보고서 점검 건너뜀: ${re.message}`, '#9ca3af');
     }
@@ -4108,6 +4279,9 @@ window.runIntegrityCheck = async function() {
       const now = Date.now();
       consultSnap.docs.forEach(d => {
         const data = d.data();
+        if (data.clubCode && !clubCodes.has(data.clubCode)) {
+          report.orphanConsultations.push({id:d.id,clubCode:data.clubCode});
+        }
         if ((data.status||'pending') === 'pending') {
           const created = data.createdAt?.toDate?.()?.getTime();
           if (created && (now - created) > 7*24*60*60*1000) {
@@ -4117,6 +4291,7 @@ window.runIntegrityCheck = async function() {
       });
       if (report.staleConsults.length) addLog(`⚠️ 7일 이상 미처리 상담 ${report.staleConsults.length}건 발견`, '#d97706');
       else addLog('✅ 장기 미처리 상담 없음', '#059669');
+      if (report.orphanConsultations.length) addLog(`⚠️ 미연결 상담 코드 ${report.orphanConsultations.length}건`, '#dc2626');
     } catch(ce) {
       addLog(`⚠️ 상담 점검 건너뜀: ${ce.message}`, '#9ca3af');
     }
@@ -4131,22 +4306,52 @@ window.runIntegrityCheck = async function() {
         resSnap.docs.forEach(rd => {
           const answers = rd.data().answers;
           if (!answers || typeof answers !== 'object' || Object.keys(answers).length === 0) malformed++;
+          const responseCode = rd.data().clubCode;
+          if (responseCode && !clubCodes.has(responseCode)) {
+            report.orphanSurveyResponses.push({surveyId:sd.id,responseId:rd.id,clubCode:responseCode});
+          }
         });
       }
       report.malformedSurveyAnswers = malformed;
       if (malformed) addLog(`⚠️ 빈 응답 ${malformed}건 발견`, '#d97706');
       else addLog('✅ 설문 응답 형식 정상', '#059669');
+      if (report.orphanSurveyResponses.length) addLog(`⚠️ 미연결 설문응답 코드 ${report.orphanSurveyResponses.length}건`, '#dc2626');
     } catch(se) {
       addLog(`⚠️ 설문 점검 건너뜀: ${se.message}`, '#9ca3af');
+    }
+
+    try {
+      const programHistorySnap = await getDocs(collectionGroup(db,'history'));
+      const programCodes = new Set();
+      programHistorySnap.docs.forEach(item => {
+        const parts = item.ref.path.split('/');
+        if (parts[0] === 'programs' && parts[2] === 'history') programCodes.add(parts[1]);
+      });
+      report.orphanPrograms = [...programCodes].filter(code => !clubCodes.has(code));
+      const aiFilesSnap = await getDocs(collectionGroup(db,'files'));
+      const aiCodes = new Set();
+      aiFilesSnap.docs.forEach(item => {
+        const parts = item.ref.path.split('/');
+        if (parts[0] === 'ai_history' && parts[2] === 'files') aiCodes.add(parts[1]);
+      });
+      report.orphanAIHistory = [...aiCodes].filter(code => !clubCodes.has(code));
+      if (report.orphanPrograms.length) addLog(`⚠️ 미연결 프로그램 이력 코드 ${report.orphanPrograms.length}개`, '#dc2626');
+      if (report.orphanAIHistory.length) addLog(`⚠️ 미연결 AI 기록 코드 ${report.orphanAIHistory.length}개`, '#dc2626');
+      if (!report.orphanPrograms.length && !report.orphanAIHistory.length) addLog('✅ 프로그램·AI 기록 코드 연결 정상', '#059669');
+    } catch(crossError) {
+      addLog(`⚠️ 프로그램·AI 코드 점검 건너뜀: ${crossError.message}`, '#9ca3af');
     }
 
     _lastIntegrityReport = report;
 
     // ── 요약 카드 렌더링 ──
-    const totalIssues = report.orphanMembers.length + report.duplicateMembers.length +
+    const totalIssues = report.duplicateClubs.length + report.orphanMembers.length + report.duplicateMembers.length +
       report.missingFields.length + report.orphanReports.length +
       report.staleConsults.length + report.malformedSurveyAnswers +
-      report.codeIssues.length + report.nameIndexIssues.length;
+      report.codeIssues.length + report.nameIndexIssues.length +
+      report.mismatchedReports.length + report.orphanConsultations.length +
+      report.orphanSurveyResponses.length + report.orphanPrograms.length +
+      report.orphanAIHistory.length;
 
     const summaryCard = (label, count, color) => `
       <div style="background:${count>0?color+'15':'#f0fdf4'};border:1.5px solid ${count>0?color+'44':'#05966944'};border-radius:10px;padding:0.7rem 1rem;min-width:140px">
@@ -4155,6 +4360,7 @@ window.runIntegrityCheck = async function() {
       </div>`;
 
     summaryEl.innerHTML = `
+      ${summaryCard('중복 동아리', report.duplicateClubs.length, '#dc2626')}
       ${summaryCard('접근코드 이상', report.codeIssues.length, '#dc2626')}
       ${summaryCard('사용 가능한 구형 코드', report.legacyCodeWarnings.length, '#2563eb')}
       ${summaryCard('코드 색인 불일치', report.nameIndexIssues.length, '#d97706')}
@@ -4162,6 +4368,9 @@ window.runIntegrityCheck = async function() {
       ${summaryCard('중복 팀원', report.duplicateMembers.reduce((s,d)=>s+d.count,0), '#dc2626')}
       ${summaryCard('필드 누락', report.missingFields.length, '#d97706')}
       ${summaryCard('미연결 보고서', report.orphanReports.length, '#d97706')}
+      ${summaryCard('보고서 코드 불일치', report.mismatchedReports.length, '#dc2626')}
+      ${summaryCard('미연결 상담·설문', report.orphanConsultations.length + report.orphanSurveyResponses.length, '#dc2626')}
+      ${summaryCard('미연결 프로그램·AI', report.orphanPrograms.length + report.orphanAIHistory.length, '#dc2626')}
       ${summaryCard('장기 미처리 상담', report.staleConsults.length, '#d97706')}
       ${summaryCard('설문 형식 이상', report.malformedSurveyAnswers, '#9ca3af')}
     `;
@@ -4924,6 +5133,7 @@ window.renderAdminFileList = function() {
         <span class="file-col-date">${date}</span>
         <span class="file-actions">
           <button class="btn-sm btn-sm-blue td-btn" onclick="previewAdminFile(${index})">보기</button>
+          <button class="btn-sm btn-sm-blue td-btn" onclick="editAdminFileMetadata(${index})">분류</button>
           <a href="${file.url}" download="${escapeFileHTML(file.name)}" class="btn-sm btn-sm-mint td-btn">⬇️</a>
           <button class="btn-sm btn-sm-red td-btn" onclick="deleteAdminFile(${index})">삭제</button>
         </span>
@@ -4977,6 +5187,75 @@ window.previewAdminFile = function(index) {
       ? `<iframe src="${file.url}" title="${escapeFileHTML(file.name)}" style="width:100%;height:65vh;border:0;border-radius:8px"></iframe>`
       : `<div class="empty-state"><div class="empty-icon">${fileIcon(file.name)}</div><p>이 형식은 브라우저 미리보기를 지원하지 않습니다.</p><a href="${file.url}" download="${escapeFileHTML(file.name)}" class="btn btn-primary" style="display:inline-block;margin-top:1rem;text-decoration:none">다운로드</a></div>`;
   document.getElementById('detailModal').classList.add('open');
+};
+
+window.editAdminFileMetadata = function(index) {
+  const file = adminFileRefs[index];
+  if (!file) return;
+  document.getElementById('modalTitle').textContent = '문서 분류 수정 — ' + file.name;
+  document.getElementById('modalBody').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:0.8rem">
+      <div>
+        <label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:4px">문서 종류</label>
+        <select id="file-edit-category" class="edit-input" onchange="document.getElementById('file-edit-month-wrap').style.display=this.value==='monthly'?'block':'none'">
+          ${Object.entries(DOCUMENT_CATEGORY_LABELS).map(([key,label]) =>
+            `<option value="${key}" ${file.documentCategory===key?'selected':''}>${label}</option>`
+          ).join('')}
+        </select>
+      </div>
+      <div id="file-edit-month-wrap" style="display:${file.documentCategory==='monthly'?'block':'none'}">
+        <label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:4px">보고 월</label>
+        <select id="file-edit-month" class="edit-input">
+          ${Array.from({length:12},(_,index) => index+1).map(month =>
+            `<option value="${month}" ${Number(file.reportMonth)===month?'selected':''}>${month}월</option>`
+          ).join('')}
+        </select>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem">
+        <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+        <button class="btn btn-primary" onclick="saveAdminFileMetadata(${index})">저장</button>
+      </div>
+    </div>`;
+  document.getElementById('detailModal').classList.add('open');
+};
+
+window.saveAdminFileMetadata = async function(index) {
+  const file = adminFileRefs[index];
+  const code = document.getElementById('fileClubSelect').value;
+  if (!file || !code) return;
+  const documentCategory = document.getElementById('file-edit-category').value;
+  const reportMonth = documentCategory === 'monthly'
+    ? Number(document.getElementById('file-edit-month').value)
+    : null;
+  try {
+    const payload = {
+      clubCode:code,
+      clubName:clubList.find(club => club.code === code)?.name || code,
+      fileName:file.storedName,
+      fileUrl:file.url,
+      storagePath:file.path,
+      fileSize:file.size || 0,
+      contentType:file.contentType || '',
+      documentCategory,
+      reportMonth,
+      year:String(file.year),
+      updatedAt:serverTimestamp()
+    };
+    if (file.reportId) {
+      await setDoc(doc(db,'reports',code,'submissions',file.reportId), payload, {merge:true});
+    } else {
+      await addDoc(collection(db,'reports',code,'submissions'), {
+        ...payload,
+        submittedAt:serverTimestamp(),
+        uploadedByAdmin:true
+      });
+    }
+    closeModal();
+    await loadAdminFiles();
+    showToast('✅ 문서 분류 수정 완료');
+  } catch (error) {
+    alert('문서 분류 수정 실패: ' + error.message);
+  }
 };
 
 window.downloadSelectedAdminFiles = function() {
