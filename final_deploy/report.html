@@ -651,8 +651,8 @@ function addFileItem(name, url, size, existing=false) {
     <div class="file-info">
       <div class="file-name">${name}</div>
       <div class="file-meta">${existing ? currentYear+'년도 파일' : (size||'') + uploadDate}</div>
-      <span class="history-toggle" onclick="toggleHistory(event,'${name}')">🕐 분석 기록 보기 ▾</span>
-      <div class="history-list" id="hist-${name.replace(/\./g,'_')}"></div>
+      <span class="history-toggle" onclick="toggleHistory(event,'${aiFileId(name)}')">🕐 분석 기록 보기 ▾</span>
+      <div class="history-list" id="hist-${aiFileId(name)}"></div>
     </div>
     <span class="file-check">✓</span>
   `;
@@ -680,11 +680,29 @@ function selectFile(el, name, url) {
 }
 
 // ── 히스토리 ──
+function aiFileId(fileName) {
+  return encodeURIComponent(String(fileName || '')).replace(/'/g,'%27');
+}
+
+function legacyAIFileId(fileName) {
+  return String(fileName || '').replace(/\./g,'_');
+}
+
 async function loadFileHistory(fileName) {
   try {
-    const histRef = collection(db, 'ai_history', clubCode, 'files', fileName.replace(/\./g,'_'), 'records');
-    const snap = await getDocs(query(histRef, orderBy('createdAt','desc')));
-    const el = document.getElementById('hist-'+fileName.replace(/\./g,'_'));
+    let fileId = aiFileId(fileName);
+    let histRef = collection(db, 'ai_history', clubCode, 'files', fileId, 'records');
+    let snap = await getDocs(query(histRef, orderBy('createdAt','desc')));
+    const legacyId = legacyAIFileId(fileName);
+    if (snap.empty && legacyId !== fileId) {
+      const legacyRef = collection(db, 'ai_history', clubCode, 'files', legacyId, 'records');
+      const legacySnap = await getDocs(query(legacyRef, orderBy('createdAt','desc')));
+      if (!legacySnap.empty) {
+        fileId = legacyId;
+        snap = legacySnap;
+      }
+    }
+    const el = document.getElementById('hist-'+aiFileId(fileName));
     if (!el) return;
     if (snap.empty) {
       el.innerHTML = '<div style="padding:8px 10px;font-size:0.72rem;color:#aaa">분석 기록이 없습니다</div>';
@@ -694,7 +712,7 @@ async function loadFileHistory(fileName) {
       const data = d.data();
       const date = data.createdAt?.toDate?.()?.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) || '—';
       const modes = (data.modes||[]).join('·');
-      return `<div class="history-item" onclick="viewHistory('${d.id}','${fileName}')">
+      return `<div class="history-item" onclick="viewHistory('${d.id}','${aiFileId(fileName)}','${aiFileId(fileId)}')">
         <div class="history-dot"></div>
         <div class="history-date">${date}</div>
         <div class="history-modes">${modes}</div>
@@ -704,15 +722,17 @@ async function loadFileHistory(fileName) {
   } catch {}
 }
 
-window.toggleHistory = function(e, name) {
+window.toggleHistory = function(e, encodedName) {
   e.stopPropagation();
-  const el = document.getElementById('hist-'+name.replace(/\./g,'_'));
+  const el = document.getElementById('hist-'+encodedName);
   if (el) el.classList.toggle('open');
 };
 
-window.viewHistory = async function(docId, fileName) {
+window.viewHistory = async function(docId, encodedName, encodedFileId) {
   try {
-    const histRef = doc(db, 'ai_history', clubCode, 'files', fileName.replace(/\./g,'_'), 'records', docId);
+    const fileName = decodeURIComponent(encodedName);
+    const fileId = decodeURIComponent(encodedFileId);
+    const histRef = doc(db, 'ai_history', clubCode, 'files', fileId, 'records', docId);
     const snap = await getDoc(histRef);
     if (!snap.exists()) return;
     const data = snap.data();
@@ -943,7 +963,7 @@ window.saveHistory = async function() {
   if (!lastResults || !selectedFile) return;
   const meta = window._lastAnalysisMeta || {};
   try {
-    const fileId = selectedFile.name.replace(/\./g,'_');
+    const fileId = aiFileId(selectedFile.name);
     await setDoc(doc(db, 'ai_history', clubCode, 'files', fileId), {
       fileName: selectedFile.name,
       clubCode,
