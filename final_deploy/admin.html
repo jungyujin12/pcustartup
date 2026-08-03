@@ -972,6 +972,7 @@ function logout() { if(window._logout) window._logout(); }
       </section>
     </div>
   </div>
+  </div>
 
   <!-- ── 상담 신청 탭 ── -->
   <div class="tab-panel" id="tab-consult">
@@ -1055,7 +1056,7 @@ function logout() { if(window._logout) window._logout(); }
           <option value="q1">1분기</option><option value="q2">2분기</option>
           <option value="q3">3분기</option><option value="q4">4분기</option>
         </select>
-        <button class="btn-sm btn-sm-blue" onclick="loadRiseStats()">🔄 집계</button>
+        <button id="riseLoadButton" class="btn-sm btn-sm-blue" onclick="loadRiseStats()">🔄 집계</button>
         <button class="btn-sm btn-sm-mint" onclick="copyRiseReport()">📋 보고서 복사</button>
       </div>
       <div class="rise-summary-grid">
@@ -1103,7 +1104,7 @@ function logout() { if(window._logout) window._logout(); }
     <div class="club-manage-wrap">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--spacing-lg)">
         <h2>📝 설문 관리</h2>
-        <a href="#" onclick="openSurveyBuilder(event)" class="btn btn-primary" style="font-size:0.82rem;padding:8px 16px;text-decoration:none;border-radius:8px">+ 새 설문 만들기</a>
+        <a href="survey-builder.html" target="_blank" onclick="openSurveyBuilder(event)" class="btn btn-primary" style="font-size:0.82rem;padding:8px 16px;text-decoration:none;border-radius:8px">+ 새 설문 만들기</a>
       </div>
       <div id="surveyList"><div class="empty-state"><p>⏳ 로딩 중...</p></div></div>
     </div>
@@ -3253,9 +3254,10 @@ window.changeYear = async function(year) {
 };
 
 window.openSurveyBuilder = function(event) {
-  event?.preventDefault();
   const year = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
-  window.open(`survey-builder.html?year=${encodeURIComponent(year)}`, '_blank');
+  if (event?.currentTarget) {
+    event.currentTarget.href = `survey-builder.html?year=${encodeURIComponent(year)}`;
+  }
 };
 
 window.closeSelectedYear = async function() {
@@ -3566,6 +3568,7 @@ window.sendReminders = async function() {
 window.loadSurveys = async function() {
   const list = document.getElementById('surveyList');
   if (!list) return;
+  list.innerHTML = '<div class="empty-state"><p>설문 목록을 불러오는 중...</p></div>';
   try {
     const snap = await getDocs(collection(db,'surveys'));
     const selectedYear = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
@@ -3602,7 +3605,10 @@ window.loadSurveys = async function() {
         </div>
       </div>`;
     }).join('');
-  } catch(e) { list.innerHTML = '<div class="empty-state"><p>로딩 실패</p></div>'; }
+  } catch(e) {
+    console.error('설문 목록 로딩 오류:', e);
+    list.innerHTML = `<div class="empty-state"><p>설문 목록을 불러오지 못했습니다.<br>${escapeFileHTML(e.message || 'Firebase 권한과 네트워크 상태를 확인해 주세요.')}</p></div>`;
+  }
 };
 
 window.viewSurveyResults = async function(surveyId) {
@@ -4032,6 +4038,14 @@ window.loadRiseStats = async function() {
   const period = document.getElementById('risePeriod').value;
   const year = parseInt(document.getElementById('yearFilter').value);
   const now = new Date();
+  const loadButton = document.getElementById('riseLoadButton');
+  const reportElement = document.getElementById('riseReportText');
+  if (loadButton?.disabled) return;
+  if (loadButton) {
+    loadButton.disabled = true;
+    loadButton.textContent = '⏳ 집계 중...';
+  }
+  if (reportElement) reportElement.textContent = '데이터를 집계하고 있습니다...';
 
   // 기간 범위 설정
   let startMonth = 0, endMonth = 11;
@@ -4068,11 +4082,17 @@ window.loadRiseStats = async function() {
 
     // AI 분석 건수
     let aiCount = 0;
+    let aiLoadFailures = 0;
     for (const cd of activeClubs) {
-      const fs = await getDocs(collection(db,'ai_history',cd.id,'files'));
-      for (const fd of fs.docs) {
-        const rs = await getDocs(collection(db,'ai_history',cd.id,'files',fd.id,'records'));
-        aiCount += rs.docs.filter(d=>inRange(d.data().createdAt)).length;
+      try {
+        const fs = await getDocs(collection(db,'ai_history',cd.id,'files'));
+        for (const fd of fs.docs) {
+          const rs = await getDocs(collection(db,'ai_history',cd.id,'files',fd.id,'records'));
+          aiCount += rs.docs.filter(d=>inRange(d.data().createdAt)).length;
+        }
+      } catch(e) {
+        aiLoadFailures++;
+        console.warn(`AI 기록 집계 제외: ${cd.id}`, e);
       }
     }
     document.getElementById('rise-ai').textContent = aiCount;
@@ -4135,10 +4155,18 @@ ${satisfactionText}
 ■ 시스템 운영
 - 웹 기반 창업동아리 관리 시스템 운영 중
 - AI 활동보고서 피드백 서비스 제공`;
-    document.getElementById('riseReportText').textContent = report;
+    document.getElementById('riseReportText').textContent = report +
+      (aiLoadFailures ? `\n\n※ AI 기록 ${aiLoadFailures}개 동아리는 권한 또는 데이터 오류로 집계에서 제외되었습니다.` : '');
 
   } catch(e) {
     console.error('RISE 집계 오류:', e);
+    if (reportElement) reportElement.textContent = `집계하지 못했습니다.\n${e.message || '데이터 권한과 네트워크 상태를 확인해 주세요.'}`;
+    showToast('⚠️ RISE 실적 집계에 실패했습니다.');
+  } finally {
+    if (loadButton) {
+      loadButton.disabled = false;
+      loadButton.textContent = '🔄 집계';
+    }
   }
 };
 
@@ -4210,7 +4238,13 @@ async function loadAILogAll() {
       } catch(e) { loadFailures++; }
     }
     allRecords.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
-    if (!allRecords.length) { container.innerHTML = '<div class="empty-state"><p>AI 분석 기록이 없습니다.</p></div>'; return; }
+    if (!allRecords.length) {
+      const detail = loadFailures
+        ? `AI 기록을 불러오지 못한 동아리가 ${loadFailures}개 있습니다. Firebase 읽기 권한을 확인해 주세요.`
+        : '아직 AI 실행기에서 분석한 기록이 없습니다. 분석을 실행하면 이곳에 자동으로 표시됩니다.';
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">🤖</div><p>${detail}</p></div>`;
+      return;
+    }
     container.innerHTML = allRecords.slice(0,20).map(r => `
       <div style="background:white;border:1.5px solid var(--pcu-lightblue);border-radius:10px;padding:1rem;margin-bottom:0.8rem">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
@@ -4243,7 +4277,7 @@ window.loadAILog = async function() {
     const filesSnap = await getDocs(filesRef);
 
     if (filesSnap.empty) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-icon">🤖</div><p>AI 분석 기록이 없습니다.</p></div>';
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">🤖</div><p>선택한 동아리에는 아직 AI 분석 기록이 없습니다.<br>AI 실행기에서 분석을 완료하면 이곳에 표시됩니다.</p></div>';
       return;
     }
 
