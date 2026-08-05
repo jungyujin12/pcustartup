@@ -616,6 +616,11 @@ async function renderProgress() {
     hasAI = !snap.empty;
   } catch(e) {}
 
+  try {
+    const submissions = await getDocs(collection(db,'reports',clubCode,'submissions'));
+    hasSubmit = submissions.docs.some(document => String(document.data().year || '') === currentYear);
+  } catch(e) {}
+
   const progress = [true, hasFile, hasAI, hasSubmit];
 
   const container = document.getElementById('progressSteps');
