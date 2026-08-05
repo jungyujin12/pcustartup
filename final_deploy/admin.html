@@ -490,6 +490,7 @@ function logout() { if(window._logout) window._logout(); }
   <!-- 탭 네비 -->
   <div class="tab-nav">
     <button class="tab-btn active" onclick="switchTab('dashboard')">📊 현황 대시보드</button>
+    <button class="tab-btn" onclick="switchTab('applications')">📝 신규 신청 <span id="applicationBadge" style="display:none;background:#dc2626;color:white;border-radius:10px;padding:1px 6px;font-size:0.65rem;margin-left:4px">0</span></button>
     <button class="tab-btn" onclick="switchTab('clubs')">🏢 동아리 관리</button>
     <button class="tab-btn" onclick="switchTab('members')">👥 인원 관리</button>
     <button class="tab-btn" onclick="switchTab('files')">📁 파일 관리</button>
@@ -674,6 +675,26 @@ function logout() { if(window._logout) window._logout(); }
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ── 신규 신청 관리 탭 ── -->
+  <div class="tab-panel" id="tab-applications">
+    <div class="club-manage-wrap">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:var(--spacing-lg)">
+        <div><h2>📝 신규 가입 신청 관리</h2><p style="font-size:0.78rem;color:var(--pcu-gray);margin-top:4px">HWP 신청서를 검토한 뒤 승인하면 동아리·대표자·접근코드가 한 번에 생성됩니다.</p></div>
+        <button class="btn-sm btn-sm-blue" onclick="loadApplications()">🔄 새로고침</button>
+      </div>
+      <div class="filter-bar" style="margin-bottom:var(--spacing-md)">
+        <input id="applicationSearch" type="text" placeholder="🔍 동아리명·대표자·학번 검색" oninput="renderApplications()" style="flex:1;min-width:220px">
+        <select id="applicationStatusFilter" onchange="renderApplications()">
+          <option value="pending">심사 대기</option><option value="approved">승인</option><option value="rejected">반려</option><option value="">전체 상태</option>
+        </select>
+      </div>
+      <div class="table-card">
+        <div class="table-head"><h3>신청 목록</h3><span class="table-count" id="applicationCount">0건</span></div>
+        <div class="table-wrap"><table class="mt"><thead><tr><th>접수일</th><th>동아리</th><th>대표자</th><th>학번·학과</th><th>분야</th><th>신청서</th><th>상태</th><th>관리</th></tr></thead><tbody id="applicationBody"><tr><td colspan="8"><div class="loading-msg">⏳ 불러오는 중...</div></td></tr></tbody></table></div>
+      </div>
     </div>
   </div>
 
@@ -1179,7 +1200,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import {
   getFirestore, collection, doc, getDocs, getDoc,
   setDoc, deleteDoc, addDoc, updateDoc,
-  query, where, orderBy, serverTimestamp, onSnapshot, arrayUnion, collectionGroup
+  query, where, orderBy, serverTimestamp, onSnapshot, arrayUnion, collectionGroup, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   getStorage, ref, uploadBytesResumable, uploadBytes, getBlob, getDownloadURL, getMetadata, listAll, deleteObject
@@ -1225,6 +1246,7 @@ onAuthStateChanged(auth, (user) => {
     document.getElementById('mainContent').style.display = 'block';
     document.getElementById('lastUpdated').textContent = '업데이트: ' + new Date().toLocaleString('ko-KR');
     loadDashboard();
+    loadApplications();
     loadClubs();
     startRealtimeListeners();
     setTimeout(checkOnboarding, 1000);
@@ -1257,10 +1279,11 @@ window._logout = window.logout = async function() {
 
 // ══ 탭 ══
 window.switchTab = function(tab) {
-  const tabs = ['dashboard','clubs','members','files','consult','ailog','rise','survey','contest'];
+  const tabs = ['dashboard','applications','clubs','members','files','consult','ailog','rise','survey','contest'];
   document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', tabs[i]===tab));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
+  if (tab === 'applications') loadApplications();
   if (tab === 'members') loadMembersTab();
   if (tab === 'files') loadFilesTab();
   if (tab === 'consult') loadConsultations();
@@ -1268,6 +1291,117 @@ window.switchTab = function(tab) {
   if (tab === 'rise') loadRiseStats();
   if (tab === 'contest') loadContests();
   if (tab === 'survey') loadSurveys();
+};
+
+// ══ 가입 전 신규 신청 관리 ══
+let applicationList = [];
+
+window.loadApplications = async function() {
+  const body = document.getElementById('applicationBody');
+  if (!body) return;
+  body.innerHTML = '<tr><td colspan="8"><div class="loading-msg">⏳ 신청 목록 불러오는 중...</div></td></tr>';
+  try {
+    const snap = await getDocs(collection(db,'applications'));
+    applicationList = snap.docs.map(item => ({id:item.id,...item.data()}))
+      .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    const pendingCount = applicationList.filter(item => item.status === 'pending').length;
+    const badge = document.getElementById('applicationBadge');
+    badge.textContent = pendingCount;
+    badge.style.display = pendingCount ? 'inline-block' : 'none';
+    renderApplications();
+  } catch(error) {
+    console.error('신규 신청 목록 오류:',error);
+    body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><p>신청 목록을 불러오지 못했습니다.<br>${escapeFileHTML(error.message)}</p></div></td></tr>`;
+  }
+};
+
+window.renderApplications = function() {
+  const body = document.getElementById('applicationBody');
+  if (!body) return;
+  const search = String(document.getElementById('applicationSearch')?.value||'').trim().toLowerCase();
+  const status = document.getElementById('applicationStatusFilter')?.value ?? 'pending';
+  const selectedYear = document.getElementById('yearFilter')?.value || String(new Date().getFullYear());
+  const rows = applicationList.filter(item => {
+    const matchesYear = String(item.year||'') === String(selectedYear);
+    const matchesStatus = !status || item.status === status;
+    const matchesSearch = !search || [item.clubName,item.repName,item.studentId,item.department].some(value => String(value||'').toLowerCase().includes(search));
+    return matchesYear && matchesStatus && matchesSearch;
+  });
+  document.getElementById('applicationCount').textContent = `${rows.length}건`;
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="8"><div class="empty-state"><p>조건에 맞는 신규 신청이 없습니다.</p></div></td></tr>';
+    return;
+  }
+  const statusMap = {pending:['심사 대기','tb-amber'],approved:['승인','tb-mint'],rejected:['반려','tb-red']};
+  body.innerHTML = rows.map(item => {
+    const state = statusMap[item.status] || [item.status||'확인 필요','tb-blue'];
+    const date = item.createdAt?.toDate?.().toLocaleDateString('ko-KR') || '—';
+    const actions = item.status === 'pending'
+      ? `<button class="btn-sm btn-sm-mint" onclick="approveApplication('${item.id}')">승인</button> <button class="btn-sm btn-sm-red" onclick="rejectApplication('${item.id}')">반려</button>`
+      : (item.status === 'approved' ? `<code>${escapeFileHTML(item.clubCode||'')}</code>` : escapeFileHTML(item.rejectionReason||'—'));
+    return `<tr><td>${date}</td><td><strong>${escapeFileHTML(item.clubName)}</strong><br><span style="font-size:.7rem;color:var(--pcu-gray)">${escapeFileHTML(item.year)}년</span></td><td>${escapeFileHTML(item.repName)}<br><span style="font-size:.7rem;color:var(--pcu-gray)">${escapeFileHTML(item.repTel)}<br>${escapeFileHTML(item.repEmail)}</span></td><td>${escapeFileHTML(item.studentId)}<br><span style="font-size:.7rem;color:var(--pcu-gray)">${escapeFileHTML(item.department)} · ${escapeFileHTML(item.grade)}</span></td><td>${escapeFileHTML(item.field)}</td><td><button class="btn-sm btn-sm-blue" onclick="downloadApplicationFile('${item.id}')">HWP 열기</button></td><td><span class="tb ${state[1]}">${state[0]}</span></td><td>${actions}</td></tr>`;
+  }).join('');
+};
+
+window.downloadApplicationFile = async function(applicationId) {
+  const item = applicationList.find(entry => entry.id === applicationId);
+  if (!item?.storagePath) return showToast('신청서 파일 경로가 없습니다.');
+  try {
+    const url = await getDownloadURL(ref(storage,item.storagePath));
+    const link = document.createElement('a');
+    link.href = url; link.target = '_blank'; link.rel = 'noopener';
+    link.click();
+  } catch(error) { alert('신청서 열기 실패: '+error.message); }
+};
+
+async function assertApplicationStudentAvailable(studentId, year) {
+  const membershipRef = doc(db,'memberships',membershipDocId(year,studentId));
+  const membershipSnap = await getDoc(membershipRef);
+  if (membershipSnap.exists()) throw new Error(`${studentId} 학번은 ${year}년에 이미 ${membershipSnap.data().clubCode} 동아리에 등록돼 있습니다.`);
+  for (const club of clubList) {
+    if (String(club.year||'2026') !== String(year)) continue;
+    const members = await getDocs(collection(db,'members',club.code,'list'));
+    const duplicate = members.docs.some(memberDoc => normalizeStudentId(memberDoc.data().studentId||memberDoc.data().stuId||memberDoc.data().sno||memberDoc.id) === studentId);
+    if (duplicate) throw new Error(`${studentId} 학번은 ${year}년에 이미 ${club.name||club.code} 동아리에 등록돼 있습니다.`);
+  }
+}
+
+window.approveApplication = async function(applicationId) {
+  const item = applicationList.find(entry => entry.id === applicationId);
+  if (!item || item.status !== 'pending') return showToast('이미 처리된 신청입니다.');
+  if (!confirm(`${item.clubName} 신청을 승인하고 접근코드를 발급할까요?`)) return;
+  try {
+    const year = String(item.year||new Date().getFullYear());
+    const studentId = normalizeStudentId(item.studentId);
+    if (!/^\d{6,12}$/.test(studentId)) throw new Error('대표자 학번 형식이 올바르지 않습니다.');
+    const duplicateClub = await findClubByNameYear(item.clubName,year);
+    if (duplicateClub) throw new Error(`${year}년에 같은 이름의 동아리가 이미 등록돼 있습니다.`);
+    await assertApplicationStudentAvailable(studentId,year);
+    const code = await generateUniqueClubCode(item.clubName);
+    const codeHash = await hashCode(code);
+    const batch = writeBatch(db);
+    batch.set(doc(db,'clubs',code),{name:item.clubName,code,accessCode:code,field:item.field,repName:item.repName,repDept:item.department,repTel:item.repTel,repEmail:item.repEmail,memberCount:1,codeHash,status:'active',year,applicationId,createdAt:serverTimestamp()});
+    batch.set(doc(db,'club_names',await clubNameDocId(item.clubName,year)),{clubCode:code,year,createdAt:serverTimestamp()});
+    batch.set(doc(db,'club_codes',codeHash),{clubId:code,accessCode:code,updatedAt:serverTimestamp()});
+    batch.set(doc(db,'students',studentId),{studentId,name:item.repName,dept:item.department,grade:item.grade,tel:item.repTel,email:item.repEmail,updatedAt:serverTimestamp()},{merge:true});
+    batch.set(doc(db,'memberships',membershipDocId(year,studentId)),{studentId,clubCode:code,year,role:'대표',isLeader:true,updatedAt:serverTimestamp()});
+    batch.set(doc(db,'members',code,'list',studentId),{studentId,stuId:studentId,sno:studentId,name:item.repName,dept:item.department,grade:item.grade,tel:item.repTel,email:item.repEmail,role:'대표',isLeader:true,isRep:true,year,updatedAt:serverTimestamp()});
+    batch.update(doc(db,'applications',applicationId),{status:'approved',clubCode:code,approvedAt:serverTimestamp(),approvedBy:auth.currentUser?.email||''});
+    await batch.commit();
+    showToast(`✅ ${item.clubName} 승인 완료 · 접근코드 ${code}`);
+    await loadApplications(); await loadClubs(); await loadDashboard();
+  } catch(error) { alert('승인 실패: '+error.message); }
+};
+
+window.rejectApplication = async function(applicationId) {
+  const item = applicationList.find(entry => entry.id === applicationId);
+  if (!item || item.status !== 'pending') return showToast('이미 처리된 신청입니다.');
+  const reason = prompt(`${item.clubName} 신청 반려 사유를 입력하세요.`);
+  if (!reason?.trim()) return;
+  try {
+    await updateDoc(doc(db,'applications',applicationId),{status:'rejected',rejectionReason:reason.trim(),rejectedAt:serverTimestamp(),rejectedBy:auth.currentUser?.email||''});
+    showToast('신청을 반려 처리했습니다.'); await loadApplications();
+  } catch(error) { alert('반려 처리 실패: '+error.message); }
 };
 
 // ══ 동아리 목록 로드 ══
@@ -2481,6 +2615,16 @@ async function clubNameDocId(name, year) {
   return `${String(year)}_${await hashCode(normalizedName)}`;
 }
 
+async function clubNameIndexIds(name, year) {
+  const ids = [await clubNameDocId(name, year)];
+  // 2026년 초기 데이터는 연도 접두사 없이 이름 해시만 사용했다.
+  // 진단에서는 현재 색인과 기존 색인을 모두 인정해 정상 데이터를 오탐하지 않는다.
+  if (String(year) === '2026') {
+    ids.push(await hashCode(String(name).normalize('NFKC').trim().toLowerCase()));
+  }
+  return [...new Set(ids)];
+}
+
 async function findClubByNameYear(name, year, excludeCode = '') {
   const normalizedName = normalizeClubName(name);
   if (!normalizedName) return null;
@@ -2511,9 +2655,7 @@ async function findClubByNameYear(name, year, excludeCode = '') {
 
 async function deleteClubNameIndex(name, year, code) {
   if (!name) return;
-  const ids = [await clubNameDocId(name, year)];
-  // 2026년 이전 데이터가 사용하던 전역 색인도, 같은 동아리일 때만 안전하게 정리한다.
-  if (String(year) === '2026') ids.push(await hashCode(String(name).normalize('NFKC').trim().toLowerCase()));
+  const ids = await clubNameIndexIds(name, year);
   for (const id of ids) {
     const indexRef = doc(db, 'club_names', id);
     const indexSnap = await getDoc(indexRef);
@@ -3245,6 +3387,7 @@ window.changeYear = async function(year) {
   if (deadlineYear && [...deadlineYear.options].some(option => option.value === year)) deadlineYear.value = year;
   await loadClubs();
   await loadDashboard();
+  await loadApplications();
   await loadConsultations();
   await loadDeadlineSetting();
   if (document.getElementById('tab-ailog')?.classList.contains('active')) populateAILogClubs();
