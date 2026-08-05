@@ -106,6 +106,8 @@ onAuthStateChanged(auth, user => {
 });
 
 let questions = [];
+const escapeAttr = value => String(value ?? '')
+  .replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
 window.addQuestion = function(type) {
   const q = { id: Date.now(), type, text: '', options: type==='객관식'?['']:[], required: true };
@@ -125,12 +127,12 @@ function renderQuestions() {
         </label>
         <button class="btn btn-red" style="padding:4px 10px;font-size:0.72rem" onclick="removeQuestion(${q.id})">삭제</button>
       </div>
-      <input placeholder="질문 내용을 입력하세요" value="${q.text}" oninput="updateText(${q.id},this.value)" style="margin-bottom:0.6rem">
+      <input placeholder="질문 내용을 입력하세요" value="${escapeAttr(q.text)}" oninput="updateText(${q.id},this.value)" style="margin-bottom:0.6rem">
       ${q.type==='객관식' ? `
         <div id="opts-${q.id}">${q.options.map((opt,oi)=>`
           <div class="option-row">
             <span style="font-size:0.78rem;color:var(--pcu-gray)">${oi+1}.</span>
-            <input value="${opt}" placeholder="선택지" oninput="updateOption(${q.id},${oi},this.value)">
+            <input value="${escapeAttr(opt)}" placeholder="선택지" oninput="updateOption(${q.id},${oi},this.value)">
             <button onclick="removeOption(${q.id},${oi})" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:0.85rem">✕</button>
           </div>`).join('')}
           <button onclick="addOption(${q.id})" style="background:none;border:1.5px dashed var(--pcu-lightgray);border-radius:6px;padding:5px 12px;font-size:0.75rem;cursor:pointer;color:var(--pcu-gray);width:100%;margin-top:4px">+ 선택지 추가</button>
