@@ -45,7 +45,7 @@ input:focus, textarea:focus { border-color:var(--pcu-blue); }
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, getDoc, collection, addDoc, updateDoc, increment, serverTimestamp }
+import { getFirestore, doc, getDoc, collection, writeBatch, increment, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const app = initializeApp({
@@ -85,6 +85,8 @@ const wrap = document.getElementById('surveyWrap');
 let surveyData = null;
 const answers = {};
 const signCanvases = {};
+const escapeHTML = value => String(value ?? '')
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
 async function loadSurvey() {
   if (!surveyId) { wrap.innerHTML = '<div class="card"><p style="color:#dc2626">설문 ID가 없습니다.</p></div>'; return; }
@@ -100,9 +102,9 @@ function renderSurvey() {
   const d = surveyData;
   wrap.innerHTML = `
     <div class="card">
-      <h2 style="font-size:1.1rem;font-weight:900;color:var(--pcu-dark);margin-bottom:0.5rem">${d.title}</h2>
-      ${d.desc?`<p style="font-size:0.82rem;color:var(--pcu-gray);line-height:1.6">${d.desc}</p>`:''}
-      ${d.deadline?`<p style="font-size:0.75rem;color:#dc2626;margin-top:0.5rem">마감일: ${d.deadline}</p>`:''}
+      <h2 style="font-size:1.1rem;font-weight:900;color:var(--pcu-dark);margin-bottom:0.5rem">${escapeHTML(d.title)}</h2>
+      ${d.desc?`<p style="font-size:0.82rem;color:var(--pcu-gray);line-height:1.6">${escapeHTML(d.desc)}</p>`:''}
+      ${d.deadline?`<p style="font-size:0.75rem;color:#dc2626;margin-top:0.5rem">마감일: ${escapeHTML(d.deadline)}</p>`:''}
     </div>
     ${d.target==='club'?`
     <div class="card">
@@ -122,10 +124,10 @@ function renderSurvey() {
 function renderQuestion(q,i) {
   const reqMark = q.required ? '<span class="q-required">*</span>' : '';
   return `<div class="card">
-    <div class="q-title">Q${i+1}. ${q.text||'(질문 없음)'} ${reqMark}</div>
+    <div class="q-title">Q${i+1}. ${escapeHTML(q.text||'(질문 없음)')} ${reqMark}</div>
     ${q.type==='객관식' ? q.options.map((opt,oi)=>`
       <label class="option-label">
-        <input type="radio" name="q-${q.id}" value="${opt}" onchange="setAnswer(${q.id},'${opt}')"> ${opt}
+        <input type="radio" name="q-${q.id}" value="${escapeHTML(opt)}" onchange="setAnswer(${q.id},decodeURIComponent('${encodeURIComponent(opt)}'))"> ${escapeHTML(opt)}
       </label>`).join('') : ''}
     ${q.type==='주관식' ? `<textarea id="ans-${q.id}" rows="3" placeholder="답변을 입력하세요" oninput="setAnswer(${q.id},this.value)"></textarea>` : ''}
     ${q.type==='점수' ? `<div class="star-row">${[1,2,3,4,5].map(n=>`
@@ -199,10 +201,13 @@ window.submitSurvey = async function() {
   if (btn) { btn.disabled = true; btn.textContent = '제출 중...'; }
 
   try {
-    await addDoc(collection(db,'surveys',surveyId,'responses'), {
+    const batch = writeBatch(db);
+    const responseRef = doc(collection(db,'surveys',surveyId,'responses'));
+    batch.set(responseRef, {
       answers, clubCode, createdAt: serverTimestamp(), ua: navigator.userAgent.substring(0,100)
     });
-    await updateDoc(doc(db,'surveys',surveyId), { responseCount: increment(1) });
+    batch.update(doc(db,'surveys',surveyId), { responseCount: increment(1) });
+    await batch.commit();
     // 제출 완료 기록 (중복 방지)
     localStorage.setItem(submitKey, new Date().toISOString());
     wrap.innerHTML = `<div class="card" style="text-align:center;padding:2rem">
