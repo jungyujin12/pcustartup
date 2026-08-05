@@ -330,6 +330,11 @@
     .file-row:last-child { border-bottom:0; }
     .file-row:hover { background:#fafcff; }
     .file-row-head { background:#f4f7fb; color:var(--pcu-gray); font-weight:700; font-size:0.72rem; }
+    .file-view-tabs { display:flex; gap:0.45rem; margin-bottom:1rem; padding:0.35rem; background:#eef4fb; border-radius:10px; width:max-content; max-width:100%; }
+    .file-view-tab { border:0; border-radius:8px; padding:9px 15px; background:transparent; color:var(--pcu-gray); font:inherit; font-size:0.8rem; font-weight:800; cursor:pointer; }
+    .file-view-tab.active { background:white; color:var(--pcu-blue); box-shadow:0 2px 8px rgba(15,48,87,.1); }
+    .file-explorer.all-files-mode { grid-template-columns:1fr; }
+    .file-explorer.all-files-mode .file-sidebar { display:none; }
     .file-primary { display:flex; align-items:center; gap:0.65rem; min-width:0; }
     .file-primary-text { min-width:0; }
     .file-primary-name { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; color:var(--pcu-dark); }
@@ -908,7 +913,12 @@ function logout() { if(window._logout) window._logout(); }
         <button class="btn-sm btn-sm-blue" onclick="loadAdminFiles()">🔄 새로고침</button>
       </div>
 
-      <div class="file-explorer">
+      <div class="file-view-tabs" role="tablist" aria-label="파일 보기 방식">
+        <button id="fileViewClubButton" class="file-view-tab active" onclick="switchFileView('club')">🏢 동아리별 보기</button>
+        <button id="fileViewAllButton" class="file-view-tab" onclick="switchFileView('all')">📚 전체 문서 보기</button>
+      </div>
+
+      <div class="file-explorer" id="fileExplorer">
         <aside class="file-sidebar">
           <div class="file-sidebar-head">
             <input id="fileClubSearch" type="search" placeholder="🔍 동아리 검색"
@@ -924,6 +934,9 @@ function logout() { if(window._logout) window._logout(); }
         <section class="file-main">
           <div class="file-toolbar">
             <strong id="selectedFileClubName" style="font-size:0.86rem;margin-right:auto">동아리를 선택하세요</strong>
+            <select id="adminFileClubFilter" onchange="renderAdminFileList()" style="display:none">
+              <option value="">전체 동아리</option>
+            </select>
             <input id="adminFileSearch" type="search" placeholder="파일명 검색" oninput="renderAdminFileList()">
             <select id="adminDocumentCategory" onchange="renderAdminFileList()">
               <option value="">전체 문서</option>
@@ -957,7 +970,7 @@ function logout() { if(window._logout) window._logout(); }
             <button class="btn-sm btn-sm-blue" onclick="clearAdminFileSelection()">선택 해제</button>
           </div>
 
-          <div style="padding:1rem">
+          <div style="padding:1rem" id="fileUploadArea">
             <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.7rem">
               <select id="adminUploadCategory" onchange="toggleAdminUploadMonth()"
                 style="flex:1;min-width:170px;border:1.5px solid var(--pcu-lightgray);border-radius:7px;padding:8px;font-family:inherit">
@@ -5512,6 +5525,7 @@ function escapeFileHTML(value) {
 let adminFileRefs = [];
 let adminFileSelectedPaths = new Set();
 let fileTabBound = false;
+let fileViewMode = 'club';
 
 function loadFilesTab() {
   const sel = document.getElementById('fileClubSelect');
@@ -5530,6 +5544,11 @@ function loadFilesTab() {
     opt.value = c.code; opt.textContent = c.name;
     sel.appendChild(opt);
   });
+  const allClubFilter = document.getElementById('adminFileClubFilter');
+  const previousAllClub = allClubFilter.value;
+  allClubFilter.innerHTML = '<option value="">전체 동아리</option>' + clubList
+    .map(club => `<option value="${club.code}">${escapeFileHTML(club.name || club.code)}</option>`).join('');
+  if (clubList.some(club => club.code === previousAllClub)) allClubFilter.value = previousAllClub;
   if (clubList.some(club => club.code === previousCode)) sel.value = previousCode;
   renderFileClubList();
 
@@ -5544,6 +5563,22 @@ function loadFilesTab() {
     handleAdminFiles(e.dataTransfer.files);
   });
 }
+
+window.switchFileView = function(mode) {
+  fileViewMode = mode === 'all' ? 'all' : 'club';
+  document.getElementById('fileViewClubButton').classList.toggle('active', fileViewMode === 'club');
+  document.getElementById('fileViewAllButton').classList.toggle('active', fileViewMode === 'all');
+  document.getElementById('fileExplorer').classList.toggle('all-files-mode', fileViewMode === 'all');
+  document.getElementById('fileUploadArea').style.display = fileViewMode === 'all' ? 'none' : 'block';
+  document.getElementById('adminFileClubFilter').style.display = fileViewMode === 'all' ? '' : 'none';
+  document.getElementById('selectedFileClubName').textContent = fileViewMode === 'all'
+    ? '전체 동아리 문서'
+    : (clubList.find(club => club.code === document.getElementById('fileClubSelect').value)?.name || '동아리를 선택하세요');
+  adminFileSelectedPaths.clear();
+  updateAdminFileSelectionBar();
+  if (fileViewMode === 'all') loadAllAdminFiles();
+  else loadAdminFiles();
+};
 
 window.renderFileClubList = function() {
   const queryText = (document.getElementById('fileClubSearch')?.value || '').trim().toLowerCase();
@@ -5610,6 +5645,7 @@ function formatAdminFileSize(bytes) {
 }
 
 window.loadAdminFiles = async function() {
+  if (fileViewMode === 'all') return loadAllAdminFiles();
   const code = document.getElementById('fileClubSelect').value;
   const listEl = document.getElementById('adminFileList');
   const countEl = document.getElementById('adminFileCount');
@@ -5636,6 +5672,8 @@ window.loadAdminFiles = async function() {
         const metadata = await getMetadata(item).catch(() => ({}));
         const report = reportByPath.get(item.fullPath);
         return {
+          code,
+          clubName:clubList.find(club => club.code === code)?.name || code,
           name:item.name.replace(/^\d{13}_/,''),
           storedName:item.name,
           url,
@@ -5659,14 +5697,52 @@ window.loadAdminFiles = async function() {
   } catch(e){listEl.innerHTML=`<div style="color:#dc2626;padding:1rem;font-size:0.85rem">❌ 오류: ${e.message}</div>`;}
 };
 
+window.loadAllAdminFiles = async function() {
+  const listEl = document.getElementById('adminFileList');
+  adminFileSelectedPaths.clear();
+  updateAdminFileSelectionBar();
+  listEl.innerHTML='<div class="loading-msg">전체 문서를 불러오는 중...</div>';
+  try {
+    const reportSnap = await getDocs(collectionGroup(db,'submissions'));
+    adminFileRefs = reportSnap.docs.map(document => {
+      const data = document.data();
+      const code = data.clubCode || document.ref.parent.parent?.id || '';
+      const club = clubList.find(item => item.code === code);
+      const storagePath = data.storagePath || '';
+      return {
+        code,
+        clubName:data.clubName || club?.name || code || '미연결',
+        name:String(data.fileName || storagePath.split('/').pop() || '이름 없는 파일').replace(/^\d{13}_/,''),
+        storedName:String(data.fileName || storagePath.split('/').pop() || ''),
+        url:data.fileUrl || '',
+        ref:storagePath ? ref(storage,storagePath) : null,
+        path:storagePath || `firestore:${document.ref.path}`,
+        year:String(data.year || club?.year || ''),
+        size:Number(data.fileSize || 0),
+        contentType:data.contentType || '',
+        createdAt:data.submittedAt?.toDate?.()?.toISOString?.() || data.updatedAt?.toDate?.()?.toISOString?.() || '',
+        source:data.uploadedByAdmin ? '관리자 업로드' : '동아리 제출',
+        documentCategory:data.documentCategory || inferDocumentCategory(data.fileName || ''),
+        reportMonth:data.reportMonth || null,
+        reportId:document.id
+      };
+    }).filter(file => file.code && file.url).sort((a,b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    renderAdminFileList();
+  } catch(error) {
+    listEl.innerHTML=`<div style="color:#dc2626;padding:1rem;font-size:0.85rem">❌ 전체 문서 조회 실패: ${escapeFileHTML(error.message)}</div>`;
+  }
+};
+
 window.renderAdminFileList = function() {
   const listEl = document.getElementById('adminFileList');
   const queryText = (document.getElementById('adminFileSearch')?.value || '').trim().toLowerCase();
   const year = document.getElementById('adminFileYear')?.value || '';
   const type = document.getElementById('adminFileType')?.value || '';
   const category = document.getElementById('adminDocumentCategory')?.value || '';
+  const clubCode = fileViewMode === 'all' ? (document.getElementById('adminFileClubFilter')?.value || '') : '';
   const filtered = adminFileRefs.filter(file =>
-    (!queryText || file.name.toLowerCase().includes(queryText))
+    (!queryText || file.name.toLowerCase().includes(queryText) || String(file.clubName || '').toLowerCase().includes(queryText))
+    && (!clubCode || file.code === clubCode)
     && (!year || file.year === year)
     && (!type || getAdminFileType(file.name) === type)
     && (!category || file.documentCategory === category)
@@ -5699,7 +5775,7 @@ window.renderAdminFileList = function() {
           <span class="admin-file-icon">${fileIcon(file.name)}</span>
           <span class="file-primary-text">
             <span class="file-primary-name" title="${escapeFileHTML(file.name)}">${escapeFileHTML(file.name)}</span>
-            <span class="file-primary-sub">${escapeFileHTML(DOCUMENT_CATEGORY_LABELS[file.documentCategory] || '기타')}${file.reportMonth ? ` · ${file.reportMonth}월` : ''} · ${escapeFileHTML(file.source)}</span>
+            <span class="file-primary-sub">${fileViewMode==='all' ? `${escapeFileHTML(file.clubName)} · ` : ''}${escapeFileHTML(DOCUMENT_CATEGORY_LABELS[file.documentCategory] || '기타')}${file.reportMonth ? ` · ${file.reportMonth}월` : ''} · ${escapeFileHTML(file.source)}</span>
           </span>
         </div>
         <span class="file-col-year">${file.year}</span>
@@ -5728,8 +5804,10 @@ window.toggleAllAdminFiles = function(checked) {
   const year = document.getElementById('adminFileYear')?.value || '';
   const type = document.getElementById('adminFileType')?.value || '';
   const category = document.getElementById('adminDocumentCategory')?.value || '';
+  const clubCode = fileViewMode === 'all' ? (document.getElementById('adminFileClubFilter')?.value || '') : '';
   adminFileRefs.filter(file =>
-    (!queryText || file.name.toLowerCase().includes(queryText))
+    (!queryText || file.name.toLowerCase().includes(queryText) || String(file.clubName || '').toLowerCase().includes(queryText))
+    && (!clubCode || file.code === clubCode)
     && (!year || file.year === year)
     && (!type || getAdminFileType(file.name) === type)
     && (!category || file.documentCategory === category)
@@ -5795,7 +5873,7 @@ window.editAdminFileMetadata = function(index) {
 
 window.saveAdminFileMetadata = async function(index) {
   const file = adminFileRefs[index];
-  const code = document.getElementById('fileClubSelect').value;
+  const code = file?.code || document.getElementById('fileClubSelect').value;
   if (!file || !code) return;
   const documentCategory = document.getElementById('file-edit-category').value;
   const reportMonth = documentCategory === 'monthly'
@@ -5825,21 +5903,37 @@ window.saveAdminFileMetadata = async function(index) {
       });
     }
     closeModal();
-    await loadAdminFiles();
+    await (fileViewMode === 'all' ? loadAllAdminFiles() : loadAdminFiles());
     showToast('✅ 문서 분류 수정 완료');
   } catch (error) {
     alert('문서 분류 수정 실패: ' + error.message);
   }
 };
 
-window.downloadSelectedAdminFiles = function() {
+window.downloadSelectedAdminFiles = async function() {
   const selected = adminFileRefs.filter(file => adminFileSelectedPaths.has(file.path));
-  selected.forEach((file,index) => setTimeout(() => {
+  if (!selected.length) return;
+  try {
+    showToast(`📦 ${selected.length}개 문서를 압축하는 중...`, 10000);
+    const { default: JSZip } = await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm');
+    const zip = new JSZip();
+    for (let index=0; index<selected.length; index++) {
+      const file = selected[index];
+      const response = await fetch(file.url);
+      if (!response.ok) throw new Error(`${file.name} 다운로드 실패`);
+      const clean = value => String(value || '').replace(/[\\/:*?"<>|]/g,'_').trim() || '미분류';
+      const folder = `${clean(file.year)}/${clean(file.clubName || file.code)}/${clean(DOCUMENT_CATEGORY_LABELS[file.documentCategory] || '기타')}`;
+      zip.file(`${folder}/${String(index+1).padStart(3,'0')}_${clean(file.name)}`, await response.blob());
+    }
+    const blob = await zip.generateAsync({type:'blob'});
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = file.url;
-    link.download = file.name;
-    link.click();
-  }, index * 250));
+    link.href=url; link.download=`PCU_동아리문서_${new Date().toISOString().slice(0,10)}.zip`; link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),3000);
+    showToast(`✅ ${selected.length}개 문서 ZIP 다운로드 완료`);
+  } catch(error) {
+    alert('일괄 다운로드 실패: ' + error.message);
+  }
 };
 
 window.handleAdminFiles = function(files) {
@@ -5910,8 +6004,8 @@ function uploadAdminFile(file, code) {
 }
 
 async function deleteAdminFileRecord(file) {
-  await deleteObject(file.ref);
-  const code = document.getElementById('fileClubSelect').value;
+  if (file.ref) await deleteObject(file.ref);
+  const code = file.code || document.getElementById('fileClubSelect').value;
   if (file.reportId && code) {
     await deleteDoc(doc(db,'reports',code,'submissions',file.reportId));
   } else if (code) {
@@ -5926,7 +6020,7 @@ window.deleteAdminFile = async function(idx) {
   if (!f || !confirm(`"${f.name}" 삭제할까요?`)) return;
   try {
     await deleteAdminFileRecord(f);
-    await window.loadAdminFiles();
+    await (fileViewMode === 'all' ? loadAllAdminFiles() : loadAdminFiles());
   } catch(e) {
     alert('삭제 실패: '+e.message);
   }
@@ -5941,7 +6035,7 @@ window.deleteSelectedAdminFiles = async function() {
     try { await deleteAdminFileRecord(file); }
     catch (error) { failed++; console.error(file.name, error); }
   }
-  await loadAdminFiles();
+  await (fileViewMode === 'all' ? loadAllAdminFiles() : loadAdminFiles());
   showToast(failed ? `⚠️ ${selected.length-failed}개 삭제, ${failed}개 실패` : `✅ ${selected.length}개 삭제 완료`);
 };
 
