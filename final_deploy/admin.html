@@ -1542,7 +1542,12 @@ window.addClub = async function() {
     const code = await generateUniqueClubCode(name);
     const codeHash = await hashCode(code);
     await setDoc(doc(db, 'clubs', code), {
-      name, code, accessCode:code, codeHash, field, year, status:'active', createdAt: serverTimestamp()
+      name, code, accessCode:code, codeHash, field, year, status:'active',
+      repName:'', repDept:'', repTel:'', repEmail:'', memberCount:0,
+      createdAt: serverTimestamp()
+    });
+    await setDoc(doc(db,'club_codes',codeHash), {
+      clubId:code, accessCode:code, updatedAt:serverTimestamp()
     });
     await setDoc(doc(db, 'club_names', await clubNameDocId(name, year)), {
       clubCode:code, year, createdAt:serverTimestamp()
@@ -2054,6 +2059,9 @@ window.uploadCSV = async function() {
           await clubNameDocId(club.name, selectedYear)), {
           clubCode: code, year: selectedYear, createdAt: serverTimestamp()
         });
+        await setDoc(doc(db,'club_codes',hash), {
+          clubId:code, accessCode:code, updatedAt:serverTimestamp()
+        });
 
         // 기존 팀원 정리 (덮어쓰기 + 사용자가 동의한 경우)
         if (clearExistingMembers && existingCodes.has(code)) {
@@ -2145,6 +2153,9 @@ window.uploadCSV = async function() {
         await setDoc(doc(db,'club_names',
           await clubNameDocId(name, selectedYear)), {
           clubCode: code, year: selectedYear, createdAt: serverTimestamp()
+        });
+        await setDoc(doc(db,'club_codes',hash), {
+          clubId:code, accessCode:code, updatedAt:serverTimestamp()
         });
         ok++;
       } catch(e) { fail++; }
@@ -2395,6 +2406,7 @@ window.deleteSelected = async function() {
         if (clubSnap.exists()) {
           const data = clubSnap.data();
           await deleteClubNameIndex(data.name || '', String(data.year || '2026'), code);
+          await deleteClubAccessCodeIndex(data, code);
         }
       } catch(e){}
       await deleteDoc(doc(db,'clubs',code)); ok++;
@@ -2663,6 +2675,14 @@ async function deleteClubNameIndex(name, year, code) {
   }
 }
 
+async function deleteClubAccessCodeIndex(clubData, clubId) {
+  const accessCode = String(clubData?.accessCode || clubData?.code || clubId || '').trim().toUpperCase();
+  if (!accessCode) return;
+  const indexRef = doc(db,'club_codes',await hashCode(accessCode));
+  const indexSnap = await getDoc(indexRef);
+  if (indexSnap.exists() && indexSnap.data().clubId === clubId) await deleteDoc(indexRef);
+}
+
 async function copyStorageTree(oldPath, newPath, oldRefs) {
   const listing = await listAll(ref(storage,oldPath));
   for (const item of listing.items) {
@@ -2923,6 +2943,7 @@ window.confirmDelete = async function() {
       if (clubSnap.exists()) {
         const clubData = clubSnap.data();
         await deleteClubNameIndex(clubData.name || '', String(clubData.year || '2026'), code);
+        await deleteClubAccessCodeIndex(clubData, code);
       }
     } catch(e){}
     await deleteDoc(doc(db,'clubs',code));
