@@ -66,10 +66,22 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore,doc,getDoc,setDoc,serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-const app=initializeApp({apiKey:"AIzaSyBzS2q5ML-taevon0IQMVxMO8Ah23IBGNE",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
+const app=initializeApp({apiKey:"AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
 const db=getFirestore(app);
 const $=id=>document.getElementById(id);
 const status=(message,type='')=>{const el=$('jobStatus');el.className=`status show ${type}`;el.innerHTML=message};
+let workerAvailable=false;
+
+async function checkWorker(){
+  try{
+    const snapshot=await getDoc(doc(db,'system','ai_worker'));
+    const heartbeat=snapshot.data()?.heartbeat?.toDate?.();
+    workerAvailable=Boolean(heartbeat&&Date.now()-heartbeat.getTime()<150000);
+  }catch(error){workerAvailable=false}
+  if(!workerAvailable)status('현재 AI 실행기가 꺼져 있습니다. 담당자가 실행기를 켠 뒤 생성할 수 있습니다. 입력한 내용은 전송되지 않았습니다.','error');
+  return workerAvailable;
+}
+checkWorker();
 
 $('pageId').addEventListener('input',event=>{event.target.value=event.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'');$('slugPreview').textContent=event.target.value||'...'});
 $('sourceText').addEventListener('input',()=>{$('charCount').textContent=$('sourceText').value.length.toLocaleString()});
@@ -98,6 +110,7 @@ window.submitWebsiteJob=async function(){
   if(!accessCode){status('생성 접근코드를 입력해주세요.','error');return}
   if(!/^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])?$/.test(pageId)){status('페이지 주소는 영문 소문자·숫자·하이픈 3~32자로 입력해주세요.','error');return}
   if(sourceText.length<30){status('분석할 내용을 30자 이상 입력해주세요.','error');return}
+  if(!(await checkWorker()))return;
   const btn=$('generateBtn');btn.disabled=true;
   try{
     status('접근코드를 확인하고 있습니다.<div class="progress"><span></span></div>');
