@@ -405,6 +405,7 @@
       .file-club-btn { min-width:150px; width:auto; }
       .file-row { grid-template-columns:28px minmax(0,1fr) auto; }
       .file-row-head, .file-col-year, .file-col-size, .file-col-date { display:none; }
+      #allFileUploadTargets { grid-template-columns:1fr !important; }
       .file-actions { grid-column:2 / 4; justify-content:flex-start; padding-left:0; }
     }
 
@@ -965,13 +966,32 @@ function logout() { if(window._logout) window._logout(); }
 
           <div class="file-selection-bar" id="adminFileSelectionBar">
             <strong id="adminFileSelectedCount">0개 선택</strong>
+            <button class="btn-sm btn-sm-blue" onclick="openFileOrganizeModal()">이동·분류</button>
             <button class="btn-sm btn-sm-mint" onclick="downloadSelectedAdminFiles()">선택 다운로드</button>
             <button class="btn-sm btn-sm-red" onclick="deleteSelectedAdminFiles()">선택 삭제</button>
             <button class="btn-sm btn-sm-blue" onclick="clearAdminFileSelection()">선택 해제</button>
           </div>
 
           <div style="padding:1rem" id="fileUploadArea">
-            <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.7rem">
+            <div id="allFileUploadTargets" style="display:none;grid-template-columns:1.5fr .8fr 1fr .7fr;gap:0.55rem;margin-bottom:0.7rem">
+              <select id="allUploadClub" style="border:1.5px solid var(--pcu-lightgray);border-radius:7px;padding:8px;font-family:inherit">
+                <option value="">업로드할 동아리 선택</option>
+              </select>
+              <select id="allUploadYear" style="border:1.5px solid var(--pcu-lightgray);border-radius:7px;padding:8px;font-family:inherit"></select>
+              <select id="allUploadCategory" onchange="toggleAllUploadMonth()" style="border:1.5px solid var(--pcu-lightgray);border-radius:7px;padding:8px;font-family:inherit">
+                <option value="application">최초 신청 문서</option>
+                <option value="monthly">월별 보고 문서</option>
+                <option value="final">최종 결과보고서</option>
+                <option value="expense">지출결의서</option>
+                <option value="other">기타 문서</option>
+              </select>
+              <select id="allUploadMonth" style="display:none;border:1.5px solid var(--pcu-lightgray);border-radius:7px;padding:8px;font-family:inherit">
+                <option value="1">1월</option><option value="2">2월</option><option value="3">3월</option><option value="4">4월</option>
+                <option value="5">5월</option><option value="6">6월</option><option value="7">7월</option><option value="8">8월</option>
+                <option value="9">9월</option><option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
+              </select>
+            </div>
+            <div id="clubFileUploadTargets" style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.7rem">
               <select id="adminUploadCategory" onchange="toggleAdminUploadMonth()"
                 style="flex:1;min-width:170px;border:1.5px solid var(--pcu-lightgray);border-radius:7px;padding:8px;font-family:inherit">
                 <option value="application">최초 신청 문서</option>
@@ -5549,6 +5569,13 @@ function loadFilesTab() {
   allClubFilter.innerHTML = '<option value="">전체 동아리</option>' + clubList
     .map(club => `<option value="${club.code}">${escapeFileHTML(club.name || club.code)}</option>`).join('');
   if (clubList.some(club => club.code === previousAllClub)) allClubFilter.value = previousAllClub;
+  const allUploadClub = document.getElementById('allUploadClub');
+  const previousUploadClub = allUploadClub.value;
+  allUploadClub.innerHTML = '<option value="">업로드할 동아리 선택</option>' + clubList
+    .map(club => `<option value="${club.code}">${escapeFileHTML(club.name || club.code)}</option>`).join('');
+  if (clubList.some(club => club.code === previousUploadClub)) allUploadClub.value = previousUploadClub;
+  document.getElementById('allUploadYear').innerHTML = Array.from({length:8},(_,index)=>String(baseYear+1-index))
+    .map(year=>`<option value="${year}" ${year===selectedYear?'selected':''}>${year}년도</option>`).join('');
   if (clubList.some(club => club.code === previousCode)) sel.value = previousCode;
   renderFileClubList();
 
@@ -5569,7 +5596,9 @@ window.switchFileView = function(mode) {
   document.getElementById('fileViewClubButton').classList.toggle('active', fileViewMode === 'club');
   document.getElementById('fileViewAllButton').classList.toggle('active', fileViewMode === 'all');
   document.getElementById('fileExplorer').classList.toggle('all-files-mode', fileViewMode === 'all');
-  document.getElementById('fileUploadArea').style.display = fileViewMode === 'all' ? 'none' : 'block';
+  document.getElementById('fileUploadArea').style.display = 'block';
+  document.getElementById('allFileUploadTargets').style.display = fileViewMode === 'all' ? 'grid' : 'none';
+  document.getElementById('clubFileUploadTargets').style.display = fileViewMode === 'all' ? 'none' : 'flex';
   document.getElementById('adminFileClubFilter').style.display = fileViewMode === 'all' ? '' : 'none';
   document.getElementById('selectedFileClubName').textContent = fileViewMode === 'all'
     ? '전체 동아리 문서'
@@ -5775,7 +5804,16 @@ window.renderAdminFileList = function() {
           <span class="admin-file-icon">${fileIcon(file.name)}</span>
           <span class="file-primary-text">
             <span class="file-primary-name" title="${escapeFileHTML(file.name)}">${escapeFileHTML(file.name)}</span>
-            <span class="file-primary-sub">${fileViewMode==='all' ? `${escapeFileHTML(file.clubName)} · ` : ''}${escapeFileHTML(DOCUMENT_CATEGORY_LABELS[file.documentCategory] || '기타')}${file.reportMonth ? ` · ${file.reportMonth}월` : ''} · ${escapeFileHTML(file.source)}</span>
+            ${fileViewMode==='all' ? `<span class="file-primary-sub" style="display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap">
+              <strong style="color:var(--pcu-blue)">${escapeFileHTML(file.clubName)}</strong>
+              <select id="quick-category-${index}" onchange="quickClassifyAdminFile(${index})" style="border:1px solid var(--pcu-lightgray);border-radius:5px;padding:3px 5px;font:inherit;font-size:0.68rem">
+                ${Object.entries(DOCUMENT_CATEGORY_LABELS).map(([key,label])=>`<option value="${key}" ${file.documentCategory===key?'selected':''}>${label}</option>`).join('')}
+              </select>
+              <select id="quick-month-${index}" onchange="quickClassifyAdminFile(${index})" style="display:${file.documentCategory==='monthly'?'':'none'};border:1px solid var(--pcu-lightgray);border-radius:5px;padding:3px 5px;font:inherit;font-size:0.68rem">
+                ${Array.from({length:12},(_,monthIndex)=>monthIndex+1).map(month=>`<option value="${month}" ${Number(file.reportMonth)===month?'selected':''}>${month}월</option>`).join('')}
+              </select>
+              <span>${escapeFileHTML(file.source)}</span>
+            </span>` : `<span class="file-primary-sub">${escapeFileHTML(DOCUMENT_CATEGORY_LABELS[file.documentCategory] || '기타')}${file.reportMonth ? ` · ${file.reportMonth}월` : ''} · ${escapeFileHTML(file.source)}</span>`}
           </span>
         </div>
         <span class="file-col-year">${file.year}</span>
@@ -5783,7 +5821,7 @@ window.renderAdminFileList = function() {
         <span class="file-col-date">${date}</span>
         <span class="file-actions">
           <button class="btn-sm btn-sm-blue td-btn" onclick="previewAdminFile(${index})">보기</button>
-          <button class="btn-sm btn-sm-blue td-btn" onclick="editAdminFileMetadata(${index})">분류</button>
+          ${fileViewMode==='all'?'':`<button class="btn-sm btn-sm-blue td-btn" onclick="editAdminFileMetadata(${index})">분류</button>`}
           <a href="${file.url}" download="${escapeFileHTML(file.name)}" class="btn-sm btn-sm-mint td-btn">⬇️</a>
           <button class="btn-sm btn-sm-red td-btn" onclick="deleteAdminFile(${index})">삭제</button>
         </span>
@@ -5826,6 +5864,164 @@ window.clearAdminFileSelection = function() {
   adminFileSelectedPaths.clear();
   renderAdminFileList();
   updateAdminFileSelectionBar();
+};
+
+window.quickClassifyAdminFile = async function(index) {
+  const file=adminFileRefs[index];
+  if(!file?.reportId || !file.code){showToast('제출 기록이 없는 파일은 이동·분류에서 정리해주세요.');return;}
+  const category=document.getElementById(`quick-category-${index}`).value;
+  const monthSelect=document.getElementById(`quick-month-${index}`);
+  monthSelect.style.display=category==='monthly'?'':'none';
+  const reportMonth=category==='monthly'?Number(monthSelect.value||1):null;
+  try{
+    await setDoc(doc(db,'reports',file.code,'submissions',file.reportId),{
+      documentCategory:category,reportMonth,updatedAt:serverTimestamp()
+    },{merge:true});
+    file.documentCategory=category;file.reportMonth=reportMonth;
+    showToast(`✅ ${file.name} 분류 저장`);
+  }catch(error){alert('분류 저장 실패: '+error.message);await loadAllAdminFiles();}
+};
+
+window.toggleAllUploadMonth = function() {
+  document.getElementById('allUploadMonth').style.display = document.getElementById('allUploadCategory').value==='monthly' ? '' : 'none';
+};
+
+function fileOrganizeSelectOptions(items, selected, emptyLabel='변경 안 함') {
+  return `<option value="">${emptyLabel}</option>` + items.map(([value,label]) =>
+    `<option value="${escapeFileHTML(value)}" ${String(value)===String(selected)?'selected':''}>${escapeFileHTML(label)}</option>`
+  ).join('');
+}
+
+window.openFileOrganizeModal = function() {
+  const selected = adminFileRefs.filter(file => adminFileSelectedPaths.has(file.path));
+  if (!selected.length) { showToast('정리할 파일을 선택해주세요.'); return; }
+  const clubOptions = clubList.map(club => [club.code, club.name || club.code]);
+  const selectedYear = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
+  const baseYear = Number(selectedYear) || new Date().getFullYear();
+  const yearOptions = Array.from({length:8},(_,index)=>String(baseYear+1-index)).map(year=>[year,year+'년도']);
+  const categoryOptions = Object.entries(DOCUMENT_CATEGORY_LABELS);
+  const monthOptions = Array.from({length:12},(_,index)=>[String(index+1),`${index+1}월`]);
+  document.getElementById('modalTitle').textContent = `선택 문서 이동·분류 — ${selected.length}개`;
+  document.getElementById('modalBody').innerHTML = `
+    <div style="background:#f4f8fd;border:1px solid var(--pcu-lightblue);border-radius:10px;padding:0.9rem;margin-bottom:0.9rem">
+      <div style="font-size:0.78rem;font-weight:800;margin-bottom:0.55rem">선택 문서에 공통값 일괄 적용</div>
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:0.5rem" class="file-organize-bulk">
+        <select id="organizeBulkClub" class="edit-input">${fileOrganizeSelectOptions(clubOptions,'')}</select>
+        <select id="organizeBulkYear" class="edit-input">${fileOrganizeSelectOptions(yearOptions,'')}</select>
+        <select id="organizeBulkCategory" class="edit-input">${fileOrganizeSelectOptions(categoryOptions,'')}</select>
+        <select id="organizeBulkMonth" class="edit-input">${fileOrganizeSelectOptions(monthOptions,'','월 변경 안 함')}</select>
+      </div>
+      <button class="btn-sm btn-sm-blue" style="margin-top:0.55rem" onclick="applyBulkFileOrganization()">아래 파일에 적용</button>
+    </div>
+    <div style="font-size:0.72rem;color:var(--pcu-gray);line-height:1.6;margin-bottom:0.6rem">파일마다 목적지를 다르게 지정할 수 있습니다. 동아리나 연도를 바꾸면 실제 저장 경로와 제출 기록도 함께 이동합니다.</div>
+    <div style="max-height:52vh;overflow:auto;border:1px solid var(--pcu-lightgray);border-radius:9px">
+      ${selected.map((file,index)=>`
+        <div class="organize-file-row" data-path="${escapeFileHTML(file.path)}" style="padding:0.75rem;border-bottom:1px solid var(--pcu-lightgray)">
+          <div style="font-size:0.78rem;font-weight:800;margin-bottom:0.45rem;overflow-wrap:anywhere">${fileIcon(file.name)} ${escapeFileHTML(file.name)}</div>
+          <div style="display:grid;grid-template-columns:1.4fr .8fr 1fr .65fr;gap:0.45rem">
+            <select data-field="club" class="edit-input">${fileOrganizeSelectOptions(clubOptions,file.code,'동아리 선택')}</select>
+            <select data-field="year" class="edit-input">${fileOrganizeSelectOptions(yearOptions,file.year,'연도 선택')}</select>
+            <select data-field="category" class="edit-input" onchange="this.closest('.organize-file-row').querySelector('[data-field=month]').disabled=this.value!=='monthly'">${fileOrganizeSelectOptions(categoryOptions,file.documentCategory,'문서 종류')}</select>
+            <select data-field="month" class="edit-input" ${file.documentCategory!=='monthly'?'disabled':''}>${fileOrganizeSelectOptions(monthOptions,file.reportMonth ? String(file.reportMonth) : '','월 선택')}</select>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div id="organizeProgress" style="font-size:0.76rem;color:var(--pcu-gray);margin-top:0.65rem"></div>
+    <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:0.9rem">
+      <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+      <button id="organizeSaveButton" class="btn btn-primary" onclick="saveFileOrganization()">${selected.length}개 저장</button>
+    </div>`;
+  document.getElementById('detailModal').classList.add('open');
+};
+
+window.applyBulkFileOrganization = function() {
+  const values = {
+    club:document.getElementById('organizeBulkClub').value,
+    year:document.getElementById('organizeBulkYear').value,
+    category:document.getElementById('organizeBulkCategory').value,
+    month:document.getElementById('organizeBulkMonth').value
+  };
+  document.querySelectorAll('.organize-file-row').forEach(row => {
+    for (const [field,value] of Object.entries(values)) {
+      if (value) row.querySelector(`[data-field="${field}"]`).value=value;
+    }
+    const category=row.querySelector('[data-field="category"]').value;
+    const month=row.querySelector('[data-field="month"]');
+    month.disabled=category!=='monthly';
+    if(category!=='monthly') month.value='';
+  });
+};
+
+async function moveAndClassifyAdminFile(file, target, sequence) {
+  const targetClub = clubList.find(club => club.code === target.code);
+  if (!targetClub) throw new Error(`${file.name}: 대상 동아리를 찾을 수 없습니다.`);
+  if (!/^\d{4}$/.test(target.year)) throw new Error(`${file.name}: 연도를 확인해주세요.`);
+  if (!DOCUMENT_CATEGORY_LABELS[target.category]) throw new Error(`${file.name}: 문서 종류를 확인해주세요.`);
+  const movingPath = target.code !== file.code || target.year !== file.year;
+  const payload = {
+    clubCode:target.code,
+    clubName:targetClub.name || target.code,
+    fileName:file.storedName || file.name,
+    fileUrl:file.url,
+    storagePath:file.path,
+    fileSize:file.size || 0,
+    contentType:file.contentType || '',
+    documentCategory:target.category,
+    reportMonth:target.category === 'monthly' ? Number(target.month || 1) : null,
+    year:target.year,
+    updatedAt:serverTimestamp()
+  };
+  if (!movingPath) {
+    if (!file.reportId) throw new Error(`${file.name}: 제출 기록을 찾을 수 없습니다.`);
+    await setDoc(doc(db,'reports',file.code,'submissions',file.reportId),payload,{merge:true});
+    return;
+  }
+  if (!file.ref || !file.reportId) throw new Error(`${file.name}: 원본 파일 또는 제출 기록을 찾을 수 없습니다.`);
+  const blob = await getBlob(file.ref);
+  const baseName = String(file.storedName || file.name).replace(/^\d{13}_/,'').replace(/[#$\[\]]/g,'_');
+  const targetStorageRef = ref(storage,`reports/${target.year}/${target.code}/${Date.now()}_${sequence}_${baseName}`);
+  await uploadBytes(targetStorageRef,blob,{contentType:file.contentType || blob.type || 'application/octet-stream'});
+  payload.storagePath=targetStorageRef.fullPath;
+  payload.fileUrl=await getDownloadURL(targetStorageRef);
+  payload.fileName=targetStorageRef.name;
+  payload.submittedAt=serverTimestamp();
+  payload.movedByAdmin=true;
+  const newReportRef=doc(collection(db,'reports',target.code,'submissions'));
+  await setDoc(newReportRef,payload);
+  await deleteDoc(doc(db,'reports',file.code,'submissions',file.reportId));
+  await deleteObject(file.ref);
+}
+
+window.saveFileOrganization = async function() {
+  const rows=[...document.querySelectorAll('.organize-file-row')];
+  const button=document.getElementById('organizeSaveButton');
+  const progress=document.getElementById('organizeProgress');
+  button.disabled=true;
+  let completed=0;
+  try {
+    for (let index=0;index<rows.length;index++) {
+      const row=rows[index];
+      const file=adminFileRefs.find(item=>item.path===row.dataset.path);
+      if(!file) throw new Error('선택한 파일 정보를 다시 불러와주세요.');
+      const target={
+        code:row.querySelector('[data-field="club"]').value,
+        year:row.querySelector('[data-field="year"]').value,
+        category:row.querySelector('[data-field="category"]').value,
+        month:row.querySelector('[data-field="month"]').value
+      };
+      progress.textContent=`${index+1}/${rows.length} · ${file.name} 처리 중...`;
+      await moveAndClassifyAdminFile(file,target,index+1);
+      completed++;
+    }
+    closeModal();
+    adminFileSelectedPaths.clear();
+    await (fileViewMode==='all'?loadAllAdminFiles():loadAdminFiles());
+    showToast(`✅ ${completed}개 문서 이동·분류 완료`);
+  } catch(error) {
+    progress.textContent=`⚠️ ${completed}개 완료 후 중단: ${error.message}`;
+    progress.style.color='#dc2626';
+    button.disabled=false;
+  }
 };
 
 window.previewAdminFile = function(index) {
@@ -5937,25 +6133,33 @@ window.downloadSelectedAdminFiles = async function() {
 };
 
 window.handleAdminFiles = function(files) {
-  const code = document.getElementById('fileClubSelect').value;
+  const code = fileViewMode==='all'
+    ? document.getElementById('allUploadClub').value
+    : document.getElementById('fileClubSelect').value;
   if (!code) { alert('동아리를 먼저 선택해주세요.'); return; }
+  const uploadOptions = fileViewMode==='all' ? {
+    year:document.getElementById('allUploadYear').value,
+    documentCategory:document.getElementById('allUploadCategory').value,
+    reportMonth:document.getElementById('allUploadCategory').value==='monthly'
+      ? Number(document.getElementById('allUploadMonth').value) : null
+  } : null;
   const allowed = new Set(['pdf','jpg','jpeg','png','webp','hwp','doc','docx','xls','xlsx']);
   [...files].forEach(file => {
     const ext = (file.name.split('.').pop() || '').toLowerCase();
     if (!allowed.has(ext)) { alert(`${file.name}: 지원하지 않는 형식입니다.`); return; }
     if (file.size > 10 * 1024 * 1024) { alert(`${file.name}: 10MB 초과`); return; }
-    uploadAdminFile(file, code);
+    uploadAdminFile(file, code, uploadOptions);
   });
   document.getElementById('adminFileInput').value = '';
 };
 
-function uploadAdminFile(file, code) {
+function uploadAdminFile(file, code, uploadOptions=null) {
   const progressEl = document.getElementById('adminUploadProgress');
   const safeFileName = file.name.replace(/[#$\[\]]/g, '_');
-  const year = document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
-  const documentCategory = document.getElementById('adminUploadCategory').value;
+  const year = uploadOptions?.year || document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
+  const documentCategory = uploadOptions?.documentCategory || document.getElementById('adminUploadCategory').value;
   const reportMonth = documentCategory === 'monthly'
-    ? Number(document.getElementById('adminUploadMonth').value)
+    ? Number(uploadOptions?.reportMonth || document.getElementById('adminUploadMonth').value)
     : null;
   const storageRef = ref(storage, `reports/${year}/${code}/${Date.now()}_${safeFileName}`);
   const task = uploadBytesResumable(storageRef, file);
@@ -5998,7 +6202,7 @@ function uploadAdminFile(file, code) {
         pct.textContent='⚠️';
         console.error('보고서 메타데이터 저장 실패:', error);
       }
-      setTimeout(()=>{ item.remove(); loadAdminFiles(); }, 1000);
+      setTimeout(()=>{ item.remove(); fileViewMode==='all'?loadAllAdminFiles():loadAdminFiles(); }, 1000);
     }
   );
 }
