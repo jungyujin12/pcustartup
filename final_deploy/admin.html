@@ -1015,7 +1015,7 @@ function logout() { if(window._logout) window._logout(); }
             <div class="file-drop-zone-admin" id="adminDropZone">
               <div style="font-size:1.5rem;margin-bottom:0.25rem">⬆️</div>
               <p style="font-weight:700;font-size:0.82rem">클릭하거나 파일을 끌어놓아 업로드</p>
-              <p style="font-size:0.7rem;color:var(--pcu-gray);margin-top:3px">HWP 권장 · PDF·이미지·DOCX·XLSX 지원 · 파일당 최대 10MB</p>
+              <p style="font-size:0.7rem;color:var(--pcu-gray);margin-top:3px">HWP 권장 · PDF·이미지·DOCX·XLSX 지원 · 파일당 최대 20MB</p>
               <input type="file" id="adminFileInput" multiple
                 accept=".pdf,.jpg,.jpeg,.png,.webp,.hwp,.doc,.docx,.xls,.xlsx"
                 style="display:none" onchange="handleAdminFiles(this.files)">
@@ -6176,7 +6176,7 @@ window.handleAdminFiles = function(files) {
   [...files].forEach(file => {
     const ext = (file.name.split('.').pop() || '').toLowerCase();
     if (!allowed.has(ext)) { alert(`${file.name}: 지원하지 않는 형식입니다.`); return; }
-    if (file.size > 10 * 1024 * 1024) { alert(`${file.name}: 10MB 초과`); return; }
+    if (file.size > 20 * 1024 * 1024) { alert(`${file.name}: 20MB 초과`); return; }
     uploadAdminFile(file, code, uploadOptions);
   });
   document.getElementById('adminFileInput').value = '';
