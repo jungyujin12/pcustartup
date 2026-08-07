@@ -330,7 +330,7 @@
     .file-row:last-child { border-bottom:0; }
     .file-row:hover { background:#fafcff; }
     .file-row-head { background:#f4f7fb; color:var(--pcu-gray); font-weight:700; font-size:0.72rem; }
-    .file-view-tabs { display:flex; gap:0.45rem; margin-bottom:1rem; padding:0.35rem; background:#eef4fb; border-radius:10px; width:max-content; max-width:100%; }
+    .file-view-tabs { display:flex; flex-wrap:wrap; gap:0.45rem; margin-bottom:1rem; padding:0.35rem; background:#eef4fb; border-radius:10px; width:max-content; max-width:100%; }
     .file-view-tab { border:0; border-radius:8px; padding:9px 15px; background:transparent; color:var(--pcu-gray); font:inherit; font-size:0.8rem; font-weight:800; cursor:pointer; }
     .file-view-tab.active { background:white; color:var(--pcu-blue); box-shadow:0 2px 8px rgba(15,48,87,.1); }
     .file-explorer.all-files-mode { grid-template-columns:1fr; }
@@ -340,6 +340,22 @@
     .file-primary-name { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; color:var(--pcu-dark); }
     .file-primary-sub { display:block; color:var(--pcu-gray); font-size:0.68rem; margin-top:2px; }
     .file-actions { display:flex; justify-content:flex-end; gap:0.3rem; }
+    .file-organizer { display:grid; grid-template-columns:minmax(280px,.9fr) minmax(420px,1.6fr); gap:1rem; }
+    .organizer-pane { background:#fff; border:1.5px solid var(--pcu-lightblue); border-radius:12px; overflow:hidden; min-height:420px; }
+    .organizer-pane-head { display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.85rem 1rem; background:#f4f8fd; border-bottom:1px solid var(--pcu-lightgray); }
+    .organizer-source-list { padding:.7rem; display:flex; flex-direction:column; gap:.5rem; max-height:62vh; overflow:auto; }
+    .organizer-file { border:1px solid var(--pcu-lightgray); border-radius:9px; padding:.7rem; background:#fff; cursor:grab; transition:.15s ease; }
+    .organizer-file:hover { border-color:var(--pcu-blue); box-shadow:0 4px 12px rgba(13,95,168,.1); }
+    .organizer-file.dragging { opacity:.45; }
+    .organizer-file-name { font-size:.77rem; font-weight:800; overflow-wrap:anywhere; }
+    .organizer-file-meta { margin-top:.25rem; color:var(--pcu-gray); font-size:.68rem; }
+    .organizer-mobile-move { display:flex; gap:.35rem; margin-top:.55rem; }
+    .organizer-mobile-move select { min-width:0; flex:1; border:1px solid var(--pcu-lightgray); border-radius:6px; padding:5px; font:inherit; font-size:.7rem; }
+    .organizer-folders { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:.7rem; padding:.8rem; max-height:62vh; overflow:auto; align-content:start; }
+    .organizer-folder { border:2px dashed #bfd7ef; border-radius:12px; min-height:105px; padding:.9rem; background:#fafdff; transition:.15s ease; }
+    .organizer-folder.drag-over { border-color:var(--pcu-blue); background:#e8f3ff; transform:translateY(-2px); }
+    .organizer-folder-name { display:block; margin-top:.35rem; font-size:.78rem; font-weight:800; overflow-wrap:anywhere; }
+    .organizer-folder-meta { display:block; margin-top:.2rem; font-size:.67rem; color:var(--pcu-gray); }
     .upload-prog-item {
       display: flex; align-items: center; gap: 0.6rem;
       background: var(--bg-white); border: 1px solid rgba(0,82,204,0.1);
@@ -407,6 +423,8 @@
       .file-row-head, .file-col-year, .file-col-size, .file-col-date { display:none; }
       #allFileUploadTargets { grid-template-columns:1fr !important; }
       .file-actions { grid-column:2 / 4; justify-content:flex-start; padding-left:0; }
+      .file-organizer { grid-template-columns:1fr; }
+      .organizer-source-list, .organizer-folders { max-height:none; }
     }
 
 
@@ -917,6 +935,7 @@ function logout() { if(window._logout) window._logout(); }
       <div class="file-view-tabs" role="tablist" aria-label="파일 보기 방식">
         <button id="fileViewClubButton" class="file-view-tab active" onclick="switchFileView('club')">🏢 동아리별 보기</button>
         <button id="fileViewAllButton" class="file-view-tab" onclick="switchFileView('all')">📚 전체 문서 보기</button>
+        <button id="fileViewOrganizeButton" class="file-view-tab" onclick="switchFileView('organize')">🗂️ 파일 정리</button>
       </div>
 
       <div class="file-explorer" id="fileExplorer">
@@ -1027,6 +1046,27 @@ function logout() { if(window._logout) window._logout(); }
             <div class="empty-state"><div class="empty-icon">📁</div><p>왼쪽에서 동아리를 선택해주세요.</p></div>
           </div>
       </section>
+    </div>
+    <div id="fileOrganizerPanel" style="display:none">
+      <div style="display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.8rem">
+        <select id="organizerSourceFilter" onchange="renderFileOrganizer()" style="border:1.5px solid var(--pcu-lightgray);border-radius:7px;padding:8px;font-family:inherit">
+          <option value="__unassigned__">미분류 보관함</option>
+          <option value="">전체 파일</option>
+        </select>
+        <input id="organizerFileSearch" type="search" placeholder="파일명 검색" oninput="renderFileOrganizer()" style="min-width:180px;flex:1;border:1.5px solid var(--pcu-lightgray);border-radius:7px;padding:8px;font-family:inherit">
+        <span class="table-count" id="organizerFileCount">0개</span>
+        <button class="btn-sm btn-sm-blue" onclick="loadAllAdminFiles()">🔄 새로고침</button>
+      </div>
+      <div class="file-organizer">
+        <section class="organizer-pane">
+          <div class="organizer-pane-head"><strong>📄 정리할 파일</strong><span style="font-size:.7rem;color:var(--pcu-gray)">파일을 끌어 오른쪽 폴더에 놓으세요</span></div>
+          <div id="organizerSourceList" class="organizer-source-list"></div>
+        </section>
+        <section class="organizer-pane">
+          <div class="organizer-pane-head"><strong>📁 동아리 폴더</strong><span id="organizerClubCount" style="font-size:.7rem;color:var(--pcu-gray)"></span></div>
+          <div id="organizerClubFolders" class="organizer-folders"></div>
+        </section>
+      </div>
     </div>
   </div>
   </div>
@@ -1467,9 +1507,13 @@ window.loadClubs = async function loadClubs() {
   const filesTab = document.getElementById('tab-files');
   if (filesTab && filesTab.classList.contains('active')) {
     loadFilesTab();
-    const selectedCode = document.getElementById('fileClubSelect')?.value || '';
-    if (selectedCode && clubList.some(club => club.code === selectedCode)) loadAdminFiles();
-    else selectFileClub('');
+    if (fileViewMode === 'all' || fileViewMode === 'organize') {
+      loadAllAdminFiles();
+    } else {
+      const selectedCode = document.getElementById('fileClubSelect')?.value || '';
+      if (selectedCode && clubList.some(club => club.code === selectedCode)) loadAdminFiles();
+      else selectFileClub('');
+    }
   }
 }
 
@@ -5579,6 +5623,13 @@ function loadFilesTab() {
   if (clubList.some(club => club.code === previousUploadClub)) allUploadClub.value = previousUploadClub;
   document.getElementById('allUploadYear').innerHTML = Array.from({length:8},(_,index)=>String(baseYear+1-index))
     .map(year=>`<option value="${year}" ${year===selectedYear?'selected':''}>${year}년도</option>`).join('');
+  const organizerSourceFilter = document.getElementById('organizerSourceFilter');
+  const previousOrganizerSource = organizerSourceFilter.value;
+  organizerSourceFilter.innerHTML = '<option value="__unassigned__">미분류 보관함</option><option value="">전체 파일</option>' + clubList
+    .map(club => `<option value="${escapeFileHTML(club.code)}">${escapeFileHTML(club.name || club.code)}</option>`).join('');
+  if (previousOrganizerSource === '' || previousOrganizerSource === '__unassigned__' || clubList.some(club => club.code === previousOrganizerSource)) {
+    organizerSourceFilter.value = previousOrganizerSource;
+  }
   if (clubList.some(club => club.code === previousCode)) sel.value = previousCode;
   renderFileClubList();
 
@@ -5595,9 +5646,12 @@ function loadFilesTab() {
 }
 
 window.switchFileView = function(mode) {
-  fileViewMode = mode === 'all' ? 'all' : 'club';
+  fileViewMode = ['all','organize'].includes(mode) ? mode : 'club';
   document.getElementById('fileViewClubButton').classList.toggle('active', fileViewMode === 'club');
   document.getElementById('fileViewAllButton').classList.toggle('active', fileViewMode === 'all');
+  document.getElementById('fileViewOrganizeButton').classList.toggle('active', fileViewMode === 'organize');
+  document.getElementById('fileExplorer').style.display = fileViewMode === 'organize' ? 'none' : '';
+  document.getElementById('fileOrganizerPanel').style.display = fileViewMode === 'organize' ? 'block' : 'none';
   document.getElementById('fileExplorer').classList.toggle('all-files-mode', fileViewMode === 'all');
   document.getElementById('fileUploadArea').style.display = 'block';
   document.getElementById('allFileUploadTargets').style.display = fileViewMode === 'all' ? 'grid' : 'none';
@@ -5609,7 +5663,7 @@ window.switchFileView = function(mode) {
     : (clubList.find(club => club.code === document.getElementById('fileClubSelect').value)?.name || '동아리를 선택하세요');
   adminFileSelectedPaths.clear();
   updateAdminFileSelectionBar();
-  if (fileViewMode === 'all') loadAllAdminFiles();
+  if (fileViewMode === 'all' || fileViewMode === 'organize') loadAllAdminFiles();
   else loadAdminFiles();
 };
 
@@ -5780,9 +5834,13 @@ window.loadAllAdminFiles = async function() {
     });
     adminFileRefs = [...assignedFiles,...inboxFiles]
       .filter(file => file.url).sort((a,b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-    renderAdminFileList();
+    if (fileViewMode === 'organize') renderFileOrganizer();
+    else renderAdminFileList();
   } catch(error) {
     listEl.innerHTML=`<div style="color:#dc2626;padding:1rem;font-size:0.85rem">❌ 전체 문서 조회 실패: ${escapeFileHTML(error.message)}</div>`;
+    if (fileViewMode === 'organize') {
+      document.getElementById('organizerSourceList').innerHTML=`<div style="color:#dc2626;padding:1rem;font-size:0.85rem">❌ 파일 조회 실패: ${escapeFileHTML(error.message)}</div>`;
+    }
   }
 };
 
@@ -5830,7 +5888,14 @@ window.renderAdminFileList = function() {
           <span class="file-primary-text">
             <span class="file-primary-name" title="${escapeFileHTML(file.name)}">${escapeFileHTML(file.name)}</span>
             ${fileViewMode==='all' ? `<span class="file-primary-sub" style="display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap">
-              <strong style="color:${file.isInbox?'#dc2626':'var(--pcu-blue)'}">${escapeFileHTML(file.clubName)}</strong>
+              ${file.isInbox ? `
+                <strong style="color:#dc2626">미분류</strong>
+                <select id="quick-club-${index}" aria-label="${escapeFileHTML(file.name)} 배치 동아리" style="max-width:150px;border:1px solid #fca5a5;border-radius:5px;padding:3px 5px;font:inherit;font-size:0.68rem;background:#fff">
+                  <option value="">동아리 선택</option>
+                  ${clubList.map(club=>`<option value="${escapeFileHTML(club.code)}">${escapeFileHTML(club.name || club.code)}</option>`).join('')}
+                </select>
+                <button id="quick-assign-${index}" class="btn-sm btn-sm-blue td-btn" onclick="quickAssignInboxFile(${index})">배치</button>
+              ` : `<strong style="color:var(--pcu-blue)">${escapeFileHTML(file.clubName)}</strong>`}
               <select id="quick-category-${index}" onchange="quickClassifyAdminFile(${index})" style="border:1px solid var(--pcu-lightgray);border-radius:5px;padding:3px 5px;font:inherit;font-size:0.68rem">
                 ${Object.entries(DOCUMENT_CATEGORY_LABELS).map(([key,label])=>`<option value="${key}" ${file.documentCategory===key?'selected':''}>${label}</option>`).join('')}
               </select>
@@ -5909,6 +5974,136 @@ window.quickClassifyAdminFile = async function(index) {
     showToast(`✅ ${file.name} 분류 저장`);
   }catch(error){alert('분류 저장 실패: '+error.message);await loadAllAdminFiles();}
 };
+
+window.quickAssignInboxFile = async function(index) {
+  const file=adminFileRefs[index];
+  if(!file?.isInbox){showToast('이미 동아리에 배치된 문서입니다.');return;}
+  const code=document.getElementById(`quick-club-${index}`)?.value || '';
+  if(!code){showToast('배치할 동아리를 선택해주세요.');return;}
+  const button=document.getElementById(`quick-assign-${index}`);
+  if(button){button.disabled=true;button.textContent='배치 중';}
+  try {
+    await moveAndClassifyAdminFile(file,{
+      code,
+      year:file.year || document.getElementById('yearFilter')?.value || new Date().getFullYear().toString(),
+      category:file.documentCategory || 'other',
+      month:file.reportMonth || ''
+    },1);
+    adminFileSelectedPaths.delete(file.path);
+    await loadAllAdminFiles();
+    updateAdminFileSelectionBar();
+    showToast(`✅ ${file.name} 배치 완료`);
+  } catch(error) {
+    alert('동아리 배치 실패: '+error.message);
+    if(button){button.disabled=false;button.textContent='배치';}
+  }
+};
+
+let organizerDraggedPath = '';
+
+window.renderFileOrganizer = function() {
+  const sourceList=document.getElementById('organizerSourceList');
+  const folderList=document.getElementById('organizerClubFolders');
+  if(!sourceList || !folderList) return;
+  const selectedYear=document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
+  const source=document.getElementById('organizerSourceFilter')?.value ?? '__unassigned__';
+  const queryText=(document.getElementById('organizerFileSearch')?.value || '').trim().toLowerCase();
+  const yearFiles=adminFileRefs.filter(file => String(file.year || selectedYear) === selectedYear);
+  const visibleFiles=yearFiles.filter(file =>
+    (source === '' || (source === '__unassigned__' ? file.isInbox : file.code === source))
+    && (!queryText || file.name.toLowerCase().includes(queryText) || String(file.clubName || '').toLowerCase().includes(queryText))
+  );
+  document.getElementById('organizerFileCount').textContent=`${visibleFiles.length}개`;
+  document.getElementById('organizerClubCount').textContent=`${selectedYear}년도 · ${clubList.length}개 동아리`;
+  const destinationOptions='<option value="">이동할 동아리</option>' + clubList
+    .map(club=>`<option value="${escapeFileHTML(club.code)}">${escapeFileHTML(club.name || club.code)}</option>`).join('');
+  sourceList.innerHTML=visibleFiles.length ? visibleFiles.map(file => {
+    const index=adminFileRefs.indexOf(file);
+    const category=DOCUMENT_CATEGORY_LABELS[file.documentCategory] || '기타';
+    return `<article class="organizer-file" draggable="true" tabindex="0"
+      ondragstart="startFileOrganizerDrag(event,${index})" ondragend="endFileOrganizerDrag(event)"
+      aria-label="${escapeFileHTML(file.name)} 파일, 동아리 폴더로 드래그하여 이동">
+      <div class="organizer-file-name">${fileIcon(file.name)} ${escapeFileHTML(file.name)}</div>
+      <div class="organizer-file-meta">${escapeFileHTML(file.isInbox?'미분류':file.clubName)} · ${category}${file.reportMonth?` · ${file.reportMonth}월`:''}</div>
+      <div class="organizer-mobile-move">
+        <select id="organizer-target-${index}" aria-label="이동할 동아리 선택">${destinationOptions}</select>
+        <button class="btn-sm btn-sm-blue" onclick="moveOrganizerFileBySelect(${index})">이동</button>
+      </div>
+    </article>`;
+  }).join('') : '<div class="empty-state"><div class="empty-icon">🗂️</div><p>정리할 파일이 없습니다.</p></div>';
+  folderList.innerHTML=clubList.length ? clubList.map(club => {
+    const count=yearFiles.filter(file=>!file.isInbox && file.code===club.code).length;
+    return `<div class="organizer-folder" data-code="${escapeFileHTML(club.code)}"
+      ondragover="allowOrganizerDrop(event)" ondragleave="leaveOrganizerDrop(event)" ondrop="dropFileOnOrganizerClub(event,this.dataset.code)">
+      <span style="font-size:1.55rem">📁</span>
+      <span class="organizer-folder-name">${escapeFileHTML(club.name || club.code)}</span>
+      <span class="organizer-folder-meta">${escapeFileHTML(club.code)} · 문서 ${count}개</span>
+    </div>`;
+  }).join('') : '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📁</div><p>선택 연도에 등록된 동아리가 없습니다.</p></div>';
+};
+
+window.startFileOrganizerDrag = function(event,index) {
+  const file=adminFileRefs[index];
+  if(!file) return;
+  organizerDraggedPath=file.path;
+  event.dataTransfer.effectAllowed='move';
+  event.dataTransfer.setData('text/plain',file.path);
+  event.currentTarget.classList.add('dragging');
+};
+
+window.endFileOrganizerDrag = function(event) {
+  organizerDraggedPath='';
+  event.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.organizer-folder.drag-over').forEach(folder=>folder.classList.remove('drag-over'));
+};
+
+window.allowOrganizerDrop = function(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect='move';
+  event.currentTarget.classList.add('drag-over');
+};
+
+window.leaveOrganizerDrop = function(event) {
+  if(!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.classList.remove('drag-over');
+};
+
+window.dropFileOnOrganizerClub = async function(event,code) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('drag-over');
+  const path=event.dataTransfer.getData('text/plain') || organizerDraggedPath;
+  const file=adminFileRefs.find(item=>item.path===path);
+  organizerDraggedPath='';
+  if(!file){showToast('이동할 파일을 찾을 수 없습니다.');return;}
+  await moveOrganizerFileToClub(file,code,event.currentTarget);
+};
+
+window.moveOrganizerFileBySelect = async function(index) {
+  const file=adminFileRefs[index];
+  const code=document.getElementById(`organizer-target-${index}`)?.value || '';
+  if(!file || !code){showToast('이동할 동아리를 선택해주세요.');return;}
+  await moveOrganizerFileToClub(file,code,null);
+};
+
+async function moveOrganizerFileToClub(file,code,folderElement) {
+  if(!clubList.some(club=>club.code===code)){showToast('현재 연도에 존재하지 않는 동아리입니다.');return;}
+  if(!file.isInbox && file.code===code){showToast('이미 해당 동아리 폴더에 있는 파일입니다.');return;}
+  if(folderElement) folderElement.setAttribute('aria-busy','true');
+  try {
+    await moveAndClassifyAdminFile(file,{
+      code,
+      year:file.year || document.getElementById('yearFilter')?.value || new Date().getFullYear().toString(),
+      category:file.documentCategory || 'other',
+      month:file.reportMonth || ''
+    },1);
+    adminFileSelectedPaths.delete(file.path);
+    await loadAllAdminFiles();
+    showToast(`✅ ${file.name} 이동 완료`);
+  } catch(error) {
+    alert('파일 이동 실패: '+error.message);
+  } finally {
+    if(folderElement) folderElement.removeAttribute('aria-busy');
+  }
+}
 
 window.toggleAllUploadMonth = function() {
   document.getElementById('allUploadMonth').style.display = document.getElementById('allUploadCategory').value==='monthly' ? '' : 'none';
