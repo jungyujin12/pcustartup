@@ -6070,12 +6070,37 @@ window.leaveOrganizerDrop = function(event) {
 window.dropFileOnOrganizerClub = async function(event,code) {
   event.preventDefault();
   event.currentTarget.classList.remove('drag-over');
+  if(event.dataTransfer.files?.length) {
+    uploadExternalFilesToOrganizer(event.dataTransfer.files,code);
+    return;
+  }
   const path=event.dataTransfer.getData('text/plain') || organizerDraggedPath;
   const file=adminFileRefs.find(item=>item.path===path);
   organizerDraggedPath='';
   if(!file){showToast('이동할 파일을 찾을 수 없습니다.');return;}
   await moveOrganizerFileToClub(file,code,event.currentTarget);
 };
+
+function uploadExternalFilesToOrganizer(fileList,code) {
+  const club=clubList.find(item=>item.code===code);
+  if(!club){showToast('현재 연도에 존재하지 않는 동아리입니다.');return;}
+  const files=[...fileList];
+  const allowedExtensions=['pdf','jpg','jpeg','png','webp','hwp','doc','docx','xls','xlsx'];
+  const validFiles=files.filter(file => {
+    const extension=(file.name.split('.').pop() || '').toLowerCase();
+    if(!allowedExtensions.includes(extension)){showToast(`❌ ${file.name}: 지원하지 않는 형식`);return false;}
+    if(file.size > 20 * 1024 * 1024){showToast(`❌ ${file.name}: 20MB 초과`);return false;}
+    return true;
+  });
+  if(!validFiles.length) return;
+  const year=document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
+  validFiles.forEach(file => uploadAdminFile(file,code,{
+    year,
+    documentCategory:inferDocumentCategory(file.name),
+    reportMonth:null
+  }));
+  showToast(`⬆️ ${club.name || code} 폴더에 ${validFiles.length}개 업로드 중`);
+}
 
 window.moveOrganizerFileBySelect = async function(index) {
   const file=adminFileRefs[index];
@@ -6239,7 +6264,7 @@ window.saveFileOrganization = async function() {
     }
     closeModal();
     adminFileSelectedPaths.clear();
-    await (fileViewMode==='all'?loadAllAdminFiles():loadAdminFiles());
+    await ((fileViewMode==='all' || fileViewMode==='organize')?loadAllAdminFiles():loadAdminFiles());
     showToast(`✅ ${completed}개 문서 이동·분류 완료`);
   } catch(error) {
     progress.textContent=`⚠️ ${completed}개 완료 후 중단: ${error.message}`;
@@ -6323,7 +6348,7 @@ window.saveAdminFileMetadata = async function(index) {
       });
     }
     closeModal();
-    await (fileViewMode === 'all' ? loadAllAdminFiles() : loadAdminFiles());
+    await ((fileViewMode === 'all' || fileViewMode === 'organize') ? loadAllAdminFiles() : loadAdminFiles());
     showToast('✅ 문서 분류 수정 완료');
   } catch (error) {
     alert('문서 분류 수정 실패: ' + error.message);
@@ -6405,7 +6430,7 @@ function uploadAdminFile(file, code, uploadOptions=null) {
 
   task.on('state_changed',
     snap => { const p = Math.round(snap.bytesTransferred/snap.totalBytes*100); bar.style.width=p+'%'; pct.textContent=p+'%'; },
-    err => { pct.textContent='❌'; },
+    err => { pct.textContent='❌'; if(fileViewMode==='organize') alert(`${file.name} 업로드 실패: ${err.message}`); },
     async () => {
       try {
         const url = await getDownloadURL(task.snapshot.ref);
@@ -6431,11 +6456,13 @@ function uploadAdminFile(file, code, uploadOptions=null) {
           });
         }
         pct.textContent='✅';
+        if(fileViewMode==='organize') showToast(`✅ ${file.name} 업로드 완료`);
       } catch (error) {
         pct.textContent='⚠️';
         console.error('보고서 메타데이터 저장 실패:', error);
+        if(fileViewMode==='organize') alert(`${file.name} 기록 저장 실패: ${error.message}`);
       }
-      setTimeout(()=>{ item.remove(); fileViewMode==='all'?loadAllAdminFiles():loadAdminFiles(); }, 1000);
+      setTimeout(()=>{ item.remove(); (fileViewMode==='all' || fileViewMode==='organize')?loadAllAdminFiles():loadAdminFiles(); }, 1000);
     }
   );
 }
@@ -6461,7 +6488,7 @@ window.deleteAdminFile = async function(idx) {
   if (!f || !confirm(`"${f.name}" 삭제할까요?`)) return;
   try {
     await deleteAdminFileRecord(f);
-    await (fileViewMode === 'all' ? loadAllAdminFiles() : loadAdminFiles());
+    await ((fileViewMode === 'all' || fileViewMode === 'organize') ? loadAllAdminFiles() : loadAdminFiles());
   } catch(e) {
     alert('삭제 실패: '+e.message);
   }
@@ -6476,7 +6503,7 @@ window.deleteSelectedAdminFiles = async function() {
     try { await deleteAdminFileRecord(file); }
     catch (error) { failed++; console.error(file.name, error); }
   }
-  await (fileViewMode === 'all' ? loadAllAdminFiles() : loadAdminFiles());
+  await ((fileViewMode === 'all' || fileViewMode === 'organize') ? loadAllAdminFiles() : loadAdminFiles());
   showToast(failed ? `⚠️ ${selected.length-failed}개 삭제, ${failed}개 실패` : `✅ ${selected.length}개 삭제 완료`);
 };
 
