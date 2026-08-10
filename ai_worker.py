@@ -72,6 +72,9 @@ class PCUWorker:
             try:
                 self._heartbeat()
                 worked = self._process_collection("ai_jobs", self._process_ai_job)
+                worked = self._process_collection(
+                    "website_jobs", self._process_website_job
+                ) or worked
                 worked = self._process_collection("email_jobs", self._process_email_job) or worked
                 worked = self._process_collection("recovery_jobs", self._process_recovery_job) or worked
                 if not worked:
@@ -277,6 +280,107 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
             })
         self.log(f"공모전 매칭 완료: {data.get('contestName', '')}")
         return {"matches": safe}
+
+    def _process_website_job(self, reference, data):
+        source = str(data.get("sourceText", "")).strip()
+        page_id = str(data.get("pageId", "")).strip()
+        raw_mode = str(data.get("mode", "startup"))
+        mode = {"student": "startup", "general": "startup", "auto": "startup"}.get(
+            raw_mode, raw_mode
+        )
+        options = data.get("options", {}) if isinstance(data.get("options"), dict) else {}
+        if len(source) < 30:
+            raise ValueError("웹페이지를 만들 원본 내용이 부족합니다.")
+        if len(source) > 50000:
+            raise ValueError("원본 내용은 50,000자를 초과할 수 없습니다.")
+        if not page_id:
+            raise ValueError("페이지 주소가 없습니다.")
+
+        mode_instruction = {
+            "startup": """창업 목적 웹사이트입니다.
+- 사업화 단계라면 고객 문제, 가치 제안, 제품·서비스 특징, 검증 성과, 행동 유도 순으로 구성하세요.
+- 아이디어·활동 단계라면 문제 정의, 해결 아이디어, 주요 활동, 검증 결과, 배운 점과 향후 계획 순으로 구성하세요.
+- 지원사업 보고서처럼 보이기보다 실제 고객과 심사자가 빠르게 이해할 수 있는 소개 사이트로 만드세요.
+- 입력에 없는 매출, 고객 수, 특허, 수상, 연락처, 팀원은 절대 만들지 마세요.""",
+            "career": """취업용 개인 포트폴리오입니다.
+- 첫 화면에서 이름, 희망 직무, 한 줄 강점을 즉시 이해할 수 있게 하세요.
+- 핵심 역량, 프로젝트, 경험·경력, 교육·자격·수상, 공개 연락 방법 순으로 채용 담당자가 빠르게 훑을 수 있게 구성하세요.
+- 프로젝트는 입력된 범위에서 역할, 수행 내용, 사용 기술, 결과가 구분되게 정리하세요.
+- 입력에 없는 경력 기간, 성과 수치, 기술 숙련도, 자격증, 링크, 연락처는 절대 만들지 마세요.
+- 자기소개서 전문을 길게 나열하지 말고 직무 적합성의 근거가 드러나게 편집하세요.""",
+        }.get(mode)
+        if not mode_instruction:
+            raise ValueError("지원하지 않는 웹사이트 제작 트랙입니다.")
+        prompt = f"""당신은 시니어 프론트엔드 웹사이트 생성 전문가입니다.
+아래 사용자 원문만 근거로 완성된 단일 HTML 파일을 만드세요.
+
+[모드]
+{mode_instruction}
+
+[사용자 확인값]
+- 배너 이미지 수: {int(options.get("bannerCount", 0) or 0)}
+- 섹션 이미지: {"사용" if options.get("sectionImages") else "사용 안 함"}
+- 로고 이미지: {"사용" if options.get("logoImage") else "사용 안 함"}
+- 푸터: {"생성" if options.get("includeFooter", True) else "생성 안 함"}
+- 푸터 추가 문구: {str(options.get("footerText", ""))[:300]}
+- 사업화 여부: {options.get("commercialized", "unknown")}
+- 디자인 방향: {options.get("designStyle", "auto")}
+
+[절대 규칙]
+1. 입력에 없는 이름, 성과, 수치, 링크, 연락처를 추측·창작·과장하지 마세요.
+2. HTML, CSS, JavaScript를 모두 포함한 단일 HTML 문서만 반환하세요.
+3. React, Vue, 빌드 도구를 사용하지 마세요.
+4. 외부 실제 이미지 URL을 사용하지 마세요. 필요한 경우 아래 파일명만 사용하세요.
+   Img_files_banner_01.jpg ~ Img_files_banner_03.jpg
+   Img_files_logo_01.png
+   Img_files_section_01.jpg ~ Img_files_section_03.jpg
+5. 흔한 AI 템플릿처럼 카드 3개 반복이나 보라색 그라디언트 중심 구성을 피하세요.
+6. 콘텐츠에 맞는 하나의 명확한 디자인 컨셉, CSS 변수, 반응형 모바일 레이아웃,
+   키보드 접근성, 자연스러운 CSS 애니메이션을 적용하세요.
+7. 빈 정보는 해당 섹션을 생략하거나 "정보 미입력"으로 최소 표시하고 임의로 채우지 마세요.
+8. 이메일·전화번호·외부 링크는 사용자 원문에 명시된 경우에만 클릭 가능한 요소로 만드세요.
+9. 창업 트랙의 푸터 기본 문구는 "본 프로젝트는 배재대학교 창업지원단의 지원을 받았습니다."이고,
+   취업 트랙의 푸터 기본 문구는 "배재대학교 학생 포트폴리오"입니다.
+10. 인쇄 및 HTML 다운로드 후에도 레이아웃이 유지되도록 작성하세요.
+11. 마크다운 코드펜스, 설명, 사전 안내 없이 <!DOCTYPE html>부터 </html>까지만 출력하세요.
+
+[사용자 원문]
+{source[:50000]}
+"""
+        response = ollama.chat(
+            model=self.text_model,
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": 0.65},
+        )
+        html = str(response["message"]["content"]).strip()
+        if html.startswith("```"):
+            html = html.split("\n", 1)[-1]
+            if html.endswith("```"):
+                html = html[:-3].rstrip()
+        start = html.lower().find("<!doctype html")
+        if start < 0:
+            start = html.lower().find("<html")
+        end = html.lower().rfind("</html>")
+        if start < 0 or end < 0:
+            raise ValueError("Ollama가 유효한 HTML 문서를 반환하지 않았습니다.")
+        html = html[start : end + len("</html>")]
+        if len(html.encode("utf-8")) > 850000:
+            raise ValueError("생성된 HTML이 저장 가능한 크기를 초과했습니다.")
+
+        title = page_id
+        title_start = html.lower().find("<title>")
+        title_end = html.lower().find("</title>")
+        if 0 <= title_start < title_end:
+            title = html[title_start + 7 : title_end].strip()[:120] or page_id
+        self.log(f"웹페이지 생성 완료: {page_id}")
+        return {
+            "html": html,
+            "title": title,
+            "generator": f"ollama:{self.text_model}",
+            "track": mode,
+            "sourceText": firestore.DELETE_FIELD,
+            "options": firestore.DELETE_FIELD,
+        }
 
     def _process_email_job(self, reference, data):
         if not self.admin_email or not self.admin_email_pw:
