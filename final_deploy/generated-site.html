@@ -12,12 +12,12 @@
   </style>
 </head>
 <body>
-  <header class="bar"><strong>PCU 생성 웹페이지</strong><button id="downloadBtn" hidden>HTML 다운로드</button><a href="website-builder.html">새로 만들기</a></header>
+  <header class="bar"><strong id="resultType">PCU 생성 웹페이지</strong><button id="downloadBtn" hidden>HTML 다운로드</button><a href="website-builder.html">새로 만들기</a></header>
   <main id="content"><div class="message">웹페이지를 불러오는 중입니다.</div></main>
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {getFirestore,doc,getDoc} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-const app=initializeApp({apiKey:"AIzaSyBzS2q5ML-taevon0IQMVxMO8Ah23IBGNE",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
+const app=initializeApp({apiKey:"AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
 const db=getFirestore(app),id=new URLSearchParams(location.search).get('id'),content=document.getElementById('content');
 let html='';
 try{
@@ -28,6 +28,7 @@ try{
   if(job.status==='pending'||job.status==='processing')throw new Error('아직 AI가 웹페이지를 생성하고 있습니다. 잠시 후 새로고침해주세요.');
   if(job.status!=='completed'||!job.html)throw new Error(job.error||'생성된 웹페이지가 없습니다.');
   html=job.html;
+  document.getElementById('resultType').textContent=(job.track||job.mode)==='career'?'PCU 취업 포트폴리오':'PCU 창업 웹사이트';
   const iframe=document.createElement('iframe');
   iframe.sandbox='allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox';
   iframe.srcdoc=html;iframe.title=job.title||id;content.replaceChildren(iframe);
