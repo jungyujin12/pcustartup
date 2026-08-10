@@ -68,7 +68,6 @@ try{
   const download=document.getElementById('downloadBtn');download.hidden=false;
   download.onclick=()=>{const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`${id}.html`;a.click();URL.revokeObjectURL(url)};
 }catch(error){content.innerHTML=`<div class="message"><h2>페이지를 표시할 수 없습니다.</h2><p>${String(error.message||error).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</p></div>`}
-  
 </script>
 </body>
 </html>
