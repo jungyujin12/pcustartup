@@ -522,6 +522,7 @@ function logout() { if(window._logout) window._logout(); }
     <button class="tab-btn" onclick="switchTab('ailog')">🤖 AI 분석 기록</button>
     <button class="tab-btn" onclick="switchTab('rise')">📊 RISE 실적</button>
     <button class="tab-btn" onclick="switchTab('survey')">📝 설문 관리</button>
+    <button class="tab-btn" onclick="location.href='website-admin.html'">🌐 제작 사이트 관리</button>
     <button class="tab-btn" onclick="switchTab('contest')" title="현재 사용할 수 없는 기능입니다">🏆 공모전 관리 (작동 안 함)</button>
     <div class="tab-actions" style="margin-left:auto;display:flex;align-items:center;gap:0.8rem;padding:0 1rem">
       <select id="yearFilter" onchange="changeYear(this.value)" style="border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:4px 10px;font-size:0.78rem;font-family:var(--font-family-base);color:var(--pcu-blue);font-weight:700;outline:none"></select>
@@ -5594,6 +5595,10 @@ let adminFileSelectedPaths = new Set();
 let fileTabBound = false;
 let fileViewMode = 'club';
 
+function getOrganizerActiveClubs() {
+  return clubList.filter(club => (club.status || 'active') === 'active');
+}
+
 function loadFilesTab() {
   const sel = document.getElementById('fileClubSelect');
   const previousCode = sel.value;
@@ -5625,9 +5630,10 @@ function loadFilesTab() {
     .map(year=>`<option value="${year}" ${year===selectedYear?'selected':''}>${year}년도</option>`).join('');
   const organizerSourceFilter = document.getElementById('organizerSourceFilter');
   const previousOrganizerSource = organizerSourceFilter.value;
-  organizerSourceFilter.innerHTML = '<option value="__unassigned__">미분류 보관함</option><option value="">전체 파일</option>' + clubList
+  const organizerActiveClubs = getOrganizerActiveClubs();
+  organizerSourceFilter.innerHTML = '<option value="__unassigned__">미분류 보관함</option><option value="">활동 중 전체 파일</option>' + organizerActiveClubs
     .map(club => `<option value="${escapeFileHTML(club.code)}">${escapeFileHTML(club.name || club.code)}</option>`).join('');
-  if (previousOrganizerSource === '' || previousOrganizerSource === '__unassigned__' || clubList.some(club => club.code === previousOrganizerSource)) {
+  if (previousOrganizerSource === '' || previousOrganizerSource === '__unassigned__' || organizerActiveClubs.some(club => club.code === previousOrganizerSource)) {
     organizerSourceFilter.value = previousOrganizerSource;
   }
   if (clubList.some(club => club.code === previousCode)) sel.value = previousCode;
@@ -5800,7 +5806,7 @@ window.loadAllAdminFiles = async function() {
       return {
         code,
         clubName:data.clubName || club?.name || code || '미연결',
-        name:String(data.fileName || storagePath.split('/').pop() || '이름 없는 파일').replace(/^\d{13}_/,''),
+        name:String(data.fileName || storagePath.split('/').pop() || '이름 없는 파일').replace(/^\d{13}(?:_\d+)?_/,''),
         storedName:String(data.fileName || storagePath.split('/').pop() || ''),
         url:data.fileUrl || '',
         ref:storagePath ? ref(storage,storagePath) : null,
@@ -6008,14 +6014,19 @@ window.renderFileOrganizer = function() {
   const selectedYear=document.getElementById('yearFilter')?.value || new Date().getFullYear().toString();
   const source=document.getElementById('organizerSourceFilter')?.value ?? '__unassigned__';
   const queryText=(document.getElementById('organizerFileSearch')?.value || '').trim().toLowerCase();
-  const yearFiles=adminFileRefs.filter(file => String(file.year || selectedYear) === selectedYear);
+  const activeClubs=getOrganizerActiveClubs();
+  const activeCodes=new Set(activeClubs.map(club=>club.code));
+  const yearFiles=adminFileRefs.filter(file =>
+    String(file.year || selectedYear) === selectedYear
+    && (file.isInbox || activeCodes.has(file.code))
+  );
   const visibleFiles=yearFiles.filter(file =>
     (source === '' || (source === '__unassigned__' ? file.isInbox : file.code === source))
     && (!queryText || file.name.toLowerCase().includes(queryText) || String(file.clubName || '').toLowerCase().includes(queryText))
   );
   document.getElementById('organizerFileCount').textContent=`${visibleFiles.length}개`;
-  document.getElementById('organizerClubCount').textContent=`${selectedYear}년도 · ${clubList.length}개 동아리`;
-  const destinationOptions='<option value="">이동할 동아리</option>' + clubList
+  document.getElementById('organizerClubCount').textContent=`${selectedYear}년도 · 활동 중 ${activeClubs.length}개`;
+  const destinationOptions='<option value="">이동할 동아리</option>' + activeClubs
     .map(club=>`<option value="${escapeFileHTML(club.code)}">${escapeFileHTML(club.name || club.code)}</option>`).join('');
   sourceList.innerHTML=visibleFiles.length ? visibleFiles.map(file => {
     const index=adminFileRefs.indexOf(file);
@@ -6031,7 +6042,7 @@ window.renderFileOrganizer = function() {
       </div>
     </article>`;
   }).join('') : '<div class="empty-state"><div class="empty-icon">🗂️</div><p>정리할 파일이 없습니다.</p></div>';
-  folderList.innerHTML=clubList.length ? clubList.map(club => {
+  folderList.innerHTML=activeClubs.length ? activeClubs.map(club => {
     const count=yearFiles.filter(file=>!file.isInbox && file.code===club.code).length;
     return `<div class="organizer-folder" data-code="${escapeFileHTML(club.code)}"
       ondragover="allowOrganizerDrop(event)" ondragleave="leaveOrganizerDrop(event)" ondrop="dropFileOnOrganizerClub(event,this.dataset.code)">
@@ -6039,7 +6050,7 @@ window.renderFileOrganizer = function() {
       <span class="organizer-folder-name">${escapeFileHTML(club.name || club.code)}</span>
       <span class="organizer-folder-meta">${escapeFileHTML(club.code)} · 문서 ${count}개</span>
     </div>`;
-  }).join('') : '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📁</div><p>선택 연도에 등록된 동아리가 없습니다.</p></div>';
+  }).join('') : '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📁</div><p>선택 연도에 활동 중인 동아리가 없습니다.</p></div>';
 };
 
 window.startFileOrganizerDrag = function(event,index) {
@@ -6082,8 +6093,8 @@ window.dropFileOnOrganizerClub = async function(event,code) {
 };
 
 function uploadExternalFilesToOrganizer(fileList,code) {
-  const club=clubList.find(item=>item.code===code);
-  if(!club){showToast('현재 연도에 존재하지 않는 동아리입니다.');return;}
+  const club=getOrganizerActiveClubs().find(item=>item.code===code);
+  if(!club){showToast('현재 연도의 활동 중 동아리가 아닙니다.');return;}
   const files=[...fileList];
   const allowedExtensions=['pdf','jpg','jpeg','png','webp','hwp','doc','docx','xls','xlsx'];
   const validFiles=files.filter(file => {
@@ -6110,7 +6121,7 @@ window.moveOrganizerFileBySelect = async function(index) {
 };
 
 async function moveOrganizerFileToClub(file,code,folderElement) {
-  if(!clubList.some(club=>club.code===code)){showToast('현재 연도에 존재하지 않는 동아리입니다.');return;}
+  if(!getOrganizerActiveClubs().some(club=>club.code===code)){showToast('현재 연도의 활동 중 동아리가 아닙니다.');return;}
   if(!file.isInbox && file.code===code){showToast('이미 해당 동아리 폴더에 있는 파일입니다.');return;}
   if(folderElement) folderElement.setAttribute('aria-busy','true');
   try {
@@ -6217,6 +6228,7 @@ async function moveAndClassifyAdminFile(file, target, sequence) {
     documentCategory:target.category,
     reportMonth:target.category === 'monthly' ? Number(target.month || 1) : null,
     year:target.year,
+    uploadedByAdmin:file.isInbox || file.source === '관리자 업로드',
     updatedAt:serverTimestamp()
   };
   if (!movingPath) {
