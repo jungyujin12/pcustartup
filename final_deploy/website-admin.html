@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>제작 사이트 관리 | PCU</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f3f7fb;color:#172b42;font-family:"Noto Sans KR",sans-serif}.top{background:#10243e;color:#fff;padding:1rem}.top div{max-width:1100px;margin:auto;display:flex;align-items:center;gap:1rem}.top h1{font-size:1.1rem;margin:0;margin-right:auto}.top a{color:#fff;text-decoration:none;border:1px solid #7890aa;padding:.5rem .75rem;border-radius:7px}.wrap{max-width:1100px;margin:1.5rem auto;padding:0 1rem}.card{background:#fff;border:1px solid #dbe6f0;border-radius:14px;padding:1.2rem;box-shadow:0 6px 20px rgba(20,50,80,.06)}.notice{background:#eef6ff;border-left:4px solid #0052cc;padding:.8rem 1rem;border-radius:6px;line-height:1.6;font-size:.85rem}.row{display:grid;grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) auto;gap:.7rem;align-items:center;padding:1rem 0;border-bottom:1px solid #e6edf4}.row:last-child{border:0}select,button{font:inherit;border-radius:7px;padding:.65rem;border:1px solid #bdcbd9}button{background:#0052cc;color:#fff;border:0;font-weight:700;cursor:pointer}button:disabled{opacity:.5}.muted{color:#667b90;font-size:.78rem}.empty{text-align:center;padding:3rem;color:#667b90}@media(max-width:700px){.row{grid-template-columns:1fr}.top div{flex-wrap:wrap}}
+  </style>
+</head>
+<body>
+  <header class="top"><div><h1>🌐 제작 사이트 관리</h1><a href="admin.html">관리자 화면으로</a></div></header>
+  <main class="wrap"><section class="card"><div class="notice"><strong>기존 사이트 동아리 지정</strong><br>동아리 연결 기능 도입 전에 만든 사이트를 올바른 동아리에 귀속합니다. 기존 HTML은 동아리 전용 저장소로 이동되고 초안 상태가 됩니다.</div><div id="status" class="empty">관리자 권한을 확인하고 있습니다.</div><div id="list"></div></section></main>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {getAuth,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {getFirestore,collection,getDocs,doc,writeBatch,deleteField,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+const app=initializeApp({apiKey:"AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
+const db=getFirestore(app),auth=getAuth(app),admins=['jyj2315@gmail.com','bridge0610@pcu.ac.kr'];let clubs=[];
+const esc=value=>{const span=document.createElement('span');span.textContent=String(value||'');return span.innerHTML};
+onAuthStateChanged(auth,user=>{if(!user||!admins.includes(user.email||'')){document.getElementById('status').innerHTML='관리자 로그인이 필요합니다. <a href="admin.html">관리자 화면에서 로그인</a>';return}load()});
+async function load(){
+  const [clubSnap,jobSnap]=await Promise.all([getDocs(collection(db,'clubs')),getDocs(collection(db,'website_jobs'))]);
+  clubs=clubSnap.docs.map(item=>({id:item.id,...item.data()})).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'ko'));
+  const jobs=jobSnap.docs.map(item=>({id:item.id,...item.data()})).filter(item=>item.status==='completed'&&!item.clubCode);
+  document.getElementById('status').style.display='none';const list=document.getElementById('list');
+  if(!jobs.length){list.innerHTML='<div class="empty">동아리 미지정 사이트가 없습니다.</div>';return}
+  const options=clubs.map(club=>`<option value="${esc(club.id)}">${esc(club.year||'')} · ${esc(club.name||club.id)} (${esc(club.status||'')})</option>`).join('');
+  list.innerHTML=jobs.map(job=>`<div class="row" id="row-${job.id}"><div><strong>${esc(job.title||job.id)}</strong><div class="muted">${esc(job.id)} · ${esc(job.track||job.mode||'')}</div></div><select id="club-${job.id}"><option value="">동아리 선택</option>${options}</select><button onclick="assignSite('${job.id}')">지정</button></div>`).join('');
+}
+window.assignSite=async function(pageId){
+  const clubId=document.getElementById(`club-${pageId}`).value;if(!clubId){alert('동아리를 선택해주세요.');return}const club=clubs.find(item=>item.id===clubId);if(!club)return;
+  if(!confirm(`${pageId} 사이트를 ${club.name||club.id} 동아리에 지정할까요?`))return;
+  const jobs=await getDocs(collection(db,'website_jobs')),jobDoc=jobs.docs.find(item=>item.id===pageId);if(!jobDoc)return;
+  const data=jobDoc.data(),batch=writeBatch(db),jobRef=doc(db,'website_jobs',pageId);
+  const update={clubCode:club.id,clubName:club.name||'',clubYear:String(club.year||''),visibility:'club',publishStatus:'draft',legacyAssignedAt:serverTimestamp()};
+  if(data.html){batch.set(doc(db,'website_content',pageId),{html:data.html,visibility:'club',clubCode:club.id,updatedAt:serverTimestamp()});update.html=deleteField()}
+  batch.update(jobRef,update);await batch.commit();document.getElementById(`row-${pageId}`).remove();
+};
+</script>
+</body></html>
