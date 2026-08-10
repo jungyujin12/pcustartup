@@ -6,19 +6,51 @@
   <style>
     *{box-sizing:border-box}body{margin:0;font-family:"Noto Sans KR",sans-serif;background:#eef3f8;color:#18283b}
     .bar{height:58px;background:#10243e;color:white;display:flex;align-items:center;gap:10px;padding:0 16px;position:sticky;top:0;z-index:2}
-    .bar strong{margin-right:auto}.bar button,.bar a{border:1px solid #8aa1ba;background:transparent;color:white;border-radius:7px;padding:7px 11px;text-decoration:none;cursor:pointer}
+    .bar strong{margin-right:auto}.bar button,.bar a{border:1px solid #8aa1ba;background:transparent;color:white;border-radius:7px;padding:7px 11px;text-decoration:none;cursor:pointer;font:inherit}.bar button:hover,.bar a:hover{background:#1d3a5c}.bar button:focus-visible,.bar a:focus-visible,.guide-close:focus-visible{outline:3px solid #75baff;outline-offset:2px}
     iframe{display:block;width:100%;height:calc(100vh - 58px);border:0;background:white}.message{padding:4rem 1rem;text-align:center}
-    @media(max-width:600px){.bar{height:auto;min-height:58px;flex-wrap:wrap;padding:9px}.bar strong{width:100%}iframe{height:calc(100vh - 100px)}}
+    dialog{width:min(680px,calc(100% - 28px));max-height:88vh;border:0;border-radius:16px;padding:0;box-shadow:0 24px 70px rgba(0,0,0,.35);color:#18283b}dialog::backdrop{background:rgba(6,19,34,.72);backdrop-filter:blur(3px)}.guide-head{display:flex;align-items:center;gap:1rem;padding:1.1rem 1.25rem;background:#10243e;color:#fff}.guide-head h2{font-size:1.05rem;margin:0;margin-right:auto}.guide-close{border:1px solid #8aa1ba;border-radius:7px;background:transparent;color:#fff;padding:6px 10px;cursor:pointer}.guide-body{padding:1.25rem;overflow:auto;line-height:1.65;font-size:.9rem}.guide-body h3{font-size:1rem;margin:1.3rem 0 .45rem}.guide-body h3:first-child{margin-top:0}.guide-body ol{padding-left:1.25rem}.guide-body li{margin:.5rem 0}.guide-note{background:#eef6ff;border-left:4px solid #0052cc;padding:.8rem 1rem;border-radius:6px;margin:.8rem 0}.guide-warn{background:#fff7ed;border-left-color:#ea580c}.guide-body code{background:#edf1f5;border-radius:4px;padding:2px 5px}.guide-body a{color:#0052cc;font-weight:700}
+    @media(max-width:700px){.bar{height:auto;min-height:58px;flex-wrap:wrap;padding:9px}.bar strong{width:100%}.bar button,.bar a{flex:1;text-align:center;white-space:nowrap}iframe{height:calc(100vh - 100px)}.guide-body{padding:1rem}}
   </style>
 </head>
 <body>
-  <header class="bar"><strong id="resultType">PCU 생성 웹페이지</strong><button id="downloadBtn" hidden>HTML 다운로드</button><a href="website-builder.html">새로 만들기</a></header>
+  <header class="bar"><strong id="resultType">PCU 생성 웹페이지</strong><button id="downloadBtn" hidden>HTML 다운로드</button><button id="deployGuideBtn">GitHub 배포 방법</button><a href="website-builder.html">새로 만들기</a></header>
   <main id="content"><div class="message">웹페이지를 불러오는 중입니다.</div></main>
+  <dialog id="deployGuide" aria-labelledby="guideTitle">
+    <div class="guide-head"><h2 id="guideTitle">GitHub Pages로 무료 공개하기</h2><button class="guide-close" type="button" aria-label="안내 닫기">닫기</button></div>
+    <div class="guide-body">
+      <div class="guide-note">지금 보이는 결과는 PCU 시스템 안에 이미 저장되어 있습니다. 아래 절차는 자신만의 공개 주소로 별도 배포하고 싶을 때만 진행하세요.</div>
+      <h3>1. 파일 준비</h3>
+      <ol>
+        <li>상단의 <strong>HTML 다운로드</strong>를 누릅니다.</li>
+        <li>다운로드된 파일 이름을 <code>index.html</code>로 변경합니다.</li>
+        <li>직접 사용할 이미지가 있다면 HTML과 같은 폴더에 넣습니다. 지정된 파일명은 <code>Img_files_banner_01.jpg</code>, <code>Img_files_logo_01.png</code>, <code>Img_files_section_01.jpg</code> 형식입니다.</li>
+      </ol>
+      <h3>2. GitHub에 올리기</h3>
+      <ol>
+        <li><a href="https://github.com/new" target="_blank" rel="noopener noreferrer">GitHub 새 저장소 만들기</a>를 열고 저장소 이름을 정합니다.</li>
+        <li><strong>Public</strong>을 선택하고 <strong>Create repository</strong>를 누릅니다.</li>
+        <li><strong>uploading an existing file</strong> 또는 <strong>Add file → Upload files</strong>를 누릅니다.</li>
+        <li><code>index.html</code>과 사용하는 이미지 파일을 끌어다 놓고 <strong>Commit changes</strong>를 누릅니다.</li>
+      </ol>
+      <h3>3. 무료 주소 활성화</h3>
+      <ol>
+        <li>저장소의 <strong>Settings → Pages</strong>로 이동합니다.</li>
+        <li><strong>Build and deployment</strong>에서 Source를 <strong>Deploy from a branch</strong>로 선택합니다.</li>
+        <li>Branch는 <strong>main</strong>, 폴더는 <strong>/(root)</strong>를 선택하고 Save를 누릅니다.</li>
+        <li>잠시 후 <code>https://아이디.github.io/저장소이름/</code> 주소로 공개됩니다.</li>
+      </ol>
+      <div class="guide-note guide-warn"><strong>주의:</strong> Firebase 관리자 JSON, 접근코드, API 키, 개인정보가 포함된 원본 PDF는 GitHub에 절대 올리지 마세요. 공개할 HTML과 공개용 이미지만 업로드하세요.</div>
+    </div>
+  </dialog>
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {getFirestore,doc,getDoc} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 const app=initializeApp({apiKey:"AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
 const db=getFirestore(app),id=new URLSearchParams(location.search).get('id'),content=document.getElementById('content');
+const guide=document.getElementById('deployGuide');
+document.getElementById('deployGuideBtn').onclick=()=>guide.showModal();
+guide.querySelector('.guide-close').onclick=()=>guide.close();
+guide.addEventListener('click',event=>{if(event.target===guide)guide.close()});
 let html='';
 try{
   if(!id)throw new Error('페이지 주소가 없습니다.');
