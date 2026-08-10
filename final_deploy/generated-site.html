@@ -44,7 +44,7 @@
   </dialog>
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import {getFirestore,doc,getDoc} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import {getFirestore,collection,doc,getDoc,setDoc,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 const app=initializeApp({apiKey:"AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
 const db=getFirestore(app),id=new URLSearchParams(location.search).get('id'),content=document.getElementById('content');
 const guide=document.getElementById('deployGuide');
@@ -52,21 +52,39 @@ document.getElementById('deployGuideBtn').onclick=()=>guide.showModal();
 guide.querySelector('.guide-close').onclick=()=>guide.close();
 guide.addEventListener('click',event=>{if(event.target===guide)guide.close()});
 let html='';
+let job={};
+function renderPage(markup){
+  html=markup;
+  document.getElementById('resultType').textContent=`${(job.track||job.mode)==='career'?'PCU 취업 포트폴리오':'PCU 창업 웹사이트'} · ${job.publishStatus==='final'?'최종 확정':'초안'}`;
+  const iframe=document.createElement('iframe');iframe.sandbox='allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox';iframe.srcdoc=html;iframe.title=job.title||id;content.replaceChildren(iframe);
+  document.title=`${job.title||id} | PCU`;const download=document.getElementById('downloadBtn');download.hidden=false;
+  download.onclick=()=>{const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`${id}.html`;a.click();URL.revokeObjectURL(url)};
+}
+function showAccessForm(message='동아리 접근코드를 입력하면 이 페이지를 볼 수 있습니다.'){
+  content.innerHTML=`<div class="message"><h2>동아리 전용 웹사이트</h2><p>${message}</p><div style="display:flex;gap:8px;justify-content:center;max-width:420px;margin:1rem auto"><input id="viewCode" type="password" autocomplete="off" placeholder="동아리 접근코드" style="flex:1;padding:10px;border:1px solid #b9c7d6;border-radius:7px"><button id="viewSubmit" style="padding:10px 15px;border:0;border-radius:7px;background:#0052cc;color:#fff;font-weight:700;cursor:pointer">확인</button></div><p id="viewError" style="color:#b42318"></p></div>`;
+  document.getElementById('viewSubmit').onclick=requestPrivatePage;
+  document.getElementById('viewCode').addEventListener('keydown',event=>{if(event.key==='Enter')requestPrivatePage()});
+}
+async function requestPrivatePage(){
+  const code=document.getElementById('viewCode').value.trim();if(!code)return;
+  const button=document.getElementById('viewSubmit'),error=document.getElementById('viewError');button.disabled=true;error.textContent='접근 권한을 확인하고 있습니다.';
+  try{
+    const requestRef=doc(collection(db,'website_access'));
+    await setDoc(requestRef,{status:'pending',pageId:id,accessCode:code,action:'view',value:'',createdAt:serverTimestamp()});
+    for(let attempt=0;attempt<50;attempt++){await new Promise(resolve=>setTimeout(resolve,1200));let snapshot;try{snapshot=await getDoc(requestRef)}catch(readError){continue}if(!snapshot.exists())continue;const result=snapshot.data();if(result.status==='completed'&&result.html){renderPage(result.html);return}if(result.status==='failed')throw new Error(result.error||'접근코드가 올바르지 않습니다.')}
+    throw new Error('확인 시간이 초과되었습니다. AI 실행기가 켜져 있는지 확인해주세요.');
+  }catch(accessError){error.textContent=accessError.message||'페이지를 불러오지 못했습니다.';button.disabled=false}
+}
 try{
   if(!id)throw new Error('페이지 주소가 없습니다.');
   const snapshot=await getDoc(doc(db,'website_jobs',id));
   if(!snapshot.exists())throw new Error('생성 요청을 찾을 수 없습니다.');
-  const job=snapshot.data();
+  job=snapshot.data();
   if(job.status==='pending'||job.status==='processing')throw new Error('아직 AI가 웹페이지를 생성하고 있습니다. 잠시 후 새로고침해주세요.');
-  if(job.status!=='completed'||!job.html)throw new Error(job.error||'생성된 웹페이지가 없습니다.');
-  html=job.html;
-  document.getElementById('resultType').textContent=(job.track||job.mode)==='career'?'PCU 취업 포트폴리오':'PCU 창업 웹사이트';
-  const iframe=document.createElement('iframe');
-  iframe.sandbox='allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox';
-  iframe.srcdoc=html;iframe.title=job.title||id;content.replaceChildren(iframe);
-  document.title=`${job.title||id} | PCU`;
-  const download=document.getElementById('downloadBtn');download.hidden=false;
-  download.onclick=()=>{const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`${id}.html`;a.click();URL.revokeObjectURL(url)};
+  if(job.status!=='completed')throw new Error(job.error||'생성된 웹페이지가 없습니다.');
+  if(job.html){renderPage(job.html)}
+  else if(job.visibility==='public'){const page=await getDoc(doc(db,'website_content',id));if(!page.exists()||!page.data().html)throw new Error('생성된 웹페이지 본문이 없습니다.');renderPage(page.data().html)}
+  else showAccessForm();
 }catch(error){content.innerHTML=`<div class="message"><h2>페이지를 표시할 수 없습니다.</h2><p>${String(error.message||error).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</p></div>`}
 </script>
 </body>
