@@ -14,6 +14,7 @@
     input,select,textarea{width:100%;border:1.5px solid #d6e1ed;border-radius:8px;padding:10px 12px;font:inherit;font-size:.84rem;background:#fff}textarea{min-height:110px;resize:vertical;line-height:1.6}.source-area{min-height:180px}input:focus,select:focus,textarea:focus{outline:none;border-color:#0052cc;box-shadow:0 0 0 3px rgba(0,82,204,.08)}.hint{font-size:.7rem;color:#718096;line-height:1.5}.track-form{display:none}.track-form.show{display:block}.checks{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}.check{border:1.5px solid #dce9f8;border-radius:9px;padding:.7rem;font-size:.78rem;display:flex;gap:6px;align-items:center}.check input{width:auto}
     .privacy{padding:.75rem;border-radius:9px;background:#fff7ed;color:#9a3412;font-size:.72rem;line-height:1.6;margin-top:.8rem}.actions{display:flex;gap:.7rem;justify-content:flex-end;margin-top:1rem}.btn-main{border:0;border-radius:9px;background:#0052cc;color:#fff;padding:12px 22px;font-weight:800;cursor:pointer}.btn-main:disabled{opacity:.5;cursor:not-allowed}.status{display:none;margin-top:1rem;padding:1rem;border-radius:10px;background:#f2f7ff;font-size:.82rem;line-height:1.7}.status.show{display:block}.status.error{background:#fff1f2;color:#b42318}.status.done{background:#edfff5;color:#087443}.progress{height:5px;background:#dce9f8;border-radius:5px;overflow:hidden;margin-top:.7rem}.progress span{display:block;width:35%;height:100%;background:#31b37c;animation:move 1.2s infinite ease-in-out}@keyframes move{from{transform:translateX(-110%)}to{transform:translateX(300%)}}
     .optional-box{grid-column:1/-1;border:1.5px solid #dce9f8;border-radius:10px;background:#f8fbff}.optional-box>summary{cursor:pointer;padding:.9rem 1rem;font-size:.8rem;font-weight:850;color:#24425f;list-style:none}.optional-box>summary::-webkit-details-marker{display:none}.optional-box>summary:after{content:"＋";float:right;color:#0052cc}.optional-box[open]>summary:after{content:"－"}.optional-box .optional-grid{padding:0 1rem 1rem}.source-note{padding:.75rem 1rem;color:#52667a;font-size:.72rem;line-height:1.55}.source-note strong{color:#087443}
+    .basis-box{grid-column:1/-1;border:2px solid #cfe0f4;border-radius:14px;padding:1rem;background:#f8fbff}.basis-box>strong{display:block;font-size:.9rem;margin-bottom:.3rem}.basis-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-top:.8rem}.basis-option{display:block;border:1.5px solid #d7e3f0;border-radius:11px;padding:.9rem;background:#fff;cursor:pointer}.basis-option:has(input:checked){border-color:#0052cc;background:#edf5ff;box-shadow:0 0 0 3px rgba(0,82,204,.08)}.basis-option input{width:auto;margin-right:6px}.basis-option b{font-size:.83rem}.basis-option span{display:block;margin:5px 0 0 22px;font-size:.71rem;line-height:1.5;color:#61758a}.basis-alert{margin-top:.75rem;padding:.7rem .8rem;border-radius:8px;background:#fff4e8;color:#92530b;font-size:.72rem;line-height:1.55}
     @media(max-width:700px){.track-grid,.grid,.checks{grid-template-columns:1fr}.hero{padding:1.5rem}.builder{padding-top:1rem}.actions{flex-direction:column}.btn-main{width:100%}}
   </style>
 </head>
@@ -71,10 +72,11 @@
     <section id="careerForm" class="card track-form">
       <h2>3. 취업 포트폴리오 내용</h2>
       <div class="grid">
+        <div class="basis-box"><strong>사이트의 진로 방향을 무엇으로 정할까요? <span class="required">*</span></strong><div class="hint">흥미검사 결과가 희망 진로와 항상 같지는 않습니다. HTML 생성 전에 반드시 기준을 선택합니다.</div><div class="basis-grid"><label class="basis-option"><input type="radio" name="careerBasis" value="assessment"><b>검사 결과를 바탕으로 제작</b><span>진로검사 결과의 흥미유형·추천 직무를 포트폴리오 방향에 반영합니다.</span></label><label class="basis-option"><input type="radio" name="careerBasis" value="independent"><b>검사와 별개로 제작</b><span>검사 결과는 사용하지 않고 아래에 입력한 희망 직무·진로 분야를 최우선으로 반영합니다.</span></label></div><div id="careerBasisGuide" class="basis-alert">검사 결과를 사용할지 선택해주세요.</div></div>
         <div class="field"><label for="cName">이름 <span class="required">*</span></label><input id="cName" maxlength="60"></div>
-        <div class="field"><label for="cRole">희망 직무 <span class="required">*</span></label><input id="cRole" maxlength="100" placeholder="예: 백엔드 개발자, 마케팅 기획"></div>
+        <div class="field"><label for="cRole">희망 직무</label><input id="cRole" maxlength="100" placeholder="예: 백엔드 개발자, 마케팅 기획"></div>
         <div class="field"><label for="cMajor">전공·학과</label><input id="cMajor" maxlength="100"></div>
-        <div class="field"><label for="cIndustry">희망 산업·기업 유형</label><input id="cIndustry" maxlength="120"></div>
+        <div class="field"><label for="cIndustry">희망 산업·진로 분야</label><input id="cIndustry" maxlength="120" placeholder="예: 공공데이터, 교육서비스, 콘텐츠 산업"></div>
         <div class="field full"><label for="cIntro">한 줄 소개 <span class="required">*</span></label><input id="cIntro" maxlength="160" placeholder="직무 강점과 방향을 한 문장으로"></div>
         <div class="field"><label for="cSkills">핵심 역량·기술</label><textarea id="cSkills" maxlength="1500" placeholder="도구, 기술, 언어, 업무 역량과 숙련 근거"></textarea></div>
         <div class="field"><label for="cStrengths">강점·업무 방식</label><textarea id="cStrengths" maxlength="1200"></textarea></div>
@@ -82,6 +84,7 @@
         <div class="field"><label for="cExperience">경험·경력·대외활동</label><textarea id="cExperience" maxlength="2500"></textarea></div>
         <div class="field"><label for="cEducation">교육·자격·수상</label><textarea id="cEducation" maxlength="1800"></textarea></div>
         <div class="field full"><label for="cContact">공개할 연락 방법</label><input id="cContact" maxlength="300" placeholder="공개에 동의한 이메일·GitHub·LinkedIn만 입력"></div>
+        <div class="field full"><label for="careerResultPdf">진로검사 결과지 PDF</label><input id="careerResultPdf" type="file" accept=".pdf,application/pdf"><div id="careerResultStatus" class="hint">PCU 진로·직무 흥미검사 또는 외부 진로검사 결과지 1개를 선택할 수 있습니다. 결과지는 AI 분석에만 사용되며 공개 사이트 파일에는 포함되지 않습니다.</div></div>
         <div class="field full"><label for="cSource">추가 원문</label><textarea id="cSource" class="source-area" maxlength="50000" placeholder="이력서, 자기소개서, 경력기술서 내용을 붙여넣으세요. PDF를 선택하면 여기에 합쳐집니다."></textarea><div class="hint"><span id="cCharCount">0</span> / 50,000자</div></div>
       </div>
     </section>
@@ -108,7 +111,7 @@ import {getFirestore,collection,doc,getDoc,getDocs,setDoc,serverTimestamp,query,
 const app=initializeApp({apiKey:"AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
 const db=getFirestore(app),$=id=>document.getElementById(id);
 const status=(message,type='')=>{const el=$('jobStatus');el.className=`status show ${type}`;el.innerHTML=message};
-let selectedTrack='',workerAvailable=false,currentClub=null,referenceImageData='';
+let selectedTrack='',workerAvailable=false,currentClub=null,referenceImageData='',careerResultText='',careerProfileLoaded=false;
 const designCatalog=['에디토리얼 매거진','네오 브루탈리즘','스위스 그리드','벤토 인터페이스','터미널 테크','오가닉 내추럴','럭셔리 미니멀','레트로 퓨처','블루프린트','뉴스페이퍼','아트 갤러리','키네틱 타이포','모노크롬 포커스','노르딕 소프트','플레이풀 캠퍼스','컨설팅 리포트','글래스 레이어','페이퍼 콜라주','오로라 그라디언트','인더스트리얼 유틸리티','데이터 대시보드','캠페인 포스터','스토리북','절제된 미니멀','레트로 컴퓨팅','아카이브 인덱스','프로덕트 쇼케이스','컬처 매거진','크리에이티브 스튜디오','캠퍼스 랩'];
 const layoutCatalog=['분할 히어로·서사형','분할 히어로·카드형','분할 히어로·교차형','분할 히어로·타임라인형','분할 히어로·벤토형','중앙 히어로·서사형','중앙 히어로·카드형','중앙 히어로·교차형','중앙 히어로·타임라인형','중앙 히어로·벤토형','세로 라인 히어로·서사형','세로 라인 히어로·카드형','세로 라인 히어로·교차형','세로 라인 히어로·타임라인형','세로 라인 히어로·벤토형','포스터 히어로·서사형','포스터 히어로·카드형','포스터 히어로·교차형','포스터 히어로·타임라인형','포스터 히어로·벤토형','사이드바 히어로·서사형','사이드바 히어로·카드형','사이드바 히어로·교차형','사이드바 히어로·타임라인형','사이드바 히어로·벤토형','프레임 히어로·서사형','프레임 히어로·카드형','프레임 히어로·교차형','프레임 히어로·타임라인형','프레임 히어로·벤토형'];
 const paletteCatalog=['심해 민트','코발트 선','잉크 코랄','포레스트 라임','왕실 금빛','클린 블루','토마토 크림','라벤더 잉크','사이버 시안','체리 페이퍼','세이지 클레이','레몬 네이비','스카이 레드','블랙 아이보리','민트 퍼플','버건디 핑크','오션 오렌지','올리브 머스타드','슬레이트 아쿠아','플럼 피치','인디고 그린','차콜 옐로','브릭 스카이','에메랄드 샌드','그래파이트 핑크','블루 바이올렛','모스 코랄','커피 민트','나이트 핑크','화이트 레드'];
@@ -132,7 +135,7 @@ function setupCompactForm(formId,advancedIds,sourceId){
 }
 
 setupCompactForm('startupForm',['sIndustry','commercialized','sProblem','sSolution','sActivities','sAchievements','sLearning'],'sSource');
-setupCompactForm('careerForm',['cMajor','cIndustry','cSkills','cStrengths','cProjects','cExperience','cEducation','cContact'],'cSource');
+setupCompactForm('careerForm',['cMajor','cSkills','cStrengths','cProjects','cExperience','cEducation','cContact'],'cSource');
 const optionsGrid=$('optionsCard')?.querySelector('.grid');
 if(optionsGrid){
   const details=document.createElement('details');details.className='optional-box';
@@ -156,12 +159,16 @@ if(launchParams.get('track')==='career'){
   try{
     const profile=JSON.parse(sessionStorage.getItem('pcuCareerProfile')||'null');
     if(profile){
+      careerProfileLoaded=true;
       const top=(profile.topTypes||[]).map(item=>`${item.code} ${item.name}`).join(' · ');
       const jobs=(profile.recommendedJobs||[]).slice(0,5).join(', ');
+      careerResultText=[`PCU 진로·직무 흥미 탐색 결과`,`흥미 코드: ${profile.code||''}`,`상위 유형: ${top}`,`추천 직무: ${jobs}`,`포트폴리오 강조점: ${(profile.portfolioFocus||[]).join(', ')}`].join('\n');
+      document.querySelector('input[name="careerBasis"][value="assessment"]').checked=true;
       if(!$('cRole').value)$('cRole').value=(profile.recommendedJobs||[])[0]||'';
       if(!$('cIntro').value)$('cIntro').value=`진로 흥미 탐색 ${profile.code||''} 유형 · 관심 직무: ${jobs}`;
       if(!$('cSkills').value)$('cSkills').value=top;
       $('clubStatus').textContent='진로·직무 흥미 탐색 결과를 불러왔습니다. 이 결과는 현재 브라우저 세션에서만 유지됩니다.';
+      updateCareerBasisUI();
     }
   }catch(error){console.warn('진로검사 결과를 불러오지 못했습니다.',error)}
 }
@@ -179,6 +186,32 @@ $('pdfFile').addEventListener('change',async event=>{
   const file=event.target.files[0];if(!file)return;$('pdfStatus').textContent='PDF 텍스트 추출 중...';
   try{const pdfjs=await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs");pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs";const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;let text='';for(let i=1;i<=pdf.numPages;i++){const page=await pdf.getPage(i);const content=await page.getTextContent();text+=content.items.map(item=>item.str).join(' ')+'\n'}const target=$(selectedTrack==='career'?'cSource':'sSource');target.value=(target.value+'\n'+text).trim().slice(0,50000);target.dispatchEvent(new Event('input'));$('pdfStatus').textContent=`${pdf.numPages}페이지 텍스트를 불러왔습니다.`}catch(error){$('pdfStatus').textContent='PDF를 읽지 못했습니다. 텍스트를 직접 붙여넣어 주세요.'}
 });
+
+$('careerResultPdf').addEventListener('change',async event=>{
+  const file=event.target.files[0];careerResultText='';if(!file)return;
+  if(file.size>15*1024*1024){$('careerResultStatus').textContent='결과지는 15MB 이하 PDF만 선택할 수 있습니다.';event.target.value='';return}
+  $('careerResultStatus').textContent='진로검사 결과지 내용을 읽는 중입니다...';
+  try{
+    const pdfjs=await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs");
+    pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs";
+    const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;let text='';
+    for(let i=1;i<=Math.min(pdf.numPages,20);i++){const page=await pdf.getPage(i),content=await page.getTextContent();text+=content.items.map(item=>item.str).join(' ')+'\n'}
+    if(text.trim().length<20){const attachments=await pdf.getAttachments();const embedded=attachments&&attachments['pcu-career-result.txt'];if(embedded?.content)text=new TextDecoder('utf-8').decode(embedded.content)}
+    careerResultText=text.trim().slice(0,12000);
+    careerProfileLoaded=true;
+    if(careerResultText.length<20)throw new Error('텍스트를 추출하지 못했습니다. 이미지로 된 결과지는 요약 내용을 직접 입력해 주세요.');
+    $('careerResultStatus').textContent=`${pdf.numPages}페이지 결과지를 준비했습니다. 흥미유형·직무추천·업무선호만 AI 설계에 참고하며 원본 PDF는 공개하지 않습니다.`;
+  }catch(error){careerResultText='';$('careerResultStatus').textContent=error.message||'진로검사 결과지를 읽지 못했습니다.'}
+});
+
+function selectedCareerBasis(){return document.querySelector('input[name="careerBasis"]:checked')?.value||''}
+function updateCareerBasisUI(){
+  const basis=selectedCareerBasis(),guide=$('careerBasisGuide'),resultField=$('careerResultPdf').closest('.field');
+  if(basis==='assessment'){resultField.style.opacity='1';$('careerResultPdf').disabled=false;guide.textContent=careerProfileLoaded?'검사 결과가 준비되었습니다. 추천 방향을 참고하되 입력한 실제 경험과 역량을 중심으로 제작합니다.':'PCU 검사에서 바로 이동하거나 진로검사 결과지 PDF를 선택해주세요.'}
+  else if(basis==='independent'){resultField.style.opacity='.55';$('careerResultPdf').disabled=true;guide.textContent='검사 결과는 사용하지 않습니다. 희망 직무와 희망 산업·진로 분야를 직접 입력해주세요.'}
+  else{resultField.style.opacity='1';$('careerResultPdf').disabled=false;guide.textContent='검사 결과를 사용할지 선택해주세요.'}
+}
+document.querySelectorAll('input[name="careerBasis"]').forEach(input=>input.addEventListener('change',updateCareerBasisUI));
 
 async function hashAccessCode(code){
   const bytes=new TextEncoder().encode(String(code).trim().toUpperCase());
@@ -236,19 +269,26 @@ $('referenceImage').addEventListener('change',event=>{
 function clean(value){return String(value||'').trim()}
 function buildSource(){
   if(selectedTrack==='startup')return `[제작 목적] 창업 목적 웹사이트\n[프로젝트·서비스명] ${clean($('sProject').value)}\n[팀명·동아리명] ${clean($('sTeam').value)}\n[핵심 한 줄 소개] ${clean($('sIntro').value)}\n[분야·업종] ${clean($('sIndustry').value)}\n[사업화 여부] ${$('commercialized').value}\n[문제 정의] ${clean($('sProblem').value)}\n[해결 방법] ${clean($('sSolution').value)}\n[주요 활동] ${clean($('sActivities').value)}\n[성과·검증 결과] ${clean($('sAchievements').value)}\n[배운 점·향후 계획] ${clean($('sLearning').value)}\n[추가 원문]\n${clean($('sSource').value)}`;
-  return `[제작 목적] 취업용 포트폴리오\n[이름] ${clean($('cName').value)}\n[희망 직무] ${clean($('cRole').value)}\n[전공·학과] ${clean($('cMajor').value)}\n[희망 산업·기업 유형] ${clean($('cIndustry').value)}\n[한 줄 소개] ${clean($('cIntro').value)}\n[핵심 역량·기술] ${clean($('cSkills').value)}\n[강점·업무 방식] ${clean($('cStrengths').value)}\n[프로젝트] ${clean($('cProjects').value)}\n[경험·경력·대외활동] ${clean($('cExperience').value)}\n[교육·자격·수상] ${clean($('cEducation').value)}\n[공개 연락 방법] ${clean($('cContact').value)}\n[추가 원문]\n${clean($('cSource').value)}`;
+  const basis=selectedCareerBasis(),basisText=basis==='assessment'?'진로검사 결과 기반':'검사 결과와 별개인 희망 직무·진로 분야 기반 (직접 입력한 희망 방향을 최우선 적용)';
+  return `[제작 목적] 취업용 포트폴리오\n[진로 설계 기준] ${basisText}\n[이름] ${clean($('cName').value)}\n[희망 직무] ${clean($('cRole').value)}\n[전공·학과] ${clean($('cMajor').value)}\n[희망 산업·진로 분야] ${clean($('cIndustry').value)}\n[한 줄 소개] ${clean($('cIntro').value)}\n[핵심 역량·기술] ${clean($('cSkills').value)}\n[강점·업무 방식] ${clean($('cStrengths').value)}\n[프로젝트] ${clean($('cProjects').value)}\n[경험·경력·대외활동] ${clean($('cExperience').value)}\n[교육·자격·수상] ${clean($('cEducation').value)}\n[공개 연락 방법] ${clean($('cContact').value)}\n[추가 원문]\n${clean($('cSource').value)}`;
 }
 function validateTrack(){
   if(!selectedTrack)return '제작 목적을 선택해주세요.';
   if(selectedTrack==='startup'&&(!clean($('sProject').value)||!clean($('sIntro').value)))return '프로젝트명과 한 줄 소개만 입력해주세요.';
-  if(selectedTrack==='career'&&(!clean($('cName').value)||!clean($('cRole').value)||!clean($('cIntro').value)))return '이름, 희망 직무, 한 줄 소개만 입력해주세요.';
+  if(selectedTrack==='career'){
+    const basis=selectedCareerBasis();if(!basis)return '검사 결과 기반 또는 별도 희망 진로 기반 중 하나를 선택해주세요.';
+    if(basis==='assessment'&&!careerProfileLoaded)return '검사 결과 기반 제작을 선택했습니다. 진로검사 결과지 PDF를 선택하거나 검사 화면에서 이동해주세요.';
+    if(!clean($('cName').value)||!clean($('cIntro').value))return '이름과 한 줄 소개를 입력해주세요.';
+    if(basis==='independent'&&!clean($('cRole').value)&&!clean($('cIndustry').value))return '희망 직무 또는 희망 진로 분야를 하나 이상 입력해주세요.';
+  }
   return '';
 }
 async function verifyAccess(code){const club=currentClub||await resolveClub(code);if(!club)throw new Error('등록되지 않은 동아리 접근코드입니다.');if(club.status!=='active')throw new Error('운영이 종료된 동아리입니다.');currentClub=club;return club}
 
 window.submitWebsiteJob=async function(){
   const validation=validateTrack();if(validation){status(validation,'error');return}
-  const pageId=clean($('pageId').value),accessCode=clean($('accessCode').value),sourceText=buildSource();
+  const pageId=clean($('pageId').value),accessCode=clean($('accessCode').value);let sourceText=buildSource();
+  if(selectedTrack==='career'&&selectedCareerBasis()==='assessment'&&careerResultText)sourceText+=`\n[진로검사 결과지 - AI 설계 참고용, 공개 금지]\n${careerResultText}`;
   if(!accessCode){status('생성 접근코드를 입력해주세요.','error');return}
   if(!/^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])?$/.test(pageId)){status('페이지 주소는 영문 소문자·숫자·하이픈 3~32자로 입력해주세요.','error');return}
   if(sourceText.length>50000){status('전체 입력 내용이 50,000자를 초과했습니다. 추가 원문을 줄여주세요.','error');return}
