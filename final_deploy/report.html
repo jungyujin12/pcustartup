@@ -233,9 +233,7 @@
         </div>
         <div class="badge-right">
           <span class="badge-code" id="clubCodeBadge">—</span>
-          <select class="year-select" id="yearSelect" onchange="window.changeYear(this.value)">
-            <option value="2026">2026년도</option>
-            <option value="2025">2025년도</option>
+          <select class="year-select" id="yearSelect" onchange="window.changeYear(this.value)" disabled title="동아리 등록 연도로 자동 고정됩니다">
           </select>
         </div>
       </div>
@@ -435,6 +433,13 @@ let clubCode = '';
 let clubData = {};
 let selectedFile = null;
 let currentYear = new Date().getFullYear().toString();
+const reportYearSelect = document.getElementById('yearSelect');
+const reportBaseYear = new Date().getFullYear();
+for (let offset = 1; offset >= -4; offset--) {
+  const year = String(reportBaseYear + offset);
+  reportYearSelect.insertAdjacentHTML('beforeend', `<option value="${year}">${year}년도</option>`);
+}
+reportYearSelect.value = currentYear;
 let serverUrl = '';
 let lastResults = {};
 
@@ -498,9 +503,14 @@ window.changeYear = function(year) {
 // ── 코드 입력 ──
 window.enterCode = async function() {
   const code = document.getElementById('codeInput').value.trim().toUpperCase();
-  if (!code) return;
   const err = document.getElementById('codeErr');
   err.classList.remove('show');
+  if (!code) {
+    err.textContent = '동아리 접근코드를 입력해주세요.';
+    err.classList.add('show');
+    document.getElementById('codeInput').focus();
+    return;
+  }
 
   try {
     const snap = await resolveClubByAccessCode(code);
@@ -512,6 +522,11 @@ window.enterCode = async function() {
     }
 
     clubCode = snap.id; clubData = snap.data();
+    currentYear = String(clubData.year || currentYear);
+    if (![...reportYearSelect.options].some(option => option.value === currentYear)) {
+      reportYearSelect.insertAdjacentHTML('afterbegin', `<option value="${currentYear}">${currentYear}년도</option>`);
+    }
+    reportYearSelect.value = currentYear;
     document.getElementById('clubNameBadge').textContent = clubData.name || code;
     document.getElementById('clubFieldBadge').textContent = (clubData.field || '') + ' 창업';
     document.getElementById('clubCodeBadge').textContent = clubData.accessCode || clubData.code || code;
