@@ -96,9 +96,10 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 const auth = getAuth(app);
+const surveyAdmins = ['jyj2315@gmail.com','bridge0610@pcu.ac.kr'];
 
 onAuthStateChanged(auth, user => {
-  if (!user) {
+  if (!user || !surveyAdmins.includes(user.email || '')) {
     location.replace('admin.html');
     return;
   }
