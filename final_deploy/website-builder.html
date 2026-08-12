@@ -37,7 +37,11 @@
         <div class="field"><label for="pageId">페이지 주소 <span class="required">*</span></label><input id="pageId" maxlength="32" placeholder="영문 소문자·숫자·하이픈"><div class="hint">완성 주소: /generated-site.html?id=<span id="slugPreview">...</span></div></div>
         <div class="field"><label for="pdfFile">PDF 내용 불러오기</label><input id="pdfFile" type="file" accept=".pdf,application/pdf"><div id="pdfStatus" class="hint">사업계획서·이력서·경력기술서 PDF의 텍스트를 불러옵니다.</div></div>
         <div class="field"><label for="referenceImage">분위기 참고 이미지</label><input id="referenceImage" type="file" accept="image/jpeg,image/png,image/webp"><div id="referenceStatus" class="hint">디자인·색감·배치 참고용 이미지 1장 (선택). 타인의 디자인을 복제하지 말고 사용 권한이 있는 이미지만 선택하세요.</div></div>
-        <div class="field"><label for="designStyle">디자인 방향</label><select id="designStyle"><option value="auto">내용에 맞게 자동 선택</option><option>미니멀</option><option>밝고 경쾌한</option><option>고급스러운</option><option>테크 느낌</option><option>에디토리얼 매거진풍</option><option>산업적 유틸리티</option></select></div>
+        <div class="field"><label for="referenceSiteUrl">참고 사이트 주소</label><input id="referenceSiteUrl" type="url" maxlength="500" placeholder="https://example.com"><div class="hint">공개된 사이트의 분위기·밀도·구성 원칙만 참고합니다. 코드·문구·이미지는 복제하지 않습니다.</div></div>
+        <div class="field"><label for="designStyle">디자인 콘셉트 · 30종</label><select id="designStyle"><option value="auto">AI 자동 선택 · 최근 디자인 제외</option></select></div>
+        <div class="field"><label for="layoutPreset">전체 레이아웃 · 30종</label><select id="layoutPreset"><option value="auto">AI 자동 선택</option></select></div>
+        <div class="field"><label for="colorPalette">색상 팔레트 · 30종</label><select id="colorPalette"><option value="auto">AI 자동 선택</option></select></div>
+        <div class="field"><label for="typographyPreset">타이포그래피 · 30종</label><select id="typographyPreset"><option value="auto">AI 자동 선택</option></select></div>
       </div>
       <div class="privacy">입력 내용은 생성 작업에 사용된 뒤 원문이 삭제됩니다. 주민등록번호, 상세 주소, 계좌번호, 비공개 기술자료는 입력하지 마세요.</div>
     </section>
@@ -105,6 +109,12 @@ const app=initializeApp({apiKey:"AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",authDo
 const db=getFirestore(app),$=id=>document.getElementById(id);
 const status=(message,type='')=>{const el=$('jobStatus');el.className=`status show ${type}`;el.innerHTML=message};
 let selectedTrack='',workerAvailable=false,currentClub=null,referenceImageData='';
+const designCatalog=['에디토리얼 매거진','네오 브루탈리즘','스위스 그리드','벤토 인터페이스','터미널 테크','오가닉 내추럴','럭셔리 미니멀','레트로 퓨처','블루프린트','뉴스페이퍼','아트 갤러리','키네틱 타이포','모노크롬 포커스','노르딕 소프트','플레이풀 캠퍼스','컨설팅 리포트','글래스 레이어','페이퍼 콜라주','오로라 그라디언트','인더스트리얼 유틸리티','데이터 대시보드','캠페인 포스터','스토리북','절제된 미니멀','레트로 컴퓨팅','아카이브 인덱스','프로덕트 쇼케이스','컬처 매거진','크리에이티브 스튜디오','캠퍼스 랩'];
+const layoutCatalog=['분할 히어로·서사형','분할 히어로·카드형','분할 히어로·교차형','분할 히어로·타임라인형','분할 히어로·벤토형','중앙 히어로·서사형','중앙 히어로·카드형','중앙 히어로·교차형','중앙 히어로·타임라인형','중앙 히어로·벤토형','세로 라인 히어로·서사형','세로 라인 히어로·카드형','세로 라인 히어로·교차형','세로 라인 히어로·타임라인형','세로 라인 히어로·벤토형','포스터 히어로·서사형','포스터 히어로·카드형','포스터 히어로·교차형','포스터 히어로·타임라인형','포스터 히어로·벤토형','사이드바 히어로·서사형','사이드바 히어로·카드형','사이드바 히어로·교차형','사이드바 히어로·타임라인형','사이드바 히어로·벤토형','프레임 히어로·서사형','프레임 히어로·카드형','프레임 히어로·교차형','프레임 히어로·타임라인형','프레임 히어로·벤토형'];
+const paletteCatalog=['심해 민트','코발트 선','잉크 코랄','포레스트 라임','왕실 금빛','클린 블루','토마토 크림','라벤더 잉크','사이버 시안','체리 페이퍼','세이지 클레이','레몬 네이비','스카이 레드','블랙 아이보리','민트 퍼플','버건디 핑크','오션 오렌지','올리브 머스타드','슬레이트 아쿠아','플럼 피치','인디고 그린','차콜 옐로','브릭 스카이','에메랄드 샌드','그래파이트 핑크','블루 바이올렛','모스 코랄','커피 민트','나이트 핑크','화이트 레드'];
+const typographyCatalog=['프리텐다드','명조 에디토리얼','고딕 포스터','스위스 산세리프','부드러운 라운드','단단한 타이틀','클래식 명조','모던 나눔','손글씨 포인트','코딩 테크','송명 헤드라인','주아 캐주얼','도쿠도 굵은','나눔 펜','해성 명조','기라항 타이틀','싱글데이','선플라워','이스트시 란초','검은고딕','고딕 A1','나눔 명조','IBM 명조','Noto 균형','마루부리','쿠키런 라운드','리포트 세리프','테크 모노','포스터 도현','캠퍼스 주아'];
+function populateCatalog(id,items){const select=$(id);items.forEach((name,index)=>{const option=document.createElement('option');option.value=String(index+1);option.textContent=`${String(index+1).padStart(2,'0')} · ${name}`;select.appendChild(option)})}
+populateCatalog('designStyle',designCatalog);populateCatalog('layoutPreset',layoutCatalog);populateCatalog('colorPalette',paletteCatalog);populateCatalog('typographyPreset',typographyCatalog);
 
 function setupCompactForm(formId,advancedIds,sourceId){
   const form=$(formId),root=form?.querySelector('.grid');if(!form||!root)return;
@@ -161,6 +171,11 @@ async function hashAccessCode(code){
 }
 async function resolveClub(code){
   const normalized=clean(code).toUpperCase();if(!normalized)return null;
+  const direct=await getDoc(doc(db,'clubs',normalized));
+  if(direct.exists()){
+    const directData=direct.data(),current=String(directData.accessCode||directData.code||direct.id).toUpperCase();
+    if(current===normalized)return {id:direct.id,...directData};
+  }
   const index=await getDoc(doc(db,'club_codes',await hashAccessCode(normalized)));
   if(!index.exists()||!index.data().clubId)return null;
   const snapshot=await getDoc(doc(db,'clubs',index.data().clubId));if(!snapshot.exists())return null;
@@ -226,7 +241,7 @@ window.submitWebsiteJob=async function(){
   try{
     status('동아리 접근코드를 확인하고 있습니다.<div class="progress"><span></span></div>');const club=await verifyAccess(accessCode);
     const reference=doc(db,'website_jobs',pageId);
-    await setDoc(reference,{status:'pending',pageId,clubCode:club.id,clubName:club.name||'',clubYear:String(club.year||''),sourceText,mode:selectedTrack,visibility:$('visibility').value,referenceImageData,referenceImageName:referenceImageData?clean($('referenceImage').files[0]?.name):'',options:{bannerCount:Number($('bannerCount').value),sectionImages:$('sectionImages').checked,logoImage:$('logoImage').checked,includeFooter:$('includeFooter').checked,footerText:clean($('footerText').value),commercialized:selectedTrack==='startup'?$('commercialized').value:'not_applicable',designStyle:$('designStyle').value,heroLayout:$('heroLayout').value,sectionLayout:$('sectionLayout').value,contentDensity:$('contentDensity').value},createdAt:serverTimestamp()});
+    await setDoc(reference,{status:'pending',pageId,clubCode:club.id,clubName:club.name||'',clubYear:String(club.year||''),sourceText,mode:selectedTrack,visibility:$('visibility').value,referenceImageData,referenceImageName:referenceImageData?clean($('referenceImage').files[0]?.name):'',options:{bannerCount:Number($('bannerCount').value),sectionImages:$('sectionImages').checked,logoImage:$('logoImage').checked,includeFooter:$('includeFooter').checked,footerText:clean($('footerText').value),commercialized:selectedTrack==='startup'?$('commercialized').value:'not_applicable',designConcept:$('designStyle').value,layoutPreset:$('layoutPreset').value,colorPalette:$('colorPalette').value,typographyPreset:$('typographyPreset').value,referenceSiteUrl:clean($('referenceSiteUrl').value),heroLayout:$('heroLayout').value,sectionLayout:$('sectionLayout').value,contentDensity:$('contentDensity').value},createdAt:serverTimestamp()});
     status('작업을 등록했습니다. 로컬 AI가 웹사이트를 생성하고 있습니다.<div class="progress"><span></span></div>');
     for(let attempt=0;attempt<120;attempt++){await new Promise(resolve=>setTimeout(resolve,3000));let snapshot;try{snapshot=await getDoc(reference)}catch(error){continue}if(!snapshot.exists())continue;const job=snapshot.data();if(job.status==='completed'){const url=`generated-site.html?id=${encodeURIComponent(pageId)}`;status(`${selectedTrack==='startup'?'창업 웹사이트':'취업 포트폴리오'} 생성이 완료됐습니다.<br><a class="btn btn-primary" href="${url}" target="_blank" style="display:inline-block;margin-top:.7rem">결과 열기</a>`,'done');return}if(job.status==='failed')throw new Error(job.error||'AI 생성에 실패했습니다.')}
     status('작업은 등록됐지만 아직 완료되지 않았습니다. AI 실행기를 확인한 뒤 결과 주소를 다시 열어주세요.','error');
