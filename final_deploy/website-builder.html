@@ -288,7 +288,7 @@ async function verifyAccess(code){const club=currentClub||await resolveClub(code
 window.submitWebsiteJob=async function(){
   const validation=validateTrack();if(validation){status(validation,'error');return}
   const pageId=clean($('pageId').value),accessCode=clean($('accessCode').value);let sourceText=buildSource();
-  if(selectedTrack==='career'&&selectedCareerBasis()==='assessment'&&careerResultText)sourceText+=`\n[진로검사 결과지 - AI 설계 참고용, 공개 금지]\n${careerResultText}`;
+  if(selectedTrack==='career'&&selectedCareerBasis()==='assessment'&&careerResultText)sourceText+=`\n[진로검사 결과지 - AI 설계 참고용, 공개 금지]\n${careerResultText}`; 
   if(!accessCode){status('생성 접근코드를 입력해주세요.','error');return}
   if(!/^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])?$/.test(pageId)){status('페이지 주소는 영문 소문자·숫자·하이픈 3~32자로 입력해주세요.','error');return}
   if(sourceText.length>50000){status('전체 입력 내용이 50,000자를 초과했습니다. 추가 원문을 줄여주세요.','error');return}
