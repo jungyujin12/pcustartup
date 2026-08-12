@@ -1,11 +1,10 @@
 [build]
   publish = "final_deploy"
-  functions = "netlify/functions"
 
   # Firebase Web API keys are public browser configuration. Keep secret
   # scanning enabled everywhere else and omit only the reviewed client pages.
   [build.environment]
-    SECRETS_SCAN_OMIT_PATHS = "final_deploy/admin.html,final_deploy/consulting.html,final_deploy/generated-site.html,final_deploy/print.html,final_deploy/register.html,final_deploy/report.html,final_deploy/survey-builder.html,final_deploy/survey.html,final_deploy/website-builder.html"
+    SECRETS_SCAN_OMIT_PATHS = "final_deploy/admin.html,final_deploy/career-admin.html,final_deploy/career-test.html,final_deploy/consulting.html,final_deploy/generated-site.html,final_deploy/print.html,final_deploy/register.html,final_deploy/report.html,final_deploy/survey-builder.html,final_deploy/survey.html,final_deploy/website-admin.html,final_deploy/website-builder.html"
 
 [[headers]]
   for = "/*"
