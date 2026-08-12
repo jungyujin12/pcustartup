@@ -1,6 +1,9 @@
 import base64
 import json
+import ipaddress
 import os
+import re
+import socket
 import smtplib
 import tempfile
 import threading
@@ -10,12 +13,64 @@ from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
+from urllib.parse import urlparse
 
 import firebase_admin
 import ollama
 import pdfplumber
 import requests
 from firebase_admin import credentials, firestore
+from website_renderer import _fields, render_website
+
+
+def _reference_site_brief(url):
+    """Read a small public HTML sample without allowing local-network requests."""
+    value = str(url or "").strip()
+    if not value:
+        return ""
+    parsed = urlparse(value)
+    if parsed.scheme not in ("https", "http") or not parsed.hostname:
+        raise ValueError("참고 사이트 주소는 http 또는 https 공개 주소만 사용할 수 있습니다.")
+    host = parsed.hostname.lower().rstrip(".")
+    if host in ("localhost",) or host.endswith((".local", ".internal")):
+        raise ValueError("내부 네트워크 주소는 참고 사이트로 사용할 수 없습니다.")
+    for result in socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM):
+        address = ipaddress.ip_address(result[4][0])
+        if not address.is_global:
+            raise ValueError("내부 네트워크 주소는 참고 사이트로 사용할 수 없습니다.")
+    response = requests.get(
+        value,
+        timeout=(4, 8),
+        allow_redirects=False,
+        headers={"User-Agent": "PCU-Design-Reference/1.0"},
+        stream=True,
+    )
+    response.raise_for_status()
+    content_type = response.headers.get("content-type", "").lower()
+    if "text/html" not in content_type:
+        raise ValueError("참고 사이트가 HTML 문서를 제공하지 않습니다.")
+    raw = b""
+    for chunk in response.iter_content(32768):
+        raw += chunk
+        if len(raw) > 900000:
+            break
+    markup = raw.decode(response.encoding or "utf-8", errors="ignore")
+    title = re.search(r"<title[^>]*>(.*?)</title>", markup, re.I | re.S)
+    colors = []
+    for color in re.findall(r"#[0-9a-fA-F]{3,8}\b", markup):
+        color = color.lower()
+        if color not in colors:
+            colors.append(color)
+        if len(colors) >= 12:
+            break
+    counts = {tag: len(re.findall(fr"<{tag}\b", markup, re.I)) for tag in ("section", "article", "img", "nav", "button")}
+    return (
+        f"참고 사이트 제목: {re.sub(r'<[^>]+>', ' ', title.group(1)).strip()[:160] if title else host}. "
+        f"발견된 색상: {', '.join(colors) if colors else '명시 색상 없음'}. "
+        f"구조 단서: 섹션 {counts['section']}, 아티클 {counts['article']}, 이미지 {counts['img']}, "
+        f"내비게이션 {counts['nav']}, 버튼 {counts['button']}. "
+        "원본의 문구·이미지·코드를 복제하지 말고 시각적 밀도와 구성 원칙만 참고하세요."
+    )
 
 
 PROMPTS = {
@@ -45,6 +100,7 @@ class PCUWorker:
         self.worker_id = f"{os.environ.get('COMPUTERNAME', 'pc')}-{uuid.uuid4().hex[:8]}"
         self.db = self._initialize_firebase()
         self.text_model = os.getenv("OLLAMA_TEXT_MODEL", "gemma3")
+        self.website_model = os.getenv("OLLAMA_WEBSITE_MODEL", "llama3:8b")
         self.vision_model = os.getenv("OLLAMA_VISION_MODEL", "llava")
         self.poll_interval = max(2, int(os.getenv("POLL_INTERVAL", "5")))
         self.admin_email = os.getenv("ADMIN_EMAIL", "").strip()
@@ -74,6 +130,9 @@ class PCUWorker:
                 worked = self._process_collection("ai_jobs", self._process_ai_job)
                 worked = self._process_collection(
                     "website_jobs", self._process_website_job
+                ) or worked
+                worked = self._process_collection(
+                    "website_access", self._process_website_access
                 ) or worked
                 worked = self._process_collection("email_jobs", self._process_email_job) or worked
                 worked = self._process_collection("recovery_jobs", self._process_recovery_job) or worked
@@ -138,9 +197,13 @@ class PCUWorker:
                 )
             except Exception as exc:
                 attempts = int(data.get("attempts", 0)) + 1
-                retry = attempts < 3
+                retry = attempts < 3 and not isinstance(exc, (PermissionError, ValueError))
+                secret_cleanup = {
+                    "accessCode": firestore.DELETE_FIELD
+                } if collection_name == "website_access" and not retry else {}
                 snapshot.reference.set(
                     {
+                        **secret_cleanup,
                         "status": "pending" if retry else "failed",
                         "attempts": attempts,
                         "error": str(exc)[:1000],
@@ -155,7 +218,6 @@ class PCUWorker:
                 traceback.print_exc()
         return worked
 
-    @firestore.transactional
     def _claim_transaction(self, transaction, reference):
         snapshot = reference.get(transaction=transaction)
         if not snapshot.exists or snapshot.to_dict().get("status") != "pending":
@@ -171,7 +233,15 @@ class PCUWorker:
         return True
 
     def _claim(self, reference):
-        return self._claim_transaction(self.db.transaction(), reference)
+        # ``firestore.transactional`` does not behave as an instance-method
+        # descriptor. Applying it directly to _claim_transaction shifts the
+        # arguments and leaves ``reference`` missing. Keep the bound method
+        # plain and wrap a local callback with the SDK's expected signature.
+        @firestore.transactional
+        def claim(transaction, job_reference):
+            return self._claim_transaction(transaction, job_reference)
+
+        return claim(self.db.transaction(), reference)
 
     def _process_ai_job(self, reference, data):
         job_type = data.get("type")
@@ -289,12 +359,48 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
             raw_mode, raw_mode
         )
         options = data.get("options", {}) if isinstance(data.get("options"), dict) else {}
+        reference_image = str(data.get("referenceImageData", ""))
+        reference_site = str(options.get("referenceSiteUrl", "")).strip()
+        visibility = str(data.get("visibility", "club"))
         if len(source) < 30:
             raise ValueError("웹페이지를 만들 원본 내용이 부족합니다.")
         if len(source) > 50000:
             raise ValueError("원본 내용은 50,000자를 초과할 수 없습니다.")
         if not page_id:
             raise ValueError("페이지 주소가 없습니다.")
+        if visibility not in ("public", "club"):
+            raise ValueError("지원하지 않는 공개 범위입니다.")
+
+        # PDF/사업계획서 원문은 폼의 "추가 원문"에 들어온다. 이전 렌더러는
+        # 화면의 짧은 입력칸만 사용해 원문의 핵심 내용이 결과에서 빠질 수 있었다.
+        # 먼저 사실만 구조화한 뒤, 사용자가 직접 쓴 값은 보존하면서 비어 있거나
+        # "본문 참고"처럼 의미가 없는 항목을 보강한다.
+        source, source_analysis = self._structure_website_source(source, mode)
+
+        reference_brief = "참고 이미지 없음. 콘텐츠 성격에 맞춰 독창적으로 결정하세요."
+        if reference_site:
+            try:
+                reference_brief = _reference_site_brief(reference_site)
+            except Exception as exc:
+                self.log(f"참고 사이트 분석 건너뜀: {exc}")
+                reference_brief = f"참고 사이트를 안전하게 분석하지 못했습니다. 콘텐츠를 기준으로 독창적으로 구성하세요. ({str(exc)[:180]})"
+        if reference_image:
+            try:
+                encoded = reference_image.split(",", 1)[-1]
+                if len(encoded) <= 500000:
+                    vision = ollama.chat(
+                        model=self.vision_model,
+                        messages=[{
+                            "role": "user",
+                            "content": "이 이미지를 복제하지 말고 웹디자인 참고자료로 분석하세요. 색상 팔레트, 타이포그래피 인상, 여백, 형태, 화면 배치, 분위기를 한국어 8문장 이내로 설명하세요. 이미지 속 개인정보나 문구는 옮기지 마세요.",
+                            "images": [encoded],
+                        }],
+                        options={"temperature": 0.25, "num_predict": 700},
+                    )
+                    image_brief = str(vision["message"]["content"]).strip()[:3000]
+                    reference_brief = f"{reference_brief}\n참고 이미지 분석: {image_brief}"
+            except Exception as exc:
+                self.log(f"참고 이미지 분석 건너뜀: {exc}")
 
         mode_instruction = {
             "startup": """창업 목적 웹사이트입니다.
@@ -311,7 +417,124 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
         }.get(mode)
         if not mode_instruction:
             raise ValueError("지원하지 않는 웹사이트 제작 트랙입니다.")
-        prompt = f"""당신은 시니어 프론트엔드 웹사이트 생성 전문가입니다.
+        # Small local language models are useful for document analysis, but
+        # letting them author an entire CSS layout produces unstable geometry
+        # (oversized fixed blocks, collapsed columns, and broken mobile text).
+        # The curated renderer preserves the user's chosen layout/theme while
+        # guaranteeing responsive, accessible HTML on every run.
+        recent_systems = []
+        club_code = str(data.get("clubCode", ""))
+        if club_code:
+            try:
+                previous = list(self.db.collection("website_jobs").where("clubCode", "==", club_code).limit(30).stream())
+                previous.sort(key=lambda item: getattr(item.to_dict().get("completedAt"), "timestamp", lambda: 0)(), reverse=True)
+                recent_systems = [item.to_dict().get("designSystem") for item in previous if item.id != page_id and isinstance(item.to_dict().get("designSystem"), dict)][:8]
+            except Exception as exc:
+                self.log(f"최근 디자인 이력 확인 건너뜀: {exc}")
+        html, title, design_system = render_website(source, mode, options, page_id, reference_brief, recent_systems)
+        if len(html.encode("utf-8")) > 850000:
+            raise ValueError("생성된 HTML이 저장 가능한 크기를 초과했습니다.")
+        self.db.collection("website_content").document(page_id).set({
+            "html": html,
+            "visibility": visibility,
+            "clubCode": str(data.get("clubCode", "")),
+            "updatedAt": firestore.SERVER_TIMESTAMP,
+        })
+        if mode == "career":
+            fields = _fields(source)
+            assessment = fields.get("진로검사 결과지 - AI 설계 참고용, 공개 금지", "")
+            code_match = re.search(r"(?:흥미 코드|코드)\s*[:：]?\s*([RIASEC]{3})", assessment)
+            self.db.collection("career_records").document(page_id).set({
+                "pageId": page_id,
+                "clubCode": str(data.get("clubCode", "")),
+                "clubName": str(data.get("clubName", ""))[:100],
+                "clubYear": str(data.get("clubYear", ""))[:4],
+                "name": fields.get("이름", "")[:60],
+                "careerBasis": fields.get("진로 설계 기준", "")[:160],
+                "desiredRole": fields.get("희망 직무", "")[:100],
+                "careerField": fields.get("희망 산업·진로 분야", "")[:120],
+                "major": fields.get("전공·학과", "")[:100],
+                "assessmentUsed": bool(assessment),
+                "assessmentRecordId": fields.get("진로검사 기록 ID", "")[:40],
+                "assessmentCode": code_match.group(1) if code_match else "",
+                "createdAt": firestore.SERVER_TIMESTAMP,
+                "privacyScope": "admin-only-summary",
+            }, merge=True)
+        self.log(f"웹페이지 생성 완료: {page_id}")
+        return {
+            "html": firestore.DELETE_FIELD,
+            "title": title,
+            "generator": "pcu-design-engine:v2",
+            "designSystem": design_system,
+            "sourceAnalysis": source_analysis,
+            "referenceSiteUsed": bool(reference_site),
+            "track": mode,
+            "visibility": visibility,
+            "publishStatus": "draft",
+            "revision": 1,
+            "rootPageId": page_id,
+            "sourceText": firestore.DELETE_FIELD,
+            "options": firestore.DELETE_FIELD,
+            "referenceImageData": firestore.DELETE_FIELD,
+            "referenceImageName": firestore.DELETE_FIELD,
+        }
+
+    def _structure_website_source(self, source, mode):
+        fields = _fields(source)
+        raw = fields.get("추가 원문", "").strip()
+        if len(raw) < 80:
+            return source, {"used": False, "reason": "additional_source_too_short"}
+        labels = (
+            ["프로젝트·서비스명", "팀명·동아리명", "핵심 한 줄 소개", "분야·업종",
+             "문제 정의", "해결 방법", "주요 활동", "성과·검증 결과", "배운 점·향후 계획"]
+            if mode == "startup" else
+            ["이름", "희망 직무", "전공·학과", "희망 산업·진로 분야", "한 줄 소개",
+             "핵심 역량·기술", "강점·업무 방식", "프로젝트", "경험·경력·대외활동", "교육·자격·수상"]
+        )
+        prompt = f"""아래 문서를 웹사이트용 사실 데이터로 정리하세요.
+절대 추측하거나 없는 성과·수치·이름을 만들지 마세요. 문서에 근거가 없는 값은 빈 문자열로 두세요.
+각 값은 원문 복사가 아니라 방문자가 이해하기 쉬운 1~5문장 요약으로 작성하세요.
+반드시 JSON 객체 하나만 출력하고 키는 다음 목록만 사용하세요:
+{json.dumps(labels, ensure_ascii=False)}
+
+[원문]
+{raw[:30000]}"""
+        try:
+            response = ollama.chat(
+                model=self.website_model,
+                messages=[{"role": "user", "content": prompt}],
+                format="json",
+                options={"temperature": 0.15, "num_ctx": 16384, "num_predict": 1800},
+            )
+            extracted = json.loads(str(response["message"]["content"]))
+            if not isinstance(extracted, dict):
+                raise ValueError("문서 분석 결과가 객체가 아닙니다.")
+            vague = re.compile(r"^(?:본문|원문|파일|첨부|사업계획서)\s*(?:참고|참조|확인)?[.!]?$|^없음$", re.I)
+            applied = []
+            for label in labels:
+                value = re.sub(r"\s+", " ", str(extracted.get(label, ""))).strip()[:2400]
+                current = fields.get(label, "").strip()
+                if value and (not current or vague.match(current) or len(current) < 8):
+                    fields[label] = value
+                    applied.append(label)
+            ordered = []
+            seen = set()
+            for label, _ in re.findall(r"^\[([^\]]+)\]\s*(.*?)(?=^\[[^\]]+\]|\Z)", source, re.M | re.S):
+                if label in fields and label not in seen:
+                    ordered.append(f"[{label}] {fields[label]}")
+                    seen.add(label)
+            for label in labels:
+                if label in fields and label not in seen:
+                    ordered.append(f"[{label}] {fields[label]}")
+                    seen.add(label)
+            # 원문 전문은 저장/분석에만 사용하고 공개 HTML에는 직접 노출하지 않는다.
+            if "추가 원문" not in seen:
+                ordered.append(f"[추가 원문] {raw}")
+            return "\n".join(ordered), {"used": True, "appliedFields": applied, "rawCharacters": len(raw)}
+        except Exception as exc:
+            self.log(f"웹사이트 원문 구조화 건너뜀: {exc}")
+            return source, {"used": False, "reason": "analysis_failed"}
+        prompt = f"""당신은 수상 경력이 있는 아트디렉터이자 시니어 프론트엔드 개발자입니다.
 아래 사용자 원문만 근거로 완성된 단일 HTML 파일을 만드세요.
 
 [모드]
@@ -325,6 +548,12 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
 - 푸터 추가 문구: {str(options.get("footerText", ""))[:300]}
 - 사업화 여부: {options.get("commercialized", "unknown")}
 - 디자인 방향: {options.get("designStyle", "auto")}
+- 첫 화면 배치: {options.get("heroLayout", "auto")}
+- 본문 배열: {options.get("sectionLayout", "auto")}
+- 정보 밀도: {options.get("contentDensity", "balanced")}
+
+[참고 이미지에서 추출한 디자인 방향]
+{reference_brief}
 
 [절대 규칙]
 1. 입력에 없는 이름, 성과, 수치, 링크, 연락처를 추측·창작·과장하지 마세요.
@@ -343,16 +572,185 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
    취업 트랙의 푸터 기본 문구는 "배재대학교 학생 포트폴리오"입니다.
 10. 인쇄 및 HTML 다운로드 후에도 레이아웃이 유지되도록 작성하세요.
 11. 마크다운 코드펜스, 설명, 사전 안내 없이 <!DOCTYPE html>부터 </html>까지만 출력하세요.
+12. 단순한 회색 배경과 흰색 사각형 섹션 반복은 금지합니다. 첫 화면은 최소 70vh의 강한 히어로로 만들고,
+    섹션마다 에디토리얼 그리드·큰 숫자·타이포그래피·인용문·타임라인 등 서로 다른 시각적 구성을 사용하세요.
+13. CSS는 충분히 구체적으로 작성하세요. clamp() 타이포그래피, 여백 체계, 2개 이상의 배경 효과,
+    반응형 breakpoint, hover/focus, 스크롤 진입 애니메이션을 포함하세요.
+14. 콘텐츠가 적어도 여백과 타이포그래피로 완성도 있게 구성하며, 같은 모양의 테두리 카드만 반복하지 마세요.
+15. 이미지 파일이 없어도 디자인이 깨지지 않아야 합니다. 이미지에는 onerror로 자신을 숨기는 처리를 넣고,
+    이미지 뒤에는 반드시 CSS 그라디언트·패턴·도형으로 된 완성된 대체 비주얼을 배치하세요.
+16. 결과물은 실제 공개 가능한 랜딩페이지 수준으로 작성하고 충분한 길이의 CSS와 의미 있는 HTML 구조를 포함하세요.
+17. 과거 생성물이나 고정 템플릿을 재사용하지 말고, 이번 원문·선택값·참고 이미지 분석에 맞춰 구조와 분위기를 새로 설계하세요.
 
 [사용자 원문]
 {source[:50000]}
 """
         response = ollama.chat(
-            model=self.text_model,
+            model=self.website_model,
             messages=[{"role": "user", "content": prompt}],
-            options={"temperature": 0.65},
+            options={"temperature": 0.72, "num_ctx": 16384, "num_predict": 8192},
         )
-        html = str(response["message"]["content"]).strip()
+        html = self._extract_generated_html(response["message"]["content"])
+        if self._website_quality_score(html) < 8:
+            self.log(f"웹페이지 디자인 보강 중: {page_id}")
+            refine_prompt = f"""아래 초안은 내용은 맞지만 디자인 완성도가 부족합니다. 원문의 사실은 그대로 유지하면서
+실제 공개 가능한 프리미엄 단일 HTML 웹사이트로 전면 리디자인하세요.
+
+[필수 개선]
+- 최소 70vh 히어로, 강한 타이포그래피 위계, 넉넉한 여백과 일관된 CSS 변수
+- 단순 흰 사각형 목록 반복 금지; 에디토리얼 그리드, 타임라인, 큰 숫자, 인용 블록 등 섹션별 변화
+- 그라디언트·기하 패턴·노이즈 느낌 등 CSS만으로도 완성되는 배경 비주얼 2개 이상
+- 모바일 360px부터 데스크톱까지 자연스러운 반응형 구성
+- hover, focus-visible, 스크롤 진입 애니메이션과 prefers-reduced-motion 대응
+- 존재하지 않는 이미지가 깨진 아이콘으로 보이지 않도록 onerror 처리와 CSS 대체 비주얼 제공
+- 입력에 없는 사실·수치·연락처는 추가 금지
+- 설명이나 코드펜스 없이 <!DOCTYPE html>부터 </html>까지만 출력
+
+[사용자 원문]
+{source[:30000]}
+
+[현재 초안]
+{html[:60000]}
+"""
+            try:
+                refined = ollama.chat(
+                    model=self.website_model,
+                    messages=[{"role": "user", "content": refine_prompt}],
+                    options={"temperature": 0.68, "num_ctx": 24576, "num_predict": 8192},
+                )
+                refined_html = self._extract_generated_html(refined["message"]["content"])
+                if self._website_quality_score(refined_html) > self._website_quality_score(html):
+                    html = refined_html
+            except Exception as exc:
+                self.log(f"디자인 보강 건너뜀: {exc}")
+        if len(html.encode("utf-8")) > 850000:
+            raise ValueError("생성된 HTML이 저장 가능한 크기를 초과했습니다.")
+
+        title = page_id
+        title_start = html.lower().find("<title>")
+        title_end = html.lower().find("</title>")
+        if 0 <= title_start < title_end:
+            title = html[title_start + 7 : title_end].strip()[:120] or page_id
+        self.db.collection("website_content").document(page_id).set({
+            "html": html,
+            "visibility": visibility,
+            "clubCode": str(data.get("clubCode", "")),
+            "updatedAt": firestore.SERVER_TIMESTAMP,
+        })
+        self.log(f"웹페이지 생성 완료: {page_id}")
+        return {
+            "html": firestore.DELETE_FIELD,
+            "title": title,
+            "generator": f"ollama:{self.website_model}",
+            "track": mode,
+            "visibility": visibility,
+            "publishStatus": "draft",
+            "revision": 1,
+            "rootPageId": page_id,
+            "sourceText": firestore.DELETE_FIELD,
+            "options": firestore.DELETE_FIELD,
+            "referenceImageData": firestore.DELETE_FIELD,
+            "referenceImageName": firestore.DELETE_FIELD,
+        }
+
+    def _process_website_access(self, reference, data):
+        page_id = str(data.get("pageId", "")).strip()
+        access_code = str(data.get("accessCode", "")).strip().upper()
+        action = str(data.get("action", "view"))
+        if not page_id or not access_code:
+            raise ValueError("페이지 주소와 동아리 접근코드가 필요합니다.")
+        page_ref = self.db.collection("website_jobs").document(page_id)
+        page = page_ref.get()
+        if not page.exists or page.to_dict().get("status") != "completed":
+            raise ValueError("완료된 웹사이트를 찾을 수 없습니다.")
+        page_data = page.to_dict()
+        club_id = str(page_data.get("clubCode", ""))
+        club = self.db.collection("clubs").document(club_id).get()
+        if not club.exists:
+            raise ValueError("연결된 동아리를 찾을 수 없습니다.")
+        club_data = club.to_dict()
+        if club_data.get("status") != "active":
+            raise PermissionError("운영이 종료된 동아리입니다.")
+        current_code = str(club_data.get("accessCode") or club_data.get("code") or club.id).upper()
+        if current_code != access_code:
+            raise PermissionError("동아리 접근코드가 올바르지 않습니다.")
+        if action == "view":
+            content = self.db.collection("website_content").document(page_id).get()
+            html = content.to_dict().get("html", "") if content.exists else page_data.get("html", "")
+            if not html:
+                raise ValueError("저장된 웹사이트 본문이 없습니다.")
+            return {
+                "html": html,
+                "title": page_data.get("title", page_id),
+                "track": page_data.get("track", page_data.get("mode", "startup")),
+                "accessCode": firestore.DELETE_FIELD,
+            }
+        if action == "revision":
+            instruction = str(data.get("value", "")).strip()[:1500]
+            if not instruction:
+                raise ValueError("수정할 내용을 입력해주세요.")
+            content = self.db.collection("website_content").document(page_id).get()
+            current_html = content.to_dict().get("html", "") if content.exists else page_data.get("html", "")
+            if not current_html:
+                raise ValueError("수정할 웹사이트 본문이 없습니다.")
+            revision = int(page_data.get("revision", 1) or 1) + 1
+            root_id = str(page_data.get("rootPageId") or page_id).split("-v", 1)[0]
+            new_page_id = f"{root_id[:26]}-v{revision}"
+            while self.db.collection("website_jobs").document(new_page_id).get().exists:
+                revision += 1
+                new_page_id = f"{root_id[:26]}-v{revision}"
+            revise_prompt = f"""아래 단일 HTML 웹사이트에 사용자의 수정 요청만 반영하세요.
+기존 사실과 콘텐츠를 임의로 추가·삭제하지 말고 디자인 완성도, 반응형, 접근성을 유지하세요.
+고정 템플릿으로 교체하지 말고 현재 사이트의 컨셉을 발전시키세요.
+설명이나 코드펜스 없이 완성된 <!DOCTYPE html>부터 </html>까지만 출력하세요.
+
+[수정 요청]
+{instruction}
+
+[현재 HTML]
+{current_html[:80000]}
+"""
+            revised = ollama.chat(
+                model=self.website_model,
+                messages=[{"role": "user", "content": revise_prompt}],
+                options={"temperature": 0.5, "num_ctx": 24576, "num_predict": 8192},
+            )
+            revised_html = self._extract_generated_html(revised["message"]["content"])
+            visibility = page_data.get("visibility", "club")
+            self.db.collection("website_content").document(new_page_id).set({
+                "html": revised_html, "visibility": visibility, "clubCode": club_id,
+                "updatedAt": firestore.SERVER_TIMESTAMP,
+            })
+            self.db.collection("website_jobs").document(new_page_id).set({
+                "status": "completed", "pageId": new_page_id, "clubCode": club_id,
+                "clubName": page_data.get("clubName", club_data.get("name", "")),
+                "clubYear": page_data.get("clubYear", str(club_data.get("year", ""))),
+                "mode": page_data.get("mode", page_data.get("track", "startup")),
+                "track": page_data.get("track", page_data.get("mode", "startup")),
+                "title": page_data.get("title", new_page_id), "visibility": visibility,
+                "publishStatus": "draft", "revision": revision, "rootPageId": root_id,
+                "parentPageId": page_id, "createdAt": firestore.SERVER_TIMESTAMP,
+                "completedAt": firestore.SERVER_TIMESTAMP,
+                "generator": f"ollama:{self.website_model}:revision",
+            })
+            return {"accessCode": firestore.DELETE_FIELD, "result": "ok", "newPageId": new_page_id}
+        if action == "finalize":
+            page_ref.set({"publishStatus": "final", "finalizedAt": firestore.SERVER_TIMESTAMP}, merge=True)
+        elif action == "draft":
+            page_ref.set({"publishStatus": "draft", "finalizedAt": firestore.DELETE_FIELD}, merge=True)
+        elif action == "visibility":
+            value = str(data.get("value", ""))
+            if value not in ("public", "club"):
+                raise ValueError("공개 범위 값이 올바르지 않습니다.")
+            page_ref.set({"visibility": value}, merge=True)
+            self.db.collection("website_content").document(page_id).set({"visibility": value}, merge=True)
+        else:
+            raise ValueError("지원하지 않는 웹사이트 작업입니다.")
+        return {"accessCode": firestore.DELETE_FIELD, "result": "ok"}
+
+    @staticmethod
+    def _extract_generated_html(content):
+        html = str(content or "").strip()
         if html.startswith("```"):
             html = html.split("\n", 1)[-1]
             if html.endswith("```"):
@@ -363,24 +761,25 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
         end = html.lower().rfind("</html>")
         if start < 0 or end < 0:
             raise ValueError("Ollama가 유효한 HTML 문서를 반환하지 않았습니다.")
-        html = html[start : end + len("</html>")]
-        if len(html.encode("utf-8")) > 850000:
-            raise ValueError("생성된 HTML이 저장 가능한 크기를 초과했습니다.")
+        return html[start : end + len("</html>")]
 
-        title = page_id
-        title_start = html.lower().find("<title>")
-        title_end = html.lower().find("</title>")
-        if 0 <= title_start < title_end:
-            title = html[title_start + 7 : title_end].strip()[:120] or page_id
-        self.log(f"웹페이지 생성 완료: {page_id}")
-        return {
-            "html": html,
-            "title": title,
-            "generator": f"ollama:{self.text_model}",
-            "track": mode,
-            "sourceText": firestore.DELETE_FIELD,
-            "options": firestore.DELETE_FIELD,
-        }
+    @staticmethod
+    def _website_quality_score(html):
+        lower = html.lower()
+        css = lower[lower.find("<style") : lower.rfind("</style>")]
+        checks = (
+            len(css) >= 3500,
+            lower.count("<section") >= 4,
+            "@media" in css,
+            "clamp(" in css,
+            "gradient(" in css,
+            ("@keyframes" in css or "intersectionobserver" in lower),
+            ("display:grid" in css.replace(" ", "") or "display: grid" in css),
+            ("::before" in css or ":before" in css),
+            "focus-visible" in css,
+            "prefers-reduced-motion" in css,
+        )
+        return sum(bool(item) for item in checks)
 
     def _process_email_job(self, reference, data):
         if not self.admin_email or not self.admin_email_pw:
