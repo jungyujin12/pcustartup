@@ -523,6 +523,7 @@ function logout() { if(window._logout) window._logout(); }
     <button class="tab-btn" onclick="switchTab('rise')">📊 RISE 실적</button>
     <button class="tab-btn" onclick="switchTab('survey')">📝 설문 관리</button>
     <button class="tab-btn" onclick="location.href='website-admin.html'">🌐 제작 사이트 관리</button>
+    <button class="tab-btn" onclick="location.href='career-admin.html'">🧭 진로 데이터</button>
     <button class="tab-btn" onclick="switchTab('contest')" title="현재 사용할 수 없는 기능입니다">🏆 공모전 관리 (작동 안 함)</button>
     <div class="tab-actions" style="margin-left:auto;display:flex;align-items:center;gap:0.8rem;padding:0 1rem">
       <select id="yearFilter" onchange="changeYear(this.value)" style="border:1.5px solid var(--pcu-lightgray);border-radius:6px;padding:4px 10px;font-size:0.78rem;font-family:var(--font-family-base);color:var(--pcu-blue);font-weight:700;outline:none"></select>
@@ -1357,7 +1358,7 @@ window._logout = window.logout = async function() {
 // ══ 탭 ══
 window.switchTab = function(tab) {
   const tabs = ['dashboard','applications','clubs','members','files','consult','ailog','rise','survey','contest'];
-  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', tabs[i]===tab));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', (b.getAttribute('onclick')||'').includes(`switchTab('${tab}')`)));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
   if (tab === 'applications') loadApplications();
