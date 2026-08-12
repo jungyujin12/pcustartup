@@ -93,6 +93,13 @@
       color: var(--pcu-blue); margin-top: 1rem; line-height: 1.7;
     }
     .btn-full { width: 100%; }
+    @media (max-width: 640px) {
+      .consult-screen { padding: 1rem 0.7rem 2.5rem; }
+      .consult-card { padding: 1.35rem 1rem; }
+      .field-row, .topic-grid { grid-template-columns: 1fr; }
+      .field input, .field select, .field textarea { width: 100%; min-width: 0; }
+      .time-slot { min-height: 40px; padding: 8px 12px; }
+    }
   </style>
 </head>
 <body>
