@@ -150,6 +150,22 @@ window.selectTrack=function(track){
   $('commonCard').scrollIntoView({behavior:'smooth',block:'start'});
 };
 
+const launchParams=new URLSearchParams(location.search);
+if(launchParams.get('track')==='career'){
+  window.selectTrack('career');
+  try{
+    const profile=JSON.parse(sessionStorage.getItem('pcuCareerProfile')||'null');
+    if(profile){
+      const top=(profile.topTypes||[]).map(item=>`${item.code} ${item.name}`).join(' · ');
+      const jobs=(profile.recommendedJobs||[]).slice(0,5).join(', ');
+      if(!$('cRole').value)$('cRole').value=(profile.recommendedJobs||[])[0]||'';
+      if(!$('cIntro').value)$('cIntro').value=`진로 흥미 탐색 ${profile.code||''} 유형 · 관심 직무: ${jobs}`;
+      if(!$('cSkills').value)$('cSkills').value=top;
+      $('clubStatus').textContent='진로·직무 흥미 탐색 결과를 불러왔습니다. 이 결과는 현재 브라우저 세션에서만 유지됩니다.';
+    }
+  }catch(error){console.warn('진로검사 결과를 불러오지 못했습니다.',error)}
+}
+
 async function checkWorker(){
   try{const snapshot=await getDoc(doc(db,'system','ai_worker'));const heartbeat=snapshot.data()?.heartbeat?.toDate?.();workerAvailable=Boolean(heartbeat&&Date.now()-heartbeat.getTime()<150000)}catch(error){workerAvailable=false}
   if(!workerAvailable&&selectedTrack)status('현재 AI 실행기가 꺼져 있습니다. 담당자가 실행기를 켠 뒤 생성할 수 있습니다. 입력한 내용은 전송되지 않았습니다.','error');
