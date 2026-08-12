@@ -111,7 +111,7 @@ import {getFirestore,collection,doc,getDoc,getDocs,setDoc,serverTimestamp,query,
 const app=initializeApp({apiKey:"AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
 const db=getFirestore(app),$=id=>document.getElementById(id);
 const status=(message,type='')=>{const el=$('jobStatus');el.className=`status show ${type}`;el.innerHTML=message};
-let selectedTrack='',workerAvailable=false,currentClub=null,referenceImageData='',careerResultText='',careerProfileLoaded=false;
+let selectedTrack='',workerAvailable=false,currentClub=null,referenceImageData='',careerResultText='',careerProfileLoaded=false,careerAssessmentRecordId='';
 const designCatalog=['에디토리얼 매거진','네오 브루탈리즘','스위스 그리드','벤토 인터페이스','터미널 테크','오가닉 내추럴','럭셔리 미니멀','레트로 퓨처','블루프린트','뉴스페이퍼','아트 갤러리','키네틱 타이포','모노크롬 포커스','노르딕 소프트','플레이풀 캠퍼스','컨설팅 리포트','글래스 레이어','페이퍼 콜라주','오로라 그라디언트','인더스트리얼 유틸리티','데이터 대시보드','캠페인 포스터','스토리북','절제된 미니멀','레트로 컴퓨팅','아카이브 인덱스','프로덕트 쇼케이스','컬처 매거진','크리에이티브 스튜디오','캠퍼스 랩'];
 const layoutCatalog=['분할 히어로·서사형','분할 히어로·카드형','분할 히어로·교차형','분할 히어로·타임라인형','분할 히어로·벤토형','중앙 히어로·서사형','중앙 히어로·카드형','중앙 히어로·교차형','중앙 히어로·타임라인형','중앙 히어로·벤토형','세로 라인 히어로·서사형','세로 라인 히어로·카드형','세로 라인 히어로·교차형','세로 라인 히어로·타임라인형','세로 라인 히어로·벤토형','포스터 히어로·서사형','포스터 히어로·카드형','포스터 히어로·교차형','포스터 히어로·타임라인형','포스터 히어로·벤토형','사이드바 히어로·서사형','사이드바 히어로·카드형','사이드바 히어로·교차형','사이드바 히어로·타임라인형','사이드바 히어로·벤토형','프레임 히어로·서사형','프레임 히어로·카드형','프레임 히어로·교차형','프레임 히어로·타임라인형','프레임 히어로·벤토형'];
 const paletteCatalog=['심해 민트','코발트 선','잉크 코랄','포레스트 라임','왕실 금빛','클린 블루','토마토 크림','라벤더 잉크','사이버 시안','체리 페이퍼','세이지 클레이','레몬 네이비','스카이 레드','블랙 아이보리','민트 퍼플','버건디 핑크','오션 오렌지','올리브 머스타드','슬레이트 아쿠아','플럼 피치','인디고 그린','차콜 옐로','브릭 스카이','에메랄드 샌드','그래파이트 핑크','블루 바이올렛','모스 코랄','커피 민트','나이트 핑크','화이트 레드'];
@@ -160,6 +160,7 @@ if(launchParams.get('track')==='career'){
     const profile=JSON.parse(sessionStorage.getItem('pcuCareerProfile')||'null');
     if(profile){
       careerProfileLoaded=true;
+      careerAssessmentRecordId=String(profile.recordId||'');
       const top=(profile.topTypes||[]).map(item=>`${item.code} ${item.name}`).join(' · ');
       const jobs=(profile.recommendedJobs||[]).slice(0,5).join(', ');
       careerResultText=[`PCU 진로·직무 흥미 탐색 결과`,`흥미 코드: ${profile.code||''}`,`상위 유형: ${top}`,`추천 직무: ${jobs}`,`포트폴리오 강조점: ${(profile.portfolioFocus||[]).join(', ')}`].join('\n');
@@ -171,6 +172,13 @@ if(launchParams.get('track')==='career'){
       updateCareerBasisUI();
     }
   }catch(error){console.warn('진로검사 결과를 불러오지 못했습니다.',error)}
+  if(launchParams.get('basis')==='assessment-upload'){
+    document.querySelector('input[name="careerBasis"][value="assessment"]').checked=true;updateCareerBasisUI();
+    $('careerBasisGuide').textContent='기존 진로검사 결과지 PDF를 아래에서 선택하면 검사 없이 제작할 수 있습니다.';
+  }else if(launchParams.get('basis')==='independent'){
+    document.querySelector('input[name="careerBasis"][value="independent"]').checked=true;updateCareerBasisUI();
+    $('careerBasisGuide').textContent='검사를 건너뛰었습니다. 희망 직무 또는 희망 산업·진로 분야를 직접 입력해주세요.';
+  }
 }
 
 async function checkWorker(){
@@ -199,6 +207,7 @@ $('careerResultPdf').addEventListener('change',async event=>{
     if(text.trim().length<20){const attachments=await pdf.getAttachments();const embedded=attachments&&attachments['pcu-career-result.txt'];if(embedded?.content)text=new TextDecoder('utf-8').decode(embedded.content)}
     careerResultText=text.trim().slice(0,12000);
     careerProfileLoaded=true;
+    careerAssessmentRecordId=(careerResultText.match(/진로검사 기록 ID:\s*([A-Za-z0-9]+)/)||[])[1]||'';
     if(careerResultText.length<20)throw new Error('텍스트를 추출하지 못했습니다. 이미지로 된 결과지는 요약 내용을 직접 입력해 주세요.');
     $('careerResultStatus').textContent=`${pdf.numPages}페이지 결과지를 준비했습니다. 흥미유형·직무추천·업무선호만 AI 설계에 참고하며 원본 PDF는 공개하지 않습니다.`;
   }catch(error){careerResultText='';$('careerResultStatus').textContent=error.message||'진로검사 결과지를 읽지 못했습니다.'}
@@ -270,7 +279,7 @@ function clean(value){return String(value||'').trim()}
 function buildSource(){
   if(selectedTrack==='startup')return `[제작 목적] 창업 목적 웹사이트\n[프로젝트·서비스명] ${clean($('sProject').value)}\n[팀명·동아리명] ${clean($('sTeam').value)}\n[핵심 한 줄 소개] ${clean($('sIntro').value)}\n[분야·업종] ${clean($('sIndustry').value)}\n[사업화 여부] ${$('commercialized').value}\n[문제 정의] ${clean($('sProblem').value)}\n[해결 방법] ${clean($('sSolution').value)}\n[주요 활동] ${clean($('sActivities').value)}\n[성과·검증 결과] ${clean($('sAchievements').value)}\n[배운 점·향후 계획] ${clean($('sLearning').value)}\n[추가 원문]\n${clean($('sSource').value)}`;
   const basis=selectedCareerBasis(),basisText=basis==='assessment'?'진로검사 결과 기반':'검사 결과와 별개인 희망 직무·진로 분야 기반 (직접 입력한 희망 방향을 최우선 적용)';
-  return `[제작 목적] 취업용 포트폴리오\n[진로 설계 기준] ${basisText}\n[이름] ${clean($('cName').value)}\n[희망 직무] ${clean($('cRole').value)}\n[전공·학과] ${clean($('cMajor').value)}\n[희망 산업·진로 분야] ${clean($('cIndustry').value)}\n[한 줄 소개] ${clean($('cIntro').value)}\n[핵심 역량·기술] ${clean($('cSkills').value)}\n[강점·업무 방식] ${clean($('cStrengths').value)}\n[프로젝트] ${clean($('cProjects').value)}\n[경험·경력·대외활동] ${clean($('cExperience').value)}\n[교육·자격·수상] ${clean($('cEducation').value)}\n[공개 연락 방법] ${clean($('cContact').value)}\n[추가 원문]\n${clean($('cSource').value)}`;
+  return `[제작 목적] 취업용 포트폴리오\n[진로 설계 기준] ${basisText}\n[진로검사 기록 ID] ${basis==='assessment'?careerAssessmentRecordId:''}\n[이름] ${clean($('cName').value)}\n[희망 직무] ${clean($('cRole').value)}\n[전공·학과] ${clean($('cMajor').value)}\n[희망 산업·진로 분야] ${clean($('cIndustry').value)}\n[한 줄 소개] ${clean($('cIntro').value)}\n[핵심 역량·기술] ${clean($('cSkills').value)}\n[강점·업무 방식] ${clean($('cStrengths').value)}\n[프로젝트] ${clean($('cProjects').value)}\n[경험·경력·대외활동] ${clean($('cExperience').value)}\n[교육·자격·수상] ${clean($('cEducation').value)}\n[공개 연락 방법] ${clean($('cContact').value)}\n[추가 원문]\n${clean($('cSource').value)}`;
 }
 function validateTrack(){
   if(!selectedTrack)return '제작 목적을 선택해주세요.';
@@ -288,7 +297,7 @@ async function verifyAccess(code){const club=currentClub||await resolveClub(code
 window.submitWebsiteJob=async function(){
   const validation=validateTrack();if(validation){status(validation,'error');return}
   const pageId=clean($('pageId').value),accessCode=clean($('accessCode').value);let sourceText=buildSource();
-  if(selectedTrack==='career'&&selectedCareerBasis()==='assessment'&&careerResultText)sourceText+=`\n[진로검사 결과지 - AI 설계 참고용, 공개 금지]\n${careerResultText}`; 
+  if(selectedTrack==='career'&&selectedCareerBasis()==='assessment'&&careerResultText)sourceText+=`\n[진로검사 결과지 - AI 설계 참고용, 공개 금지]\n${careerResultText}`;
   if(!accessCode){status('생성 접근코드를 입력해주세요.','error');return}
   if(!/^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])?$/.test(pageId)){status('페이지 주소는 영문 소문자·숫자·하이픈 3~32자로 입력해주세요.','error');return}
   if(sourceText.length>50000){status('전체 입력 내용이 50,000자를 초과했습니다. 추가 원문을 줄여주세요.','error');return}
