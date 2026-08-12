@@ -1543,21 +1543,21 @@ function renderClubTable() {
         <input type="checkbox" class="club-check" value="${c.code}" style="width:14px;height:14px;cursor:pointer" onchange="syncCheckAll()">
         ${i+1}
       </td>
-      <td><strong>${c.name}</strong>${c.repName?`<span class="td-sub">${c.repName}</span>`:''}</td>
+      <td><strong>${escapeFileHTML(c.name)}</strong>${c.repName?`<span class="td-sub">${escapeFileHTML(c.repName)}</span>`:''}</td>
       <td>
         <span style="font-family:monospace;font-weight:800;color:var(--pcu-blue);letter-spacing:1px">${c.accessCode}</span>
         <button class="btn-sm btn-sm-blue td-btn" style="margin-left:6px"
           onclick="window.copyCode('${c.accessCode}',this)" title="코드 복사">📋</button>
       </td>
-      <td><span class="tb tb-blue">${c.field||'일반'}</span></td>
+      <td><span class="tb tb-blue">${escapeFileHTML(c.field||'일반')}</span></td>
       <td class="td-date">${c.createdAt?.toDate?.()?.toLocaleDateString('ko-KR')||'—'}</td>
       <td>
-        <button class="btn-sm btn-sm-blue td-btn" onclick="window.editClubName('${c.code}','${c.name}')">이름</button>
-        <button class="btn-sm btn-sm-blue td-btn" onclick="window.editCode('${c.code}','${c.name}','${c.accessCode}')">코드</button>
+        <button class="btn-sm btn-sm-blue td-btn" onclick="window.editClubName('${c.code}','${escapeInlineJS(c.name)}')">이름</button>
+        <button class="btn-sm btn-sm-blue td-btn" onclick="window.editCode('${c.code}','${escapeInlineJS(c.name)}','${c.accessCode}')">코드</button>
         <button class="btn-sm btn-sm-mint td-btn" onclick="window.editClubInfo('${c.code}')">정보수정</button>
       </td>
       <td>
-        <button class="btn-sm btn-sm-red td-btn" onclick="window.deleteClub('${c.code}','${c.name}')">삭제</button>
+        <button class="btn-sm btn-sm-red td-btn" onclick="window.deleteClub('${c.code}','${escapeInlineJS(c.name)}')">삭제</button>
         <button class="btn-sm ${c.status==='completed'?'btn-sm-mint':'btn-sm-blue'} td-btn" onclick="window.toggleClubStatus('${c.code}','${c.status||'active'}')">
           ${c.status==='completed'?'재활성':'종료'}
         </button>
@@ -1568,7 +1568,7 @@ function renderClubTable() {
       <td colspan="7" style="padding:0">
         <div class="members-panel open" id="members-panel-${c.code}">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
-            <span style="font-size:0.8rem;font-weight:800;color:var(--pcu-dark)">👥 팀원 목록 — ${c.name}</span>
+            <span style="font-size:0.8rem;font-weight:800;color:var(--pcu-dark)">👥 팀원 목록 — ${escapeFileHTML(c.name)}</span>
             <button class="btn-sm btn-sm-blue" onclick="openAddMemberModal('${c.code}')">+ 팀원 추가</button>
           </div>
           <div data-members-list="${c.code}"><div style="font-size:0.78rem;color:var(--pcu-gray)">로딩 중...</div></div>
@@ -1713,16 +1713,16 @@ async function loadMembersList(code, targetContainer = null) {
           <th>이름</th><th>학과</th><th>학번</th><th>연락처</th><th>학년</th><th>팀장</th><th style="width:70px"></th>
         </tr></thead>
         <tbody>
-          ${members.map(m=>`<tr id="mrow-${m.id}">
-            <td>${m.name||'—'}${(m.isLeader||m.isRep)?'<span style="color:var(--pcu-blue);font-weight:700;margin-left:3px">★</span>':''}</td>
-            <td>${m.dept||'—'}</td>
-            <td>${m.sno||m.stuId||'—'}</td>
-            <td>${m.tel||'—'}</td>
-            <td>${m.grade||'—'}</td>
+          ${members.map(m=>`<tr id="mrow-${escapeFileHTML(m.id)}">
+            <td>${escapeFileHTML(m.name||'—')}${(m.isLeader||m.isRep)?'<span style="color:var(--pcu-blue);font-weight:700;margin-left:3px">★</span>':''}</td>
+            <td>${escapeFileHTML(m.dept||'—')}</td>
+            <td>${escapeFileHTML(m.sno||m.stuId||'—')}</td>
+            <td>${escapeFileHTML(m.tel||'—')}</td>
+            <td>${escapeFileHTML(m.grade||'—')}</td>
             <td>${(m.isLeader||m.isRep)?'팀장':''}</td>
             <td style="white-space:nowrap">
-              <button onclick="editMemberInline('${code}','${m.id}')" style="background:none;border:none;cursor:pointer;color:var(--pcu-blue);font-size:0.75rem">✏️</button>
-              <button onclick="deleteMemberFromList('${code}','${m.id}')" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:0.75rem">✕</button>
+              <button onclick="editMemberInline('${code}','${escapeInlineJS(m.id)}')" style="background:none;border:none;cursor:pointer;color:var(--pcu-blue);font-size:0.75rem">✏️</button>
+              <button onclick="deleteMemberFromList('${code}','${escapeInlineJS(m.id)}')" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:0.75rem">✕</button>
             </td>
           </tr>`).join('')}
         </tbody>
@@ -1807,15 +1807,15 @@ window.editMemberInline = async function(clubCode, memberId) {
     document.getElementById('modalBody').innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem">
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">이름 *</label>
-          <input id="em-name" class="edit-input" value="${m.name||''}"></div>
+          <input id="em-name" class="edit-input" value="${escapeFileHTML(m.name||'')}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">학과</label>
-          <input id="em-dept" class="edit-input" value="${m.dept||''}"></div>
+          <input id="em-dept" class="edit-input" value="${escapeFileHTML(m.dept||'')}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">학번</label>
-          <input id="em-sno" class="edit-input" value="${m.sno||m.stuId||''}"></div>
+          <input id="em-sno" class="edit-input" value="${escapeFileHTML(m.sno||m.stuId||'')}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">연락처</label>
-          <input id="em-tel" class="edit-input" value="${m.tel||''}"></div>
+          <input id="em-tel" class="edit-input" value="${escapeFileHTML(m.tel||'')}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">학년</label>
-          <input id="em-grade" class="edit-input" value="${m.grade||''}"></div>
+          <input id="em-grade" class="edit-input" value="${escapeFileHTML(m.grade||'')}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">팀장여부</label>
           <select id="em-leader" class="edit-input">
             <option value="false" ${!(m.isLeader||m.isRep)?'selected':''}>팀원</option>
@@ -2359,7 +2359,7 @@ window.editClubInfo = async function(code) {
     document.getElementById('modalBody').innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem">
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">동아리명</label>
-          <input id="ei-name" class="edit-input" value="${d.name||''}"></div>
+          <input id="ei-name" class="edit-input" value="${escapeFileHTML(d.name||'')}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">분야</label>
           <select id="ei-field" class="edit-input">
             <option value="지식" ${d.field==='지식'?'selected':''}>지식</option>
@@ -2368,15 +2368,15 @@ window.editClubInfo = async function(code) {
             <option value="해당없음" ${d.field==='해당없음'?'selected':''}>해당없음</option>
           </select></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">대표자명</label>
-          <input id="ei-repName" class="edit-input" value="${d.repName||''}"></div>
+          <input id="ei-repName" class="edit-input" value="${escapeFileHTML(d.repName||'')}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">연락처</label>
-          <input id="ei-repTel" class="edit-input" value="${d.repTel||''}"></div>
+          <input id="ei-repTel" class="edit-input" value="${escapeFileHTML(d.repTel||'')}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">이메일</label>
-          <input id="ei-repEmail" class="edit-input" value="${d.repEmail||''}"></div>
+          <input id="ei-repEmail" class="edit-input" value="${escapeFileHTML(d.repEmail||'')}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">학과</label>
-          <input id="ei-repDept" class="edit-input" value="${d.repDept||''}"></div>
+          <input id="ei-repDept" class="edit-input" value="${escapeFileHTML(d.repDept||'')}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">아이템</label>
-          <input id="ei-item" class="edit-input" value="${d.item||''}"></div>
+          <input id="ei-item" class="edit-input" value="${escapeFileHTML(d.item||'')}"></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">인원수</label>
           <input id="ei-memberCount" class="edit-input" type="number" value="${d.memberCount||0}" disabled
             title="팀원 목록에서 자동 계산됩니다."></div>
@@ -2387,7 +2387,7 @@ window.editClubInfo = async function(code) {
             <option value="준비중" ${d.bizReg==='준비중'?'selected':''}>준비중</option>
           </select></div>
         <div><label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:3px">지도교수</label>
-          <input id="ei-profName" class="edit-input" value="${d.profName||''}"></div>
+          <input id="ei-profName" class="edit-input" value="${escapeFileHTML(d.profName||'')}"></div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem">
         <button class="btn btn-secondary" onclick="closeModal()">취소</button>
@@ -5591,6 +5591,17 @@ function escapeFileHTML(value) {
   })[char]);
 }
 
+function escapeInlineJS(value) {
+  return String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\x22')
+    .replace(/</g, '\\x3C')
+    .replace(/>/g, '\\x3E')
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n');
+}
+
 let adminFileRefs = [];
 let adminFileSelectedPaths = new Set();
 let fileTabBound = false;
@@ -6521,7 +6532,7 @@ window.deleteSelectedAdminFiles = async function() {
 };
 
 function showAdminMsg(el, text, color) {
-  el.textContent=text; el.style.color=color; el.style.display='block'; 
+  el.textContent=text; el.style.color=color; el.style.display='block';
   setTimeout(()=>el.style.display='none', 4000);
 }
 
