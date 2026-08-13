@@ -509,7 +509,7 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
             extracted = json.loads(str(response["message"]["content"]))
             if not isinstance(extracted, dict):
                 raise ValueError("문서 분석 결과가 객체가 아닙니다.")
-            vague = re.compile(r"^(?:본문|원문|파일|첨부|사업계획서)\s*(?:참고|참조|확인)?[.!]?$|^없음$", re.I)
+            vague = re.compile(r"^(?:(?:본문|원문|파일|첨부|사업계획서)\s*)+(?:참고|참조|확인)?[.!]?$|^없음$", re.I)
             applied = []
             for label in labels:
                 value = re.sub(r"\s+", " ", str(extracted.get(label, ""))).strip()[:2400]
