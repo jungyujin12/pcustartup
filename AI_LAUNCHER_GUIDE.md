@@ -1,44 +1,217 @@
-# AI 실행기 사용 안내
+import json
+import os
+import queue
+import subprocess
+import sys
+import threading
+import tkinter as tk
+import urllib.request
+from pathlib import Path
+from tkinter import filedialog, messagebox, scrolledtext
 
-## 최초 1회
+from dotenv import load_dotenv
 
-1. Firebase Console → 프로젝트 설정 → 서비스 계정으로 이동합니다.
-2. 새 비공개 키를 생성해 JSON 파일을 안전한 폴더에 저장합니다.
-3. `.env.example`을 `.env`로 복사하고 Gmail 앱 비밀번호를 입력합니다.
-4. `AI 실행기.exe`를 실행합니다.
-5. `JSON 선택`에서 서비스 계정 파일을 선택합니다.
-6. `AI 작업 시작`을 누릅니다.
+from ai_worker import PCUWorker
 
-## 평상시
 
-Ollama가 설치된 PC에서 `AI 실행기.exe`만 실행하면 됩니다. 실행기 상단에
-`Ollama 정상`, `AI 작업 실행 중`이 표시되면 보고서 분석과 메일 대기열이
-자동으로 처리됩니다.
+def app_dir():
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
 
-## 주의
 
-- 서비스 계정 JSON과 `.env`는 GitHub, Netlify, 메신저에 올리지 마세요.
-- 서비스 계정 JSON은 `final_deploy` 폴더 안에 두지 마세요.
-- 실행기를 끄면 파일 업로드는 가능하지만 AI 분석과 메일은 대기 상태로 남습니다.
-- 실패한 작업은 최대 3회 자동 재시도합니다.
-# 무료 웹사이트 투트랙 생성
+class Launcher:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("PCU AI 실행기")
+        self.root.geometry("680x500")
+        self.root.minsize(620, 430)
+        self.root.protocol("WM_DELETE_WINDOW", self.close)
+        self.messages = queue.Queue()
+        self.worker = None
+        self.worker_thread = None
+        self.settings_path = app_dir() / "ai_launcher_settings.json"
+        load_dotenv(app_dir() / ".env")
+        self.settings = self._load_settings()
+        self._build()
+        self.root.after(100, self._drain_messages)
+        self.root.after(300, self._initial_check)
 
-AI 실행기가 실행 중이면 웹사이트의 `웹사이트·포트폴리오 제작` 화면에서 등록된
-`website_jobs` 작업도 자동으로 처리합니다. 별도의 Claude, Gemini, Grok API 키는
-필요하지 않으며 `OLLAMA_TEXT_MODEL`에 설정된 로컬 모델을 사용합니다.
+    def _load_settings(self):
+        try:
+            return json.loads(self.settings_path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
 
-- 창업 목적 웹사이트: 문제, 해결책, 제품·서비스, 활동과 검증 결과 중심
-- 취업용 포트폴리오: 희망 직무, 역량, 프로젝트, 경험과 경력 중심
+    def _save_settings(self):
+        self.settings_path.write_text(
+            json.dumps(self.settings, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
-처리 흐름:
+    def _build(self):
+        header = tk.Frame(self.root, bg="#0052CC", padx=22, pady=18)
+        header.pack(fill="x")
+        tk.Label(
+            header,
+            text="PCU AI 실행기",
+            bg="#0052CC",
+            fg="white",
+            font=("Malgun Gothic", 18, "bold"),
+        ).pack(anchor="w")
+        tk.Label(
+            header,
+            text="Firebase 작업을 로컬 Ollama로 처리합니다.",
+            bg="#0052CC",
+            fg="#DDEBFF",
+            font=("Malgun Gothic", 10),
+        ).pack(anchor="w")
 
-1. 사용자가 텍스트 또는 PDF와 생성 옵션을 입력합니다.
-2. Firebase `website_jobs`에 작업이 등록됩니다.
-3. AI 실행기가 Ollama로 PDF·사업계획서 원문을 사실 기반 항목으로 먼저 구조화합니다.
-4. 구조화된 내용과 사용자가 직접 입력한 값을 30개 디자인 계열·30개 레이아웃·30개 색상·30개 타이포그래피 조합에 반영해 반응형 단일 HTML을 생성합니다.
-5. 결과는 `generated-site.html?id=페이지주소`에서 확인하고 상단의 강조된 `HTML 다운로드` 버튼으로 내려받을 수 있습니다.
+        body = tk.Frame(self.root, padx=22, pady=16)
+        body.pack(fill="both", expand=True)
+        status = tk.Frame(body)
+        status.pack(fill="x")
+        self.ollama_label = tk.Label(status, text="● Ollama 확인 중", fg="#777")
+        self.ollama_label.pack(side="left")
+        self.worker_label = tk.Label(status, text="● AI 작업 중지", fg="#777")
+        self.worker_label.pack(side="right")
 
-사용자가 직접 입력한 값은 AI가 덮어쓰지 않습니다. 비어 있거나 `본문 참고`처럼 내용이 없는 항목만 PDF 원문 분석으로 보강하며, 원문 전문은 공개 웹사이트에 그대로 노출하지 않습니다.
+        key_frame = tk.LabelFrame(body, text="Firebase 서비스 계정", padx=10, pady=9)
+        key_frame.pack(fill="x", pady=(14, 10))
+        self.key_var = tk.StringVar(
+            value=self.settings.get("serviceAccount", "")
+            or os.getenv("FIREBASE_SERVICE_ACCOUNT", "")
+        )
+        tk.Entry(key_frame, textvariable=self.key_var).pack(side="left", fill="x", expand=True)
+        tk.Button(key_frame, text="JSON 선택", command=self.select_key).pack(side="left", padx=(8, 0))
 
-AI 실행기가 꺼져 있으면 작업은 대기 상태로 남습니다. 실행기를 켜면 순서대로
-처리됩니다. 생성이 완료되면 원본 입력 내용은 작업 문서에서 자동 삭제됩니다.
+        actions = tk.Frame(body)
+        actions.pack(fill="x", pady=(0, 10))
+        self.start_button = tk.Button(
+            actions,
+            text="AI 작업 시작",
+            command=self.start,
+            bg="#0052CC",
+            fg="white",
+            activebackground="#003D99",
+            activeforeground="white",
+            font=("Malgun Gothic", 10, "bold"),
+            padx=20,
+            pady=7,
+        )
+        self.start_button.pack(side="left")
+        self.stop_button = tk.Button(
+            actions, text="중지", command=self.stop, state="disabled", padx=18, pady=7
+        )
+        self.stop_button.pack(side="left", padx=8)
+        tk.Button(actions, text="상태 다시 확인", command=self.check_ollama, pady=7).pack(side="right")
+
+        self.log_box = scrolledtext.ScrolledText(
+            body, height=14, state="disabled", font=("Consolas", 9), wrap="word"
+        )
+        self.log_box.pack(fill="both", expand=True)
+
+    def log(self, text):
+        self.messages.put(str(text))
+
+    def _drain_messages(self):
+        while True:
+            try:
+                text = self.messages.get_nowait()
+            except queue.Empty:
+                break
+            self.log_box.configure(state="normal")
+            self.log_box.insert("end", text + "\n")
+            self.log_box.see("end")
+            self.log_box.configure(state="disabled")
+        self.root.after(100, self._drain_messages)
+
+    def _initial_check(self):
+        self.check_ollama()
+        if self.key_var.get() and Path(self.key_var.get()).is_file():
+            self.start()
+
+    def select_key(self):
+        path = filedialog.askopenfilename(
+            title="Firebase 서비스 계정 JSON 선택",
+            filetypes=[("JSON 파일", "*.json")],
+        )
+        if path:
+            self.key_var.set(path)
+            self.settings["serviceAccount"] = path
+            self._save_settings()
+
+    def check_ollama(self):
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=3) as response:
+                models = [x.get("name", "") for x in json.loads(response.read()).get("models", [])]
+            missing = [
+                name for name in ("gemma3", "llava")
+                if not any(model.startswith(name) for model in models)
+            ]
+            if missing:
+                self.ollama_label.config(text=f"● 모델 누락: {', '.join(missing)}", fg="#D97706")
+            else:
+                self.ollama_label.config(text="● Ollama 정상", fg="#059669")
+            return True
+        except Exception:
+            self.ollama_label.config(text="● Ollama 꺼짐", fg="#DC2626")
+            return False
+
+    def _start_ollama(self):
+        if self.check_ollama():
+            return
+        try:
+            subprocess.Popen(
+                ["ollama", "serve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            self.log("Ollama 시작을 요청했습니다.")
+        except Exception as exc:
+            self.log(f"Ollama를 자동 시작하지 못했습니다: {exc}")
+
+    def start(self):
+        if self.worker_thread and self.worker_thread.is_alive():
+            return
+        key_path = self.key_var.get().strip()
+        if not key_path or not Path(key_path).is_file():
+            self.select_key()
+            key_path = self.key_var.get().strip()
+            if not key_path:
+                return
+        self._start_ollama()
+        try:
+            self.worker = PCUWorker(key_path, log=self.log)
+        except Exception as exc:
+            messagebox.showerror("시작 실패", str(exc))
+            return
+        self.settings["serviceAccount"] = key_path
+        self._save_settings()
+        self.worker_thread = threading.Thread(target=self.worker.run, daemon=True)
+        self.worker_thread.start()
+        self.worker_label.config(text="● AI 작업 실행 중", fg="#059669")
+        self.start_button.config(state="disabled")
+        self.stop_button.config(state="normal")
+
+    def stop(self):
+        if self.worker:
+            self.worker.stop()
+        self.worker_label.config(text="● AI 작업 중지", fg="#777")
+        self.start_button.config(state="normal")
+        self.stop_button.config(state="disabled")
+
+    def close(self):
+        self.stop()
+        self.root.destroy()
+
+    def run(self):
+        self.root.mainloop()
+
+
+def main():
+    Launcher().run()
+
+
+if __name__ == "__main__":
+    main()
