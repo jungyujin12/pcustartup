@@ -491,9 +491,13 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
             ["이름", "희망 직무", "전공·학과", "희망 산업·진로 분야", "한 줄 소개",
              "핵심 역량·기술", "강점·업무 방식", "프로젝트", "경험·경력·대외활동", "교육·자격·수상"]
         )
-        prompt = f"""아래 문서를 웹사이트용 사실 데이터로 정리하세요.
+        prompt = f"""아래 한국어 문서를 웹사이트용 사실 데이터로 정리하세요.
 절대 추측하거나 없는 성과·수치·이름을 만들지 마세요. 문서에 근거가 없는 값은 빈 문자열로 두세요.
 각 값은 원문 복사가 아니라 방문자가 이해하기 쉬운 1~5문장 요약으로 작성하세요.
+모든 값은 반드시 자연스러운 한국어로 작성하고 영어로 번역하지 마세요.
+원문이 계획·예정·목표라고 표현한 일은 완료된 활동이나 성과처럼 바꾸지 마세요.
+원문이 완료했다고 명시한 사실만 완료형으로 쓰고, 계획과 실적을 엄격히 구분하세요.
+창업 문서의 핵심 기능은 '해결 방법' 또는 '주요 활동'에 빠짐없이 포함하세요.
 반드시 JSON 객체 하나만 출력하고 키는 다음 목록만 사용하세요:
 {json.dumps(labels, ensure_ascii=False)}
 
@@ -509,6 +513,22 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
             extracted = json.loads(str(response["message"]["content"]))
             if not isinstance(extracted, dict):
                 raise ValueError("문서 분석 결과가 객체가 아닙니다.")
+            extracted_text = " ".join(str(extracted.get(label, "")) for label in labels)
+            korean_count = len(re.findall(r"[가-힣]", extracted_text))
+            latin_count = len(re.findall(r"[A-Za-z]", extracted_text))
+            if latin_count > max(24, korean_count):
+                correction = ollama.chat(
+                    model=self.website_model,
+                    messages=[{"role": "user", "content": f"""다음 JSON은 한국어 웹사이트용 구조화 결과여야 하는데 영어가 섞였습니다.
+키와 사실, 숫자, 계획/완료 상태를 그대로 유지하면서 값만 자연스러운 한국어로 고치세요.
+계획을 완료 실적으로 바꾸지 말고 JSON 객체 하나만 출력하세요.
+{json.dumps(extracted, ensure_ascii=False)}"""}],
+                    format="json",
+                    options={"temperature": 0.05, "num_ctx": 8192, "num_predict": 1800},
+                )
+                corrected = json.loads(str(correction["message"]["content"]))
+                if isinstance(corrected, dict):
+                    extracted = corrected
             vague = re.compile(r"^(?:(?:본문|원문|파일|첨부|사업계획서)\s*)+(?:참고|참조|확인)?[.!]?$|^없음$", re.I)
             applied = []
             for label in labels:
