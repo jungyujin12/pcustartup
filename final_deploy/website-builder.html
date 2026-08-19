@@ -15,6 +15,7 @@
     .privacy{padding:.75rem;border-radius:9px;background:#fff7ed;color:#9a3412;font-size:.72rem;line-height:1.6;margin-top:.8rem}.actions{display:flex;gap:.7rem;justify-content:flex-end;margin-top:1rem}.btn-main{border:0;border-radius:9px;background:#0052cc;color:#fff;padding:12px 22px;font-weight:800;cursor:pointer}.btn-main:disabled{opacity:.5;cursor:not-allowed}.status{display:none;margin-top:1rem;padding:1rem;border-radius:10px;background:#f2f7ff;font-size:.82rem;line-height:1.7}.status.show{display:block}.status.error{background:#fff1f2;color:#b42318}.status.done{background:#edfff5;color:#087443}.progress{height:5px;background:#dce9f8;border-radius:5px;overflow:hidden;margin-top:.7rem}.progress span{display:block;width:35%;height:100%;background:#31b37c;animation:move 1.2s infinite ease-in-out}@keyframes move{from{transform:translateX(-110%)}to{transform:translateX(300%)}}
     .optional-box{grid-column:1/-1;border:1.5px solid #dce9f8;border-radius:10px;background:#f8fbff}.optional-box>summary{cursor:pointer;padding:.9rem 1rem;font-size:.8rem;font-weight:850;color:#24425f;list-style:none}.optional-box>summary::-webkit-details-marker{display:none}.optional-box>summary:after{content:"＋";float:right;color:#0052cc}.optional-box[open]>summary:after{content:"－"}.optional-box .optional-grid{padding:0 1rem 1rem}.source-note{padding:.75rem 1rem;color:#52667a;font-size:.72rem;line-height:1.55}.source-note strong{color:#087443}
     .basis-box{grid-column:1/-1;border:2px solid #cfe0f4;border-radius:14px;padding:1rem;background:#f8fbff}.basis-box>strong{display:block;font-size:.9rem;margin-bottom:.3rem}.basis-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-top:.8rem}.basis-option{display:block;border:1.5px solid #d7e3f0;border-radius:11px;padding:.9rem;background:#fff;cursor:pointer}.basis-option:has(input:checked){border-color:#0052cc;background:#edf5ff;box-shadow:0 0 0 3px rgba(0,82,204,.08)}.basis-option input{width:auto;margin-right:6px}.basis-option b{font-size:.83rem}.basis-option span{display:block;margin:5px 0 0 22px;font-size:.71rem;line-height:1.5;color:#61758a}.basis-alert{margin-top:.75rem;padding:.7rem .8rem;border-radius:8px;background:#fff4e8;color:#92530b;font-size:.72rem;line-height:1.55}
+    .ai-helper{border-color:#b9d8cb;background:linear-gradient(145deg,#fff,#f2fcf7)}.ai-helper-head{display:flex;gap:1rem;align-items:center}.ai-helper-head div{flex:1}.ai-chat{display:none;margin-top:1rem}.ai-chat.open{display:block}.chat-log{height:290px;overflow:auto;border:1px solid #cfddd7;border-radius:12px;padding:1rem;background:#fff}.bubble{max-width:82%;padding:.75rem .9rem;border-radius:13px;margin:.55rem 0;font-size:.8rem;line-height:1.6;white-space:pre-wrap}.bubble.ai{background:#edf7f2;color:#153d2d}.bubble.user{margin-left:auto;background:#10243e;color:#fff}.chat-compose{display:flex;gap:.6rem;margin-top:.7rem}.chat-compose textarea{min-height:74px}.chat-compose button{align-self:stretch}.applied{font-size:.7rem;color:#087443;margin-top:.45rem}
     @media(max-width:700px){.track-grid,.grid,.checks{grid-template-columns:1fr}.hero{padding:1.5rem}.builder{padding-top:1rem}.actions{flex-direction:column}.btn-main{width:100%}}
   </style>
 </head>
@@ -105,6 +106,11 @@
       <div class="actions"><button id="generateBtn" class="btn-main" onclick="submitWebsiteJob()">무료 웹사이트 생성</button></div>
       <div id="jobStatus" class="status" role="status" aria-live="polite"></div>
     </section>
+
+    <section id="aiHelperCard" class="card ai-helper" hidden>
+      <div class="ai-helper-head"><div><h2 style="margin-bottom:.3rem">선택사항 · AI와 대화하며 내용 보완</h2><p class="hint">기존 선택지와 입력값은 그대로 유지됩니다. 막히는 부분이 있을 때만 AI가 누락된 내용을 한 가지씩 질문하고 답변을 입력란에 반영합니다.</p></div><button id="toggleChatBtn" type="button" class="btn-main">AI 대화 열기</button></div>
+      <div id="aiChat" class="ai-chat"><div id="chatLog" class="chat-log" aria-live="polite"><div class="bubble ai">현재 작성 내용을 확인해 필요한 질문만 드릴게요. 먼저 ‘내용 점검 시작’을 눌러주세요.</div></div><div class="chat-compose"><textarea id="chatInput" maxlength="1500" placeholder="AI 질문에 답하거나, 사이트에서 더 강조하고 싶은 내용을 적어주세요."></textarea><button id="chatSendBtn" type="button" class="btn-main">내용 점검 시작</button></div><div id="chatApplied" class="applied"></div></div>
+    </section>
   </main>
 
 <script type="module">
@@ -113,7 +119,7 @@ import {getFirestore,collection,doc,getDoc,getDocs,setDoc,serverTimestamp,query,
 const app=initializeApp({apiKey:"AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
 const db=getFirestore(app),$=id=>document.getElementById(id);
 const status=(message,type='')=>{const el=$('jobStatus');el.className=`status show ${type}`;el.innerHTML=message};
-let selectedTrack='',workerAvailable=false,currentClub=null,referenceImageData='',siteImageData=[],siteImageNames=[],careerResultText='',careerProfileLoaded=false,careerAssessmentRecordId='';
+let selectedTrack='',workerAvailable=false,currentClub=null,referenceImageData='',siteImageData=[],siteImageNames=[],careerResultText='',careerProfileLoaded=false,careerAssessmentRecordId='',interviewMessages=[];
 const designCatalog=['에디토리얼 매거진','네오 브루탈리즘','스위스 그리드','벤토 인터페이스','터미널 테크','오가닉 내추럴','럭셔리 미니멀','레트로 퓨처','블루프린트','뉴스페이퍼','아트 갤러리','키네틱 타이포','모노크롬 포커스','노르딕 소프트','플레이풀 캠퍼스','컨설팅 리포트','글래스 레이어','페이퍼 콜라주','오로라 그라디언트','인더스트리얼 유틸리티','데이터 대시보드','캠페인 포스터','스토리북','절제된 미니멀','레트로 컴퓨팅','아카이브 인덱스','프로덕트 쇼케이스','컬처 매거진','크리에이티브 스튜디오','캠퍼스 랩'];
 const layoutCatalog=['분할 히어로·서사형','분할 히어로·카드형','분할 히어로·교차형','분할 히어로·타임라인형','분할 히어로·벤토형','중앙 히어로·서사형','중앙 히어로·카드형','중앙 히어로·교차형','중앙 히어로·타임라인형','중앙 히어로·벤토형','세로 라인 히어로·서사형','세로 라인 히어로·카드형','세로 라인 히어로·교차형','세로 라인 히어로·타임라인형','세로 라인 히어로·벤토형','포스터 히어로·서사형','포스터 히어로·카드형','포스터 히어로·교차형','포스터 히어로·타임라인형','포스터 히어로·벤토형','사이드바 히어로·서사형','사이드바 히어로·카드형','사이드바 히어로·교차형','사이드바 히어로·타임라인형','사이드바 히어로·벤토형','프레임 히어로·서사형','프레임 히어로·카드형','프레임 히어로·교차형','프레임 히어로·타임라인형','프레임 히어로·벤토형'];
 const paletteCatalog=['심해 민트','코발트 선','잉크 코랄','포레스트 라임','왕실 금빛','클린 블루','토마토 크림','라벤더 잉크','사이버 시안','체리 페이퍼','세이지 클레이','레몬 네이비','스카이 레드','블랙 아이보리','민트 퍼플','버건디 핑크','오션 오렌지','올리브 머스타드','슬레이트 아쿠아','플럼 피치','인디고 그린','차콜 옐로','브릭 스카이','에메랄드 샌드','그래파이트 핑크','블루 바이올렛','모스 코랄','커피 민트','나이트 핑크','화이트 레드'];
@@ -159,10 +165,37 @@ window.selectTrack=function(track){
   selectedTrack=track==='career'?'career':'startup';
   document.querySelectorAll('.track-card').forEach(card=>card.classList.toggle('active',card.dataset.track===selectedTrack));
   $('commonCard').hidden=false;$('optionsCard').hidden=false;
+  $('aiHelperCard').hidden=false;
   $('startupForm').classList.toggle('show',selectedTrack==='startup');$('careerForm').classList.toggle('show',selectedTrack==='career');
   $('generateBtn').textContent=selectedTrack==='startup'?'무료 창업 웹사이트 생성':'무료 취업 포트폴리오 생성';
   $('commonCard').scrollIntoView({behavior:'smooth',block:'start'});
 };
+
+$('toggleChatBtn').addEventListener('click',()=>{
+  const panel=$('aiChat'),open=!panel.classList.contains('open');panel.classList.toggle('open',open);$('toggleChatBtn').textContent=open?'AI 대화 닫기':'AI 대화 열기';
+});
+function addBubble(role,text){const bubble=document.createElement('div');bubble.className=`bubble ${role}`;bubble.textContent=text;$('chatLog').appendChild(bubble);$('chatLog').scrollTop=$('chatLog').scrollHeight}
+async function sendInterview(){
+  if(!selectedTrack)return;
+  const accessCode=clean($('accessCode').value);if(!accessCode){$('chatApplied').textContent='먼저 동아리 접근코드를 입력해주세요.';return}
+  const message=clean($('chatInput').value);if(message){interviewMessages.push({role:'user',content:message});addBubble('user',message);$('chatInput').value=''}
+  const button=$('chatSendBtn');button.disabled=true;button.textContent='AI 확인 중…';$('chatApplied').textContent='';
+  try{
+    if(!(await checkWorker()))throw new Error('AI 실행기가 꺼져 있습니다.');
+    const club=currentClub||await verifyAccess(accessCode),requestRef=doc(collection(db,'website_interviews'));
+    await setDoc(requestRef,{status:'pending',clubCode:club.id,accessCode,mode:selectedTrack,sourceText:buildSource().slice(0,30000),messages:interviewMessages.slice(-10),createdAt:serverTimestamp()});
+    for(let attempt=0;attempt<80;attempt++){
+      await new Promise(resolve=>setTimeout(resolve,1500));let snapshot;try{snapshot=await getDoc(requestRef)}catch(readError){continue}if(!snapshot.exists())continue;
+      const result=snapshot.data();if(result.status==='failed')throw new Error(result.error||'AI 대화를 처리하지 못했습니다.');
+      if(result.status==='completed'){
+        const reply=String(result.reply||'내용을 확인했습니다.');interviewMessages.push({role:'assistant',content:reply});addBubble('ai',reply);
+        const applied=[];Object.entries(result.fieldUpdates||{}).forEach(([id,value])=>{const field=$(id);if(field&&String(value).trim()){field.value=String(value);field.dispatchEvent(new Event('input'));applied.push(field.labels?.[0]?.textContent?.replace('*','').trim()||id)}});
+        $('chatApplied').textContent=applied.length?`입력란 반영: ${applied.join(', ')}`:(result.ready?'필수 내용이 충분합니다. 아래에서 웹사이트를 생성할 수 있습니다.':'');return;
+      }
+    }throw new Error('AI 응답 시간이 초과되었습니다.');
+  }catch(error){addBubble('ai',error.message||'대화를 처리하지 못했습니다.')}finally{button.disabled=false;button.textContent='답변 보내기'}
+}
+$('chatSendBtn').addEventListener('click',sendInterview);$('chatInput').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendInterview()}});
 
 const launchParams=new URLSearchParams(location.search);
 if(launchParams.get('track')==='career'){
