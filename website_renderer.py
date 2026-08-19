@@ -141,7 +141,7 @@ def _system(options, page_id, mode, reference_brief="", avoid=None):
     return design, layout, palette, typography
 
 
-def _layout_css(layout, design):
+def _legacy_layout_css(layout, design):
     hero = layout // 5
     content = layout % 5
     radius = ["0", "4px", "18px", "34px", "999px", "12px"][design % 6]
@@ -159,7 +159,7 @@ def _layout_css(layout, design):
         "",
         ".hero-grid{display:block;text-align:center;max-width:920px}.hero-aside{border:0;border-top:1px solid rgba(255,255,255,.3);padding:20px 0 0;display:flex;justify-content:center;gap:20px}.lead{margin-inline:auto}",
         ".hero-grid{grid-template-columns:140px 1fr}.hero-grid>div{grid-column:2}.hero-aside{grid-column:1;grid-row:1;writing-mode:vertical-rl;border:0;border-right:1px solid rgba(255,255,255,.3);padding:0 20px 0 0}",
-        ".hero{min-height:92svh}.hero-grid{display:block}.hero h1{font-size:clamp(4rem,13vw,10rem);max-width:1100px}.hero-aside{position:absolute;right:0;bottom:0;max-width:260px}",
+        ".hero{min-height:min(76svh,760px)}.hero-grid{display:block}.hero h1{font-size:clamp(3.8rem,10vw,7.6rem);max-width:1100px}.hero-aside{position:absolute;right:0;bottom:0;max-width:280px}",
         ".hero{padding-left:clamp(20px,12vw,180px)}nav{width:clamp(120px,10vw,170px);height:100%;border-right:1px solid rgba(255,255,255,.24)}nav .shell{width:auto;height:100%;padding:28px;flex-direction:column;align-items:flex-start}.hero-grid{grid-template-columns:1fr}.hero-aside{display:flex;gap:20px;border-left:0;padding-left:0}",
         ".hero{margin:18px;border-radius:var(--radius);min-height:calc(82svh - 36px)}nav{padding-inline:30px}.hero-grid{padding:clamp(18px,4vw,50px);border:1px solid rgba(255,255,255,.25);border-radius:var(--radius)}",
     ][hero]
@@ -173,7 +173,7 @@ def _layout_css(layout, design):
     return f":root{{--radius:{radius};--border:{border};--shadow:{shadow}}}{motif_css}{hero_css}{content_css}"
 
 
-def _concept_css(design):
+def _legacy_concept_css(design):
     """Give all 30 concepts a real visual family and a three-level variant."""
     family, variant = design // 3, design % 3
     families = [
@@ -196,72 +196,217 @@ def _concept_css(design):
     return families + variants
 
 
+def _sentences(value, limit=8):
+    parts = re.split(r"(?:\s+/\s+)|(?<=[.!?。])\s+|[\n;•]+", str(value or ""))
+    return [part.strip(" -\t") for part in parts if part.strip(" -\t")][:limit]
+
+
+def _is_auto(value):
+    return str(value or "").strip() in ("", "auto", "내용에 맞게 자동 선택")
+
+
+def _hex_luminance(value):
+    value = str(value or "").lstrip("#")
+    if len(value) == 3:
+        value = "".join(char * 2 for char in value)
+    if len(value) != 6:
+        return 0.0
+    channels = [int(value[index:index + 2], 16) / 255 for index in (0, 2, 4)]
+    channels = [channel / 12.92 if channel <= .04045 else ((channel + .055) / 1.055) ** 2.4 for channel in channels]
+    return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2]
+
+
+def _contrast(first, second):
+    high, low = sorted((_hex_luminance(first), _hex_luminance(second)), reverse=True)
+    return (high + .05) / (low + .05)
+
+
+def _infer_archetype(data, mode, options, reference_brief, seed):
+    plan = options.get("_designPlan") if isinstance(options.get("_designPlan"), dict) else {}
+    explicit = str(plan.get("archetype", "")).strip().lower()
+    aliases = {
+        "technology": "technology", "tech": "technology", "테크": "technology",
+        "editorial": "editorial", "에디토리얼": "editorial",
+        "human": "human", "humanist": "human", "휴먼": "human",
+        "premium": "premium", "luxury": "premium", "프리미엄": "premium",
+        "playful": "playful", "플레이풀": "playful",
+        "utility": "utility", "industrial": "utility", "유틸리티": "utility",
+    }
+    if explicit in aliases:
+        return aliases[explicit], plan
+    corpus = " ".join((" ".join(data.values()), reference_brief, str(plan))).lower()
+    rules = [
+        ("technology", ("ai", "인공지능", "데이터", "플랫폼", "앱", "소프트웨어", "개발", "tech", "digital")),
+        ("premium", ("프리미엄", "럭셔리", "패션", "뷰티", "브랜드", "공예", "architecture")),
+        ("playful", ("아동", "게임", "캐릭터", "놀이", "축제", "캠퍼스", "콘텐츠")),
+        ("human", ("복지", "상담", "교육", "지역", "환경", "건강", "커뮤니티", "사람")),
+        ("utility", ("제조", "물류", "하드웨어", "공정", "엔지니어", "운영", "b2b")),
+    ]
+    for archetype, keywords in rules:
+        if any(keyword in corpus for keyword in keywords):
+            return archetype, plan
+    return ("editorial" if mode == "career" else ("technology", "human", "editorial")[seed % 3]), plan
+
+
+ARCHETYPE_SYSTEMS = {
+    "technology": {"palettes": (0, 5, 8, 18, 20, 25), "types": (3, 9, 20, 24), "label": "정밀한 기술 제품 쇼케이스", "motif": "SYSTEM / SIGNAL / PROOF"},
+    "editorial": {"palettes": (2, 9, 13, 19, 24, 29), "types": (1, 6, 14, 21, 22), "label": "에디토리얼 사례집", "motif": "CONTEXT / WORK / POINT OF VIEW"},
+    "human": {"palettes": (3, 10, 16, 17, 23, 26), "types": (4, 6, 7, 17), "label": "따뜻한 사람 중심 스토리", "motif": "PEOPLE / CHANGE / CARE"},
+    "premium": {"palettes": (4, 13, 15, 19, 27), "types": (1, 6, 14, 22), "label": "절제된 프리미엄 브랜드", "motif": "CRAFT / DETAIL / VALUE"},
+    "playful": {"palettes": (1, 6, 11, 12, 14, 28), "types": (4, 7, 11, 17, 29), "label": "활기 있는 컬처 포스터", "motif": "IDEA / ENERGY / TOGETHER"},
+    "utility": {"palettes": (3, 12, 18, 21, 22, 29), "types": (3, 9, 19, 20), "label": "산업적 정보 시스템", "motif": "INPUT / PROCESS / OUTPUT"},
+}
+
+
+def _curated_system(data, mode, options, page_id, reference_brief, avoid):
+    seed = int(hashlib.sha256(f"{page_id}|{mode}|{reference_brief}".encode()).hexdigest()[:12], 16)
+    archetype, planner = _infer_archetype(data, mode, options, reference_brief, seed)
+    allowed = ARCHETYPE_SYSTEMS[archetype]
+    design = _index(options.get("designConcept", options.get("designStyle")), DESIGN_CONCEPTS, seed)
+    layout = _index(options.get("layoutPreset"), LAYOUTS, seed // 31)
+    palette = _index(options.get("colorPalette"), PALETTES, allowed["palettes"][seed % len(allowed["palettes"])])
+    typography = _index(options.get("typographyPreset"), TYPOGRAPHY, allowed["types"][(seed // 7) % len(allowed["types"])])
+    if _is_auto(options.get("colorPalette")):
+        palette = allowed["palettes"][seed % len(allowed["palettes"])]
+    if _is_auto(options.get("typographyPreset")):
+        typography = allowed["types"][(seed // 7) % len(allowed["types"])]
+    if _is_auto(options.get("layoutPreset")):
+        layout = (seed // 13) % len(LAYOUTS)
+    used = {(item.get("design"), item.get("layout"), item.get("palette"), item.get("typography")) for item in (avoid or []) if isinstance(item, dict)}
+    if _is_auto(options.get("designConcept", options.get("designStyle"))):
+        for shift in range(30):
+            candidate = ((design + shift * 7) % 30, (layout + shift * 11) % 30, allowed["palettes"][(seed + shift) % len(allowed["palettes"])], allowed["types"][(seed // 7 + shift) % len(allowed["types"])])
+            if candidate not in used:
+                design, layout, palette, typography = candidate
+                break
+    return design, layout, palette, typography, archetype, planner
+
+
+def _visual_words(data, mode):
+    if mode == "career":
+        values = (_get(data, "희망 직무"), _get(data, "희망 산업·진로 분야"), _get(data, "핵심 역량·기술"))
+    else:
+        values = (_get(data, "분야·업종"), _get(data, "프로젝트·서비스명"), _get(data, "핵심 한 줄 소개"))
+    words = []
+    for value in values:
+        for word in re.findall(r"[가-힣A-Za-z0-9+#]{2,}", str(value or "")):
+            if word not in words:
+                words.append(word)
+    return words[:6]
+
+
+def _image_figure(filename, alt, css_class="editorial-image", source=""):
+    image_source = source or filename
+    return f'<figure class="{css_class}"><img src="{_e(image_source)}" alt="{_e(alt)}" onerror="this.closest(\'figure\').classList.add(\'image-missing\');this.remove()"><span>이미지를 같은 폴더에 추가하면 이 영역에 표시됩니다.</span></figure>'
+
+
+def _quality_audit(document, mode, palette, data):
+    _, ink, accent, soft, secondary, paper = palette
+    checks = {
+        "responsiveCss": "@media(max-width:760px)" in document,
+        "viewport": 'name="viewport"' in document,
+        "semanticMain": "<main" in document and "<section" in document,
+        "safeContrast": _contrast(ink, paper) >= 7 and max(_contrast(ink, accent), _contrast(paper, accent)) >= 3,
+        "noRawAssessment": "진로검사 결과지 - AI 설계 참고용" not in document,
+        "noRawSource": "[추가 원문]" not in document,
+        "contentPresent": len(re.sub(r"<[^>]+>", "", document)) >= 400,
+        "singleDocument": document.count("<!DOCTYPE html>") == 1,
+    }
+    required = ("01 / CONTEXT", "02 / SOLUTION", "03 / PROCESS") if mode == "startup" else ("01 / POSITION", "02 / SELECTED WORK", "03 / EXPERIENCE")
+    checks["requiredNarrative"] = all(term in document for term in required)
+    score = round(sum(checks.values()) / len(checks) * 100)
+    return {"score": score, "passed": score >= 88, "checks": checks}
+
+
 def render_website(source, mode, options, page_id, reference_brief="", avoid=None):
     data = _fields(source)
     career_assessment = _get(data, "진로검사 결과지 - AI 설계 참고용, 공개 금지") if mode == "career" else ""
-    if career_assessment:
-        reference_brief = f"{reference_brief}\n진로검사 분석 참고: {career_assessment[:2000]}"
-    design, layout, palette_index, type_index = _system(options, page_id, mode, reference_brief, avoid)
-    palette = PALETTES[palette_index]
-    typography = TYPOGRAPHY[type_index]
+    design, layout, palette_index, type_index, archetype, planner = _curated_system(data, mode, options, page_id, reference_brief, avoid)
+    palette, typography = PALETTES[palette_index], TYPOGRAPHY[type_index]
     _, ink, accent, soft, secondary, paper = palette
     _, heading_font, body_font, font_query = typography
-    density = options.get("contentDensity", "balanced")
-    space = "clamp(4.5rem,9vw,8rem)" if density == "spacious" else "clamp(3.5rem,7vw,6rem)"
+    density = str(options.get("contentDensity", "balanced"))
+    hero_style = str(options.get("heroLayout", "auto"))
+    if hero_style == "auto":
+        hero_style = ("split", "centered", "editorial", "poster")[(layout // 5) % 4]
+    section_style = str(options.get("sectionLayout", "auto"))
+    if section_style == "auto":
+        section_style = ("story", "alternating", "timeline", "showcase")[layout % 4]
+    visual_words = _visual_words(data, mode)
+    image_count = max(0, min(3, int(options.get("bannerCount", 0) or 0)))
+    include_section_image = bool(options.get("sectionImages"))
+    include_logo = bool(options.get("logoImage"))
+    site_images = [str(item) for item in options.get("_siteImages", [])[:3] if str(item).startswith("data:image/")] if isinstance(options.get("_siteImages"), list) else []
+    art = ARCHETYPE_SYSTEMS[archetype]
+    space = {"compact": "clamp(64px,7vw,96px)", "spacious": "clamp(112px,11vw,168px)"}.get(density, "clamp(88px,9vw,136px)")
+    radius = {"technology": "10px", "editorial": "0", "human": "28px", "premium": "2px", "playful": "24px", "utility": "4px"}[archetype]
     css = f"""
     @import url('https://fonts.googleapis.com/css2?family={font_query}&display=swap');
-    :root{{--ink:{ink};--accent:{accent};--soft:{soft};--secondary:{secondary};--paper:{paper};--line:color-mix(in srgb,var(--ink) 18%,transparent);--space:{space};--heading:'{heading_font}',sans-serif;--body:'{body_font}',sans-serif}}
-    *{{box-sizing:border-box}}html{{scroll-behavior:smooth}}body{{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);line-height:1.65;overflow-x:hidden}}a{{color:inherit}}.shell{{width:min(1160px,calc(100% - 40px));margin:auto}}nav{{position:absolute;z-index:5;top:0;left:0;width:100%;padding:24px 0;color:white}}nav .shell{{display:flex;align-items:center;justify-content:space-between}}.brand{{font-weight:900;letter-spacing:-.04em}}.nav-tag{{font-size:.75rem;border:1px solid rgba(255,255,255,.45);border-radius:999px;padding:6px 12px}}.hero{{position:relative;min-height:78svh;background:var(--ink);color:white;display:grid;align-items:end;overflow:hidden;padding:130px 0 72px}}.hero:before{{content:'';position:absolute;width:560px;height:560px;border-radius:50%;right:-120px;top:-190px;background:radial-gradient(circle at 35% 35%,var(--accent),transparent 67%);opacity:.92}}.hero:after{{content:'';position:absolute;inset:0;pointer-events:none}}.hero-grid{{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1.45fr) minmax(240px,.55fr);gap:clamp(2rem,5vw,5rem);align-items:end}}.eyebrow{{display:inline-flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.13em;font-weight:850;font-size:.76rem;color:var(--accent)}}.eyebrow:before{{content:'';width:28px;height:2px;background:currentColor}}h1,h2{{font-family:var(--heading)}}h1{{font-size:clamp(3.2rem,8vw,6.4rem);letter-spacing:-.065em;line-height:.94;margin:24px 0;word-break:keep-all}}.lead{{font-size:clamp(1.05rem,2vw,1.4rem);max-width:760px;color:rgba(255,255,255,.84);word-break:keep-all}}.hero-aside{{border-left:1px solid rgba(255,255,255,.28);padding-left:24px}}.hero-aside p{{margin:.45rem 0;color:rgba(255,255,255,.72)}}.hero-aside strong{{color:white}}.page-section{{padding:var(--space) 0;position:relative}}.section-no{{font-size:.74rem;font-weight:900;letter-spacing:.14em;color:var(--secondary)}}h2{{font-size:clamp(2.1rem,5vw,4.4rem);line-height:1.04;letter-spacing:-.05em;margin:.7rem 0 2rem;word-break:keep-all}}.split{{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:clamp(2rem,7vw,7rem)}}.copy{{font-size:clamp(1rem,1.7vw,1.25rem);word-break:keep-all;white-space:pre-line}}.dark{{background:var(--ink);color:white}}.dark .copy{{color:rgba(255,255,255,.78)}}.steps{{counter-reset:step;border-top:1px solid var(--line)}}.step{{counter-increment:step;display:grid;grid-template-columns:90px 1fr;gap:1rem;padding:24px 0;border-bottom:1px solid var(--line);font-size:clamp(1rem,2vw,1.25rem)}}.step:before{{content:'0' counter(step);font-weight:900;color:var(--secondary)}}.statement{{background:var(--soft);overflow:hidden}}.statement:after{{content:'';position:absolute;width:360px;height:360px;border:74px solid var(--accent);border-radius:50%;right:-160px;bottom:-220px;opacity:.35}}.statement p{{font-size:clamp(1.45rem,3.4vw,3rem);line-height:1.2;font-weight:830;letter-spacing:-.04em;max-width:940px;position:relative;z-index:1}}.tags{{display:flex;gap:9px;flex-wrap:wrap}}.tag{{padding:8px 13px;border-radius:999px;background:var(--soft);font-size:.82rem;font-weight:760}}footer{{padding:34px 0;background:#101820;color:rgba(255,255,255,.68);font-size:.82rem}}.reveal{{opacity:0;transform:translateY(22px);transition:.7s ease}}.reveal.on{{opacity:1;transform:none}}{_layout_css(layout, design)}
-    {_concept_css(design)}
-    @media(max-width:760px){{.shell{{width:min(100% - 28px,1160px)}}.hero{{min-height:70svh;padding:110px 0 50px;margin:0;border-radius:0;clip-path:none}}nav{{position:absolute;width:100%;height:auto;border:0;padding:20px 0}}nav .shell{{width:min(100% - 28px,1160px);height:auto;padding:0;flex-direction:row}}.hero-grid,.split{{display:grid;grid-template-columns:1fr;text-align:left;padding:0}}.hero-grid>div{{grid-column:auto}}.hero-aside{{position:static;writing-mode:horizontal-tb;border:0;border-top:1px solid rgba(255,255,255,.25);padding:18px 0 0;display:block}}h1{{font-size:clamp(2.8rem,15vw,5rem);overflow-wrap:anywhere;text-shadow:none}}main{{display:block;padding:0}}.page-section{{display:block;margin:0;border-left:0;border-right:0;border-radius:0;box-shadow:none;text-align:left;transform:none}}.page-section .shell{{width:min(100% - 28px,1160px);padding-inline:0;border-left:0;transform:none}}.page-section:nth-child(even) .split>*:first-child{{order:0}}.step{{grid-template-columns:54px 1fr}}}}@media(prefers-reduced-motion:reduce){{*{{scroll-behavior:auto!important}}.reveal{{opacity:1;transform:none;transition:none}}}}
+    :root{{--ink:{ink};--accent:{accent};--soft:{soft};--secondary:{secondary};--paper:{paper};--line:color-mix(in srgb,var(--ink) 16%,transparent);--space:{space};--radius:{radius};--heading:'{heading_font}',serif;--body:'{body_font}',sans-serif}}
+    *{{box-sizing:border-box}}html{{scroll-behavior:smooth}}body{{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.72 var(--body);overflow-x:hidden;text-rendering:optimizeLegibility}}a{{color:inherit}}img{{max-width:100%}}.shell{{width:min(1184px,calc(100% - 48px));margin:auto}}.site-nav{{position:absolute;inset:0 0 auto;z-index:10;color:#fff;padding:24px 0}}.site-nav .shell{{display:flex;align-items:center;justify-content:space-between;gap:24px}}.brand{{display:flex;align-items:center;gap:12px;font-weight:850;letter-spacing:-.03em}}.brand img{{width:36px;height:36px;object-fit:contain}}.nav-index{{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.7)}}
+    .hero{{position:relative;min-height:clamp(620px,82svh,880px);display:grid;align-items:center;padding:128px 0 88px;background:var(--ink);color:#fff;overflow:hidden;isolation:isolate}}.hero:before{{content:'';position:absolute;inset:0;background:linear-gradient(115deg,color-mix(in srgb,var(--ink) 92%,transparent),color-mix(in srgb,var(--secondary) 68%,transparent));z-index:-3}}.hero:after{{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);background-size:64px 64px;mask-image:linear-gradient(to right,#000,transparent 80%);z-index:-2}}.hero-grid{{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr);align-items:center;gap:clamp(48px,8vw,112px)}}.hero-copy{{position:relative;z-index:2}}.eyebrow{{display:flex;align-items:center;gap:12px;color:var(--accent);font-size:12px;font-weight:850;letter-spacing:.16em;text-transform:uppercase}}.eyebrow:before{{content:'';width:36px;height:2px;background:currentColor}}h1,h2,h3{{font-family:var(--heading);text-wrap:balance}}h1{{max-width:10ch;margin:24px 0 28px;font-size:clamp(64px,9vw,132px);line-height:.88;letter-spacing:-.065em}}.lead{{max-width:720px;margin:0;font-size:clamp(18px,2vw,25px);line-height:1.55;color:rgba(255,255,255,.78);word-break:keep-all}}.hero-meta{{display:flex;flex-wrap:wrap;gap:10px;margin-top:36px}}.hero-meta span{{padding:8px 12px;border:1px solid rgba(255,255,255,.2);border-radius:999px;font-size:12px;color:rgba(255,255,255,.72)}}
+    .visual-stage{{position:relative;min-height:420px;display:grid;place-items:center}}.visual-orbit{{position:absolute;width:min(31vw,380px);aspect-ratio:1;border:1px solid rgba(255,255,255,.22);border-radius:50%;animation:orbit 24s linear infinite}}.visual-orbit:before,.visual-orbit:after{{content:'';position:absolute;border-radius:50%;background:var(--accent)}}.visual-orbit:before{{width:18px;height:18px;left:14%;top:10%}}.visual-orbit:after{{width:9px;height:9px;right:7%;bottom:24%}}.visual-card{{position:relative;width:min(100%,330px);padding:28px;background:color-mix(in srgb,var(--paper) 8%,transparent);border:1px solid rgba(255,255,255,.18);border-radius:var(--radius);backdrop-filter:blur(12px);transform:rotate(-3deg)}}.visual-card small{{display:block;margin-bottom:48px;color:var(--accent);font:800 11px/1 var(--body);letter-spacing:.16em}}.visual-card strong{{display:block;font-family:var(--heading);font-size:clamp(30px,4vw,52px);line-height:1.05}}.visual-words{{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}}.visual-words span{{font-size:11px;color:rgba(255,255,255,.66)}}@keyframes orbit{{to{{transform:rotate(360deg)}}}}
+    .hero.centered{{text-align:center}}.hero.centered .hero-grid{{display:block}}.hero.centered .hero-copy{{max-width:980px;margin:auto}}.hero.centered h1,.hero.centered .lead{{margin-left:auto;margin-right:auto}}.hero.centered .eyebrow,.hero.centered .hero-meta{{justify-content:center}}.hero.centered .visual-stage{{min-height:160px;margin-top:40px}}.hero.centered .visual-card{{width:min(620px,100%);transform:none}}.hero.poster .hero-grid{{display:block}}.hero.poster h1{{max-width:12ch;font-size:clamp(76px,13vw,172px)}}.hero.poster .visual-stage{{position:absolute;right:5vw;bottom:2vw;opacity:.62}}.hero.editorial .hero-grid{{grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr)}}.hero.editorial .hero-copy{{grid-column:2}}.hero.editorial .visual-stage{{grid-column:1;grid-row:1}}.hero.editorial h1{{font-size:clamp(62px,8vw,112px)}}
+    .page-section{{position:relative;padding:var(--space) 0}}.section-head{{display:grid;grid-template-columns:180px minmax(0,1fr);gap:32px;margin-bottom:clamp(48px,7vw,88px)}}.section-index{{font:850 11px/1.2 var(--body);letter-spacing:.16em;color:var(--secondary);text-transform:uppercase}}h2{{max-width:14ch;margin:0;font-size:clamp(44px,6.5vw,86px);line-height:.98;letter-spacing:-.055em}}h3{{margin:0 0 16px;font-size:clamp(24px,3vw,38px);line-height:1.1;letter-spacing:-.035em}}.section-intro{{max-width:720px;margin:20px 0 0;font-size:clamp(17px,1.8vw,21px);word-break:keep-all}}.dark{{background:var(--ink);color:#fff}}.dark .section-index{{color:var(--accent)}}.dark .section-intro,.dark .copy{{color:rgba(255,255,255,.72)}}
+    .narrative-grid{{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:clamp(40px,8vw,112px);align-items:start}}.pull-quote{{position:sticky;top:32px;font-family:var(--heading);font-size:clamp(30px,4vw,52px);line-height:1.15;letter-spacing:-.04em}}.copy{{margin:0;font-size:clamp(17px,1.8vw,21px);white-space:pre-line;word-break:keep-all}}.evidence-grid{{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}}.evidence{{grid-column:span 6;min-height:176px;padding:28px;background:color-mix(in srgb,var(--paper) 6%,transparent);border-radius:var(--radius);display:flex;flex-direction:column;justify-content:space-between}}.evidence b{{font-family:var(--heading);font-size:clamp(22px,2.5vw,34px);line-height:1.2}}.evidence small{{color:var(--accent);font-size:11px;letter-spacing:.12em}}.feature-list{{counter-reset:feature}}.feature{{counter-increment:feature;display:grid;grid-template-columns:80px minmax(0,1fr);gap:24px;padding:28px 0;border-top:1px solid var(--line)}}.feature:before{{content:'0' counter(feature);font-weight:850;color:var(--secondary)}}.dark .feature{{border-color:rgba(255,255,255,.18)}}.dark .feature:before{{color:var(--accent)}}.feature strong{{font-size:clamp(18px,2vw,25px)}}
+    .showcase{{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}}.case-card{{grid-column:span 6;min-height:280px;padding:32px;background:var(--soft);border-radius:var(--radius);display:flex;flex-direction:column;justify-content:space-between}}.case-card:nth-child(3n+1){{grid-column:span 8}}.case-card:nth-child(3n+2){{grid-column:span 4}}.case-card small{{font-size:11px;letter-spacing:.14em;color:var(--secondary)}}.case-card p{{margin:32px 0 0;font-size:clamp(18px,2vw,25px);line-height:1.48}}.tag-cloud{{display:flex;flex-wrap:wrap;gap:10px}}.tag{{padding:10px 14px;background:var(--soft);border-radius:999px;font-size:13px;font-weight:750}}.statement{{overflow:hidden;background:var(--accent);color:var(--ink)}}.statement .shell{{position:relative}}.statement p{{max-width:980px;margin:0;font-family:var(--heading);font-size:clamp(38px,6vw,78px);font-weight:750;line-height:1.08;letter-spacing:-.05em}}.statement .mark{{position:absolute;right:-40px;top:-100px;font:900 280px/.8 var(--heading);opacity:.12}}
+    .editorial-image{{position:relative;min-height:420px;margin:0;overflow:hidden;background:linear-gradient(145deg,var(--soft),color-mix(in srgb,var(--accent) 28%,var(--paper)));border-radius:var(--radius)}}.editorial-image img{{width:100%;height:100%;min-height:420px;object-fit:cover}}.editorial-image span{{display:none;position:absolute;inset:0;padding:32px;align-items:flex-end;color:var(--secondary)}}.editorial-image.image-missing span{{display:flex}}.image-row{{display:grid;grid-template-columns:1.4fr .6fr;gap:16px;margin-top:64px}}.image-row .editorial-image:nth-child(2){{margin-top:80px}}footer{{padding:40px 0;background:#101820;color:rgba(255,255,255,.68);font-size:13px}}footer .shell{{display:flex;justify-content:space-between;gap:24px}}.reveal{{opacity:0;transform:translateY(20px);transition:opacity .65s ease,transform .65s cubic-bezier(.2,.8,.2,1)}}.reveal.on{{opacity:1;transform:none}}
+    body.archetype-editorial .hero:after{{background-image:repeating-linear-gradient(105deg,transparent 0 31px,rgba(255,255,255,.045) 31px 32px)}}body.archetype-editorial .visual-card{{transform:rotate(2deg);background:var(--paper);color:var(--ink)}}body.archetype-editorial .visual-words span{{color:var(--secondary)}}body.archetype-human .hero:before{{background:radial-gradient(circle at 82% 20%,var(--secondary),transparent 42%),var(--ink)}}body.archetype-human .visual-card{{border-radius:42% 58% 46% 54%/44% 35% 65% 56%;padding:48px}}body.archetype-premium .hero:after{{background:none;border:1px solid rgba(255,255,255,.12);inset:40px}}body.archetype-premium .eyebrow{{color:var(--accent)}}body.archetype-playful .visual-card{{transform:rotate(5deg);box-shadow:14px 14px 0 var(--accent)}}body.archetype-playful h1{{letter-spacing:-.04em}}body.archetype-utility .hero:after{{background-image:linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.08) 1px,transparent 1px);background-size:32px 32px}}body.archetype-utility .case-card{{border-radius:0}}
+    body.sections-alternating .page-section:nth-child(even) .narrative-grid>*:first-child{{order:2}}body.sections-showcase .page-section:not(.dark):not(.statement){{margin:20px;border-radius:var(--radius);background:color-mix(in srgb,var(--soft) 40%,var(--paper))}}body.density-compact .case-card{{min-height:220px}}body.density-spacious .copy{{max-width:760px}}
+    @media(max-width:760px){{.shell{{width:min(100% - 28px,1184px)}}.site-nav{{padding:18px 0}}.nav-index{{display:none}}.hero,.hero.editorial,.hero.poster{{min-height:auto;padding:104px 0 56px}}.hero-grid,.hero.editorial .hero-grid{{display:grid;grid-template-columns:1fr;gap:36px}}.hero.editorial .hero-copy,.hero.editorial .visual-stage{{grid-column:auto;grid-row:auto}}.hero.poster .visual-stage{{position:relative;right:auto;bottom:auto;opacity:1}}.hero h1,.hero.poster h1,.hero.editorial h1{{font-size:clamp(54px,17vw,82px);overflow-wrap:anywhere}}.hero.centered{{text-align:left}}.hero.centered .eyebrow,.hero.centered .hero-meta{{justify-content:flex-start}}.visual-stage{{min-height:280px}}.visual-orbit{{width:270px}}.visual-card{{width:min(88%,320px)}}.section-head{{grid-template-columns:1fr;gap:16px;margin-bottom:44px}}h2{{font-size:clamp(40px,13vw,62px)}}.narrative-grid{{grid-template-columns:1fr;gap:36px}}.pull-quote{{position:static}}.evidence,.case-card,.case-card:nth-child(n){{grid-column:span 12;min-height:auto}}.feature{{grid-template-columns:48px 1fr;padding:22px 0}}.image-row{{grid-template-columns:1fr}}.image-row .editorial-image:nth-child(2){{margin-top:0}}.editorial-image,.editorial-image img{{min-height:300px}}footer .shell{{display:block}}footer .shell span{{display:block;margin-top:8px}}}}@media(prefers-reduced-motion:reduce){{*{{scroll-behavior:auto!important}}.visual-orbit{{animation:none}}.reveal{{opacity:1;transform:none;transition:none}}}}
     """
+    logo = _image_figure("Img_files_logo_01.png", "로고", "brand-logo") if include_logo else ""
+    brand_logo = '<img src="Img_files_logo_01.png" alt="로고" onerror="this.remove()">' if include_logo else ""
+    word_markup = "".join(f"<span>{_e(word)}</span>" for word in visual_words)
+    visual = f'<div class="visual-stage" aria-hidden="true"><div class="visual-orbit"></div><div class="visual-card"><small>{_e(art["motif"])}</small><strong>{_e(visual_words[0] if visual_words else art["label"])}</strong><div class="visual-words">{word_markup}</div></div></div>'
     if mode == "career":
         name = _get(data, "이름", default="포트폴리오")
-        career_basis = _get(data, "진로 설계 기준", default="직접 입력한 희망 진로 기반")
-        career_field = _get(data, "희망 산업·진로 분야", "희망 산업·기업 유형")
-        role = _get(data, "희망 직무", default=career_field or "희망 진로")
+        role = _get(data, "희망 직무", default=_get(data, "희망 산업·진로 분야", default="희망 진로"))
+        field = _get(data, "희망 산업·진로 분야", "희망 산업·기업 유형")
+        major = _get(data, "전공·학과")
         intro = _get(data, "한 줄 소개", default="경험과 역량을 사실에 근거해 구성한 포트폴리오입니다.")
-        skills = _items(_get(data, "핵심 역량·기술", "핵심 역량", "기술"))
-        projects = _get(data, "프로젝트", default="프로젝트 정보를 입력해 주세요.")
-        strengths = _get(data, "강점·업무 방식", "강점")
-        experience = _get(data, "경험·경력·대외활동", "경험")
+        skills = _items(_get(data, "핵심 역량·기술", "핵심 역량", "기술"), 10)
+        strengths = _get(data, "강점·업무 방식", "강점", default=intro)
+        projects = _get(data, "프로젝트", default="프로젝트 정보를 준비하고 있습니다.")
+        project_items = _sentences(projects.replace(" / ", "\n"), 8)
+        experience = _sentences(_get(data, "경험·경력·대외활동", "경험"), 8)
         education = _get(data, "교육·자격·수상", "교육")
+        contact = _get(data, "공개 연락 방법")
         title = f"{name} · {role} 포트폴리오"
-        body = f"""
-        <nav><div class="shell"><div class="brand">{_e(name)}</div><div class="nav-tag">CAREER PORTFOLIO</div></div></nav>
-        <header class="hero"><div class="shell hero-grid"><div><div class="eyebrow">{_e(role)}</div><h1>{_e(name)}</h1><p class="lead">{_e(intro)}</p></div><aside class="hero-aside"><p>희망 직무·진로</p><strong>{_e(role)}</strong><p>{_e(career_field)}</p><p>{_e(_get(data,'전공·학과'))}</p></aside></div></header>
-        <main><section class="page-section"><div class="shell split reveal"><div><span class="section-no">01 / CAPABILITY</span><h2>일하는 힘</h2></div><div><div class="tags">{''.join(f'<span class="tag">{_e(x)}</span>' for x in skills)}</div><p class="copy">{_e(strengths)}</p></div></div></section>
-        <section class="page-section dark"><div class="shell reveal"><span class="section-no">02 / SELECTED PROJECT</span><h2>프로젝트</h2><p class="copy">{_e(projects)}</p></div></section>
-        <section class="page-section"><div class="shell split reveal"><div><span class="section-no">03 / EXPERIENCE</span><h2>경험의 맥락</h2></div><div class="steps">{''.join(f'<div class="step">{_e(x)}</div>' for x in _items(experience,6)) or '<div class="step">경험 정보를 입력해 주세요.</div>'}</div></div></section>
-        <section class="page-section statement"><div class="shell reveal"><span class="section-no">04 / GROWTH</span><p>{_e(education or intro)}</p></div></section></main>
-        <footer><div class="shell">배재대학교 학생 포트폴리오 · 입력된 사실을 바탕으로 제작되었습니다.</div></footer>"""
+        assessment_note = '<span>공식 검사 결과 참고</span>' if career_assessment else ""
+        body = f"""<nav class="site-nav"><div class="shell"><div class="brand">{brand_logo}{_e(name)}</div><div class="nav-index">CAREER / SELECTED WORK</div></div></nav>
+        <header class="hero {hero_style}"><div class="shell hero-grid"><div class="hero-copy"><div class="eyebrow">{_e(field or 'CAREER PORTFOLIO')}</div><h1>{_e(name)}</h1><p class="lead">{_e(intro)}</p><div class="hero-meta"><span>{_e(role)}</span>{f'<span>{_e(major)}</span>' if major else ''}{assessment_note}</div></div>{visual}</div></header>
+        <main><section class="page-section"><div class="shell reveal"><div class="section-head"><span class="section-index">01 / POSITION</span><div><h2>어떤 방식으로<br>문제를 푸는가</h2><p class="section-intro">{_e(strengths)}</p></div></div><div class="showcase"><article class="case-card"><small>ROLE DIRECTION</small><div><h3>{_e(role)}</h3><p>{_e(field or '희망 분야를 구체화하고 있습니다.')}</p></div></article><article class="case-card"><small>CAPABILITY</small><div class="tag-cloud">{''.join(f'<span class="tag">{_e(item)}</span>' for item in skills) or '<span class="tag">역량 정리 중</span>'}</div></article></div></div></section>
+        <section class="page-section dark"><div class="shell reveal"><div class="section-head"><span class="section-index">02 / SELECTED WORK</span><div><h2>말보다 결과로<br>보여주는 경험</h2><p class="section-intro">프로젝트에서 맡은 역할과 실제 수행 내용을 중심으로 정리했습니다.</p></div></div><div class="evidence-grid">{''.join(f'<article class="evidence"><small>EVIDENCE {index:02d}</small><b>{_e(item)}</b></article>' for index,item in enumerate(project_items,1))}</div></div></section>
+        <section class="page-section"><div class="shell reveal"><div class="narrative-grid"><div><span class="section-index">03 / EXPERIENCE</span><p class="pull-quote">경험이 역량이<br>된 과정</p></div><div class="feature-list">{''.join(f'<div class="feature"><strong>{_e(item)}</strong></div>' for item in experience) or '<div class="feature"><strong>경험 정보를 준비하고 있습니다.</strong></div>'}</div></div>{_image_figure('Img_files_section_01.jpg','프로젝트 또는 활동 이미지',source=site_images[0] if site_images else '') if include_section_image or site_images else ''}</div></section>
+        <section class="page-section statement"><div class="shell reveal"><span class="section-index">04 / NEXT</span><p>{_e(education or intro)}</p><b class="mark">↗</b></div></section>{f'<section class="page-section"><div class="shell"><div class="section-head"><span class="section-index">05 / CONTACT</span><div><h2>함께 이야기하기</h2><p class="section-intro">{_e(contact)}</p></div></div></div></section>' if contact and '공개하지' not in contact else ''}</main>"""
+        default_footer = "배재대학교 학생 포트폴리오 · 입력된 사실을 바탕으로 제작되었습니다."
     else:
         project = _get(data, "프로젝트·서비스명", "프로젝트명", "서비스명", default="창업 프로젝트")
         team = _get(data, "팀명·동아리명", "팀명", "동아리명")
+        industry = _get(data, "분야·업종", default="STUDENT STARTUP")
         intro = _get(data, "핵심 한 줄 소개", "한 줄 소개", default="아이디어를 실행으로 연결합니다.")
-        problem = _get(data, "문제 정의")
-        solution = _get(data, "해결 방법", "해결 방식")
-        activities = _items(_get(data, "주요 활동"))
+        problem = _get(data, "문제 정의", default="해결할 문제를 구체화하고 있습니다.")
+        solution = _get(data, "해결 방법", "해결 방식", default="문제에 맞는 해결 방식을 검증하고 있습니다.")
+        solution_items = _sentences(solution, 6)
+        activities = _items(_get(data, "주요 활동"), 8)
         achievement = _get(data, "성과·검증 결과", "성과")
         learning = _get(data, "배운 점·향후 계획", "향후 계획")
+        commercialized = str(options.get("commercialized", "unknown"))
         title = project
-        body = f"""
-        <nav><div class="shell"><div class="brand">{_e(project)}</div><div class="nav-tag">STARTUP PROJECT</div></div></nav>
-        <header class="hero"><div class="shell hero-grid"><div><div class="eyebrow">{_e(_get(data,'분야·업종',default='STUDENT STARTUP'))}</div><h1>{_e(project)}</h1><p class="lead">{_e(intro)}</p></div><aside class="hero-aside"><p>Team</p><strong>{_e(team or '창업동아리')}</strong><p>아이디어에서 검증까지</p></aside></div></header>
-        <main><section class="page-section"><div class="shell split reveal"><div><span class="section-no">01 / PROBLEM</span><h2>우리가 발견한 문제</h2></div><p class="copy">{_e(problem)}</p></div></section>
-        <section class="page-section dark"><div class="shell split reveal"><div><span class="section-no">02 / SOLUTION</span><h2>해결 방식</h2></div><p class="copy">{_e(solution)}</p></div></section>
-        <section class="page-section"><div class="shell reveal"><span class="section-no">03 / PROCESS</span><h2>실행의 순서</h2><div class="steps">{''.join(f'<div class="step">{_e(x)}</div>' for x in activities) or '<div class="step">활동 정보를 준비하고 있습니다.</div>'}</div></div></section>
-        <section class="page-section statement"><div class="shell reveal"><span class="section-no">04 / VALIDATION</span><p>{_e(achievement or '검증 가능한 결과를 차근차근 만들어갑니다.')}</p></div></section>
-        <section class="page-section"><div class="shell split reveal"><div><span class="section-no">05 / NEXT</span><h2>다음 실험</h2></div><p class="copy">{_e(learning)}</p></div></section></main>
-        <footer><div class="shell">본 프로젝트는 배재대학교 창업지원단의 지원을 받았습니다.</div></footer>"""
-    metadata = {
-        "design": design, "designName": DESIGN_CONCEPTS[design],
-        "layout": layout, "layoutName": LAYOUTS[layout],
-        "palette": palette_index, "paletteName": PALETTES[palette_index][0],
-        "typography": type_index, "typographyName": TYPOGRAPHY[type_index][0],
-        "careerAssessmentUsed": bool(career_assessment),
-        "careerBasis": _get(data, "진로 설계 기준") if mode == "career" else "not_applicable",
-    }
-    meta_text = _e(" · ".join((metadata["designName"], metadata["layoutName"], metadata["paletteName"], metadata["typographyName"])))
-    document = f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="PCU Design Engine v2"><meta name="design-system" content="{meta_text}"><title>{_e(title)}</title><style>{css}</style></head><body data-design="{design + 1}" data-layout="{layout + 1}" data-palette="{palette_index + 1}" data-typography="{type_index + 1}">{body}<script>const observer=new IntersectionObserver(entries=>entries.forEach(entry=>entry.isIntersecting&&entry.target.classList.add('on')),{{threshold:.12}});document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));</script></body></html>"""
+        body = f"""<nav class="site-nav"><div class="shell"><div class="brand">{brand_logo}{_e(project)}</div><div class="nav-index">STARTUP / {_e('PRODUCT' if commercialized == 'yes' else 'PROJECT')}</div></div></nav>
+        <header class="hero {hero_style}"><div class="shell hero-grid"><div class="hero-copy"><div class="eyebrow">{_e(industry)}</div><h1>{_e(project)}</h1><p class="lead">{_e(intro)}</p><div class="hero-meta"><span>{_e(team or '창업동아리')}</span><span>{_e('사업화 진행' if commercialized == 'yes' else '아이디어 검증')}</span></div></div>{visual}</div></header>
+        <main><section class="page-section"><div class="shell reveal"><div class="narrative-grid"><div><span class="section-index">01 / CONTEXT</span><p class="pull-quote">문제는 어디에서<br>시작됐는가</p></div><div><h2>우리가 발견한 문제</h2><p class="copy">{_e(problem)}</p></div></div>{_image_figure('Img_files_banner_01.jpg',project+' 대표 이미지',source=site_images[0] if site_images else '') if image_count or site_images else ''}</div></section>
+        <section class="page-section dark"><div class="shell reveal"><div class="section-head"><span class="section-index">02 / SOLUTION</span><div><h2>문제를 바꾸는<br>우리의 방식</h2><p class="section-intro">{_e(solution)}</p></div></div><div class="evidence-grid">{''.join(f'<article class="evidence"><small>CORE {index:02d}</small><b>{_e(item)}</b></article>' for index,item in enumerate(solution_items,1))}</div></div></section>
+        <section class="page-section"><div class="shell reveal"><div class="section-head"><span class="section-index">03 / PROCESS</span><div><h2>아이디어를<br>검증으로 옮기다</h2><p class="section-intro">말이 아닌 실행으로 가설을 확인하는 과정입니다.</p></div></div><div class="feature-list">{''.join(f'<div class="feature"><strong>{_e(item)}</strong></div>' for item in activities) or '<div class="feature"><strong>활동 계획을 준비하고 있습니다.</strong></div>'}</div>{f'<div class="image-row">{_image_figure("Img_files_section_01.jpg","활동 이미지 1",source=site_images[1] if len(site_images)>1 else "")}{_image_figure("Img_files_section_02.jpg","활동 이미지 2",source=site_images[2] if len(site_images)>2 else "")}</div>' if include_section_image or len(site_images)>1 else ''}</div></section>
+        <section class="page-section statement"><div class="shell reveal"><span class="section-index">04 / PROOF</span><p>{_e(achievement or '작은 검증을 쌓아 더 분명한 답에 가까워집니다.')}</p><b class="mark">✦</b></div></section>
+        <section class="page-section"><div class="shell reveal"><div class="narrative-grid"><div><span class="section-index">05 / NEXT</span><p class="pull-quote">다음 질문으로<br>나아갑니다</p></div><p class="copy">{_e(learning or '다음 실행 계획을 준비하고 있습니다.')}</p></div></div></section></main>"""
+        default_footer = "본 프로젝트는 배재대학교 창업지원단의 지원을 받았습니다."
+    if bool(options.get("includeFooter", True)):
+        footer_text = str(options.get("footerText", "")).strip() or default_footer
+        body += f'<footer><div class="shell">{_e(footer_text)}<span>© 2026 PCU Student Project</span></div></footer>'
+    metadata = {"engineVersion": "3.0", "design": design, "designName": DESIGN_CONCEPTS[design], "layout": layout, "layoutName": LAYOUTS[layout], "palette": palette_index, "paletteName": palette[0], "typography": type_index, "typographyName": typography[0], "archetype": archetype, "artDirection": str(planner.get("artDirection") or art["label"])[:200], "heroStyle": hero_style, "sectionStyle": section_style, "careerAssessmentUsed": bool(career_assessment), "careerBasis": _get(data, "진로 설계 기준") if mode == "career" else "not_applicable"}
+    meta_text = _e(" · ".join((metadata["artDirection"], metadata["paletteName"], metadata["typographyName"])))
+    document = f'<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="PCU Design Engine v3"><meta name="design-system" content="{meta_text}"><title>{_e(title)}</title><style>{css}</style></head><body class="mode-{_e(mode)} archetype-{archetype} sections-{_e(section_style)} density-{_e(density)}">{body}<script>const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{{if(entry.isIntersecting){{entry.target.classList.add(\'on\');observer.unobserve(entry.target)}}}}),{{threshold:.12}});document.querySelectorAll(\'.reveal\').forEach(element=>observer.observe(element));</script></body></html>'
+    metadata["qualityAudit"] = _quality_audit(document, mode, palette, data)
     return document, title, metadata
