@@ -8,6 +8,7 @@
     .bar{height:58px;background:#10243e;color:white;display:flex;align-items:center;gap:10px;padding:0 16px;position:sticky;top:0;z-index:2}
     .bar strong{margin-right:auto}.bar button,.bar a{border:1px solid #8aa1ba;background:transparent;color:white;border-radius:7px;padding:7px 11px;text-decoration:none;cursor:pointer;font:inherit}.bar button:hover,.bar a:hover{background:#1d3a5c}.bar button:disabled{opacity:.62;cursor:wait}.bar #downloadBtn{background:#fff;color:#10243e;border-color:#fff;font-weight:850}.bar button:focus-visible,.bar a:focus-visible,.guide-close:focus-visible{outline:3px solid #75baff;outline-offset:2px}
     .editor{display:none;align-items:center;gap:10px;padding:10px 16px;background:#fff;border-bottom:1px solid #ced9e4;font-size:.82rem}.editor.show{display:flex}.editor label{display:flex;align-items:center;gap:6px}.editor input[type=color]{width:38px;height:32px;border:0;background:transparent}.editor input[type=password]{padding:8px;border:1px solid #b9c7d6;border-radius:6px}.editor .note{margin-right:auto;color:#52667a}.editor button{padding:8px 12px;border:0;border-radius:7px;background:#0052cc;color:#fff;font-weight:750;cursor:pointer}
+    .concepts{display:none;align-items:center;gap:8px;padding:9px 16px;background:#fff;border-bottom:1px solid #ced9e4}.concepts.show{display:flex}.concepts strong{margin-right:auto;font-size:.82rem}.concepts button{padding:7px 11px;border:1px solid #b9c7d6;border-radius:999px;background:#fff;color:#263c55;cursor:pointer}.concepts button.active{background:#10243e;color:#fff;border-color:#10243e}.concepts .select{border-radius:7px;background:#087f5b;color:#fff;border-color:#087f5b;font-weight:750}
     iframe{display:block;width:100%;height:calc(100vh - 58px);border:0;background:white}.message{padding:4rem 1rem;text-align:center}
     dialog{width:min(760px,calc(100% - 28px));max-height:88vh;border:0;border-radius:16px;padding:0;box-shadow:0 24px 70px rgba(0,0,0,.35);color:#18283b}dialog::backdrop{background:rgba(6,19,34,.72);backdrop-filter:blur(3px)}.guide-head{display:flex;align-items:center;gap:1rem;padding:1.1rem 1.25rem;background:#10243e;color:#fff}.guide-head h2{font-size:1.05rem;margin:0;margin-right:auto}.guide-close{border:1px solid #8aa1ba;border-radius:7px;background:transparent;color:#fff;padding:6px 10px;cursor:pointer}.guide-body{padding:1.25rem;overflow:auto;line-height:1.65;font-size:.9rem}.guide-body h3{font-size:1rem;margin:1.3rem 0 .45rem}.guide-body h3:first-child{margin-top:0}.guide-body ol{padding-left:1.25rem}.guide-body li{margin:.5rem 0}.guide-note{background:#eef6ff;border-left:4px solid #0052cc;padding:.8rem 1rem;border-radius:6px;margin:.8rem 0}.guide-warn{background:#fff7ed;border-left-color:#ea580c}.guide-body code{background:#edf1f5;border-radius:4px;padding:2px 5px}.guide-body a{color:#0052cc;font-weight:700}.prompt-card{border:1px solid #d6e1ed;border-radius:11px;margin:.8rem 0;overflow:hidden}.prompt-head{display:flex;align-items:center;gap:10px;padding:.7rem .85rem;background:#f4f7fa}.prompt-head strong{margin-right:auto}.copy-prompt{border:0;border-radius:6px;background:#0052cc;color:#fff;padding:6px 10px;cursor:pointer}.prompt-text{margin:0;padding:.85rem;white-space:pre-wrap;font:13px/1.65 Consolas,"Malgun Gothic",sans-serif;background:#fff;color:#263c55}.ai-choice{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.ai-choice div{padding:.75rem;border:1px solid #dce5ee;border-radius:9px;background:#fafcfe}
     @media(max-width:700px){.bar{height:auto;min-height:58px;flex-wrap:wrap;padding:9px}.bar strong{width:100%}.bar button,.bar a{flex:1;text-align:center;white-space:nowrap}iframe{height:calc(100vh - 100px)}.guide-body{padding:1rem}.ai-choice{grid-template-columns:1fr}.prompt-text{font-size:12px}.editor.show{flex-wrap:wrap}.editor .note{width:100%}}
@@ -15,6 +16,7 @@
 </head>
 <body>
   <header class="bar"><strong id="resultType">PCU 생성 웹페이지</strong><button id="editBtn" disabled>간단 수정</button><button id="downloadBtn" disabled>HTML 준비 중…</button><button id="aiGuideBtn">외부 AI로 고급 수정</button><button id="deployGuideBtn">GitHub 배포 방법</button><a href="website-builder.html">새로 만들기</a></header>
+  <div id="concepts" class="concepts"><strong>서로 다른 디자인 시안</strong><button data-concept="0">시안 A</button><button data-concept="1">시안 B</button><button data-concept="2">시안 C</button><button id="selectConcept" class="select">현재 시안 선택</button></div>
   <div id="editor" class="editor"><span class="note">미리보기에서 문구를 직접 클릭해 수정하세요. 구조와 스크립트는 보호됩니다.</span><label>강조색 <input id="accentColor" type="color" value="#31b37c"></label><input id="editCode" type="password" autocomplete="off" placeholder="동아리 접근코드"><button id="saveEditBtn" type="button">수정본 저장</button><button id="cancelEditBtn" type="button" style="background:#64748b">취소</button></div>
   <main id="content"><div class="message">웹페이지를 불러오는 중입니다.</div></main>
   <dialog id="deployGuide" aria-labelledby="guideTitle">
@@ -104,7 +106,7 @@ document.querySelectorAll('.copy-prompt').forEach(button=>button.addEventListene
   try{await navigator.clipboard.writeText(prompt);button.textContent='복사됨'}catch(error){button.textContent='선택해 복사'}
   setTimeout(()=>button.textContent='예문 복사',1600);
 }));
-let html='',editing=false;
+let html='',editing=false,variants=[],selectedVariant=0,currentVariant=0,accessCode='';
 let job={};
 function renderPage(markup){
   html=markup;
@@ -114,6 +116,17 @@ function renderPage(markup){
   document.getElementById('editBtn').disabled=false;
   download.onclick=()=>{const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`${id}.html`;a.click();URL.revokeObjectURL(url)};
 }
+function setupVariants(items,selected=0){
+  variants=Array.isArray(items)?items.filter(item=>typeof item==='string'&&item.length>300):[];selectedVariant=Number(selected)||0;currentVariant=selectedVariant;
+  const bar=document.getElementById('concepts');bar.classList.toggle('show',variants.length===3);
+  if(variants.length!==3)return;
+  bar.querySelectorAll('[data-concept]').forEach(button=>{const index=Number(button.dataset.concept);button.classList.toggle('active',index===currentVariant);button.onclick=()=>{currentVariant=index;renderPage(variants[index]);bar.querySelectorAll('[data-concept]').forEach(item=>item.classList.toggle('active',Number(item.dataset.concept)===index))}});
+}
+document.getElementById('selectConcept').onclick=async()=>{
+  if(!variants.length)return;const code=accessCode||prompt('동아리 접근코드를 입력해주세요.');if(!code)return;
+  const button=document.getElementById('selectConcept');button.disabled=true;button.textContent='선택 저장 중…';
+  try{const requestRef=doc(collection(db,'website_access'));await setDoc(requestRef,{status:'pending',pageId:id,accessCode:code,action:'select_variant',value:String(currentVariant),createdAt:serverTimestamp()});for(let attempt=0;attempt<60;attempt++){await new Promise(resolve=>setTimeout(resolve,1200));let snapshot;try{snapshot=await getDoc(requestRef)}catch(error){continue}if(!snapshot.exists())continue;const result=snapshot.data();if(result.status==='failed')throw new Error(result.error||'시안을 선택하지 못했습니다.');if(result.status==='completed'){selectedVariant=currentVariant;html=result.html||variants[currentVariant];alert(`시안 ${String.fromCharCode(65+currentVariant)}를 선택했습니다.`);return}}throw new Error('처리 시간이 초과되었습니다.')}catch(error){alert(error.message)}finally{button.disabled=false;button.textContent='현재 시안 선택'}
+};
 function beginEdit(){
   editing=true;document.getElementById('editor').classList.add('show');
   const iframe=document.createElement('iframe');iframe.id='siteFrame';iframe.sandbox='allow-same-origin';iframe.srcdoc=html;iframe.title='간단 편집 미리보기';content.replaceChildren(iframe);
@@ -139,7 +152,7 @@ async function requestPrivatePage(){
   try{
     const requestRef=doc(collection(db,'website_access'));
     await setDoc(requestRef,{status:'pending',pageId:id,accessCode:code,action:'view',value:'',createdAt:serverTimestamp()});
-    for(let attempt=0;attempt<50;attempt++){await new Promise(resolve=>setTimeout(resolve,1200));let snapshot;try{snapshot=await getDoc(requestRef)}catch(readError){continue}if(!snapshot.exists())continue;const result=snapshot.data();if(result.status==='completed'&&result.html){renderPage(result.html);return}if(result.status==='failed')throw new Error(result.error||'접근코드가 올바르지 않습니다.')}
+    for(let attempt=0;attempt<50;attempt++){await new Promise(resolve=>setTimeout(resolve,1200));let snapshot;try{snapshot=await getDoc(requestRef)}catch(readError){continue}if(!snapshot.exists())continue;const result=snapshot.data();if(result.status==='completed'&&result.html){accessCode=code;setupVariants(result.variants,result.selectedVariant);renderPage(result.html);return}if(result.status==='failed')throw new Error(result.error||'접근코드가 올바르지 않습니다.')}
     throw new Error('확인 시간이 초과되었습니다. AI 실행기가 켜져 있는지 확인해주세요.');
   }catch(accessError){error.textContent=accessError.message||'페이지를 불러오지 못했습니다.';button.disabled=false}
 }
@@ -151,7 +164,7 @@ try{
   if(job.status==='pending'||job.status==='processing')throw new Error('아직 AI가 웹페이지를 생성하고 있습니다. 잠시 후 새로고침해주세요.');
   if(job.status!=='completed')throw new Error(job.error||'생성된 웹페이지가 없습니다.');
   if(job.html){renderPage(job.html)}
-  else if(job.visibility==='public'){const page=await getDoc(doc(db,'website_content',id));if(!page.exists()||!page.data().html)throw new Error('생성된 웹페이지 본문이 없습니다.');renderPage(page.data().html)}
+  else if(job.visibility==='public'){const page=await getDoc(doc(db,'website_content',id));if(!page.exists()||!page.data().html)throw new Error('생성된 웹페이지 본문이 없습니다.');setupVariants(page.data().variants,page.data().selectedVariant);renderPage(page.data().html)}
   else showAccessForm();
 }catch(error){content.innerHTML=`<div class="message"><h2>페이지를 표시할 수 없습니다.</h2><p>${String(error.message||error).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</p></div>`}
 </script>
