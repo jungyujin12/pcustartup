@@ -134,6 +134,9 @@ class PCUWorker:
                 worked = self._process_collection(
                     "website_access", self._process_website_access
                 ) or worked
+                worked = self._process_collection(
+                    "website_interviews", self._process_website_interview
+                ) or worked
                 worked = self._process_collection("email_jobs", self._process_email_job) or worked
                 worked = self._process_collection("recovery_jobs", self._process_recovery_job) or worked
                 if not worked:
@@ -200,7 +203,7 @@ class PCUWorker:
                 retry = attempts < 3 and not isinstance(exc, (PermissionError, ValueError))
                 secret_cleanup = {
                     "accessCode": firestore.DELETE_FIELD
-                } if collection_name == "website_access" and not retry else {}
+                } if collection_name in ("website_access", "website_interviews") and not retry else {}
                 snapshot.reference.set(
                     {
                         **secret_cleanup,
@@ -446,22 +449,28 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
                 recent_systems = [item.to_dict().get("designSystem") for item in previous if item.id != page_id and isinstance(item.to_dict().get("designSystem"), dict)][:8]
             except Exception as exc:
                 self.log(f"최근 디자인 이력 확인 건너뜀: {exc}")
+        # 같은 콘텐츠로 구조가 실제로 다른 세 시안을 만든다. 단순 색상 변경이
+        # 아니라 editorial / product / narrative 조합을 각각 독립 렌더링한다.
         attempted_systems = list(recent_systems)
-        html = title = None
-        design_system = {}
-        for attempt in range(3):
-            html, title, design_system = render_website(source, mode, options, page_id, reference_brief, attempted_systems)
-            audit = design_system.get("qualityAudit", {}) if isinstance(design_system, dict) else {}
-            if audit.get("passed"):
-                break
-            attempted_systems.append(design_system)
-            self.log(f"디자인 품질 게이트 재시도 {attempt + 1}: {audit.get('checks', {})}")
-        if not design_system.get("qualityAudit", {}).get("passed"):
-            raise ValueError("생성 결과가 기본 디자인 품질 기준을 통과하지 못했습니다. 입력 자료를 보강한 뒤 다시 시도해주세요.")
-        if len(html.encode("utf-8")) > 850000:
-            raise ValueError("생성된 HTML이 저장 가능한 크기를 초과했습니다.")
+        variants = []
+        for variant_index in range(3):
+            variant_options = dict(options)
+            variant_options["_variantIndex"] = variant_index
+            variant_html, variant_title, variant_system = render_website(
+                source, mode, variant_options, f"{page_id}-concept-{variant_index + 1}",
+                reference_brief, attempted_systems + [item["designSystem"] for item in variants]
+            )
+            audit = variant_system.get("qualityAudit", {}) if isinstance(variant_system, dict) else {}
+            if not audit.get("passed"):
+                raise ValueError(f"디자인 시안 {variant_index + 1}이 품질 기준을 통과하지 못했습니다.")
+            variants.append({"html": variant_html, "title": variant_title, "designSystem": variant_system})
+        html, title, design_system = variants[0]["html"], variants[0]["title"], variants[0]["designSystem"]
+        if sum(len(item["html"].encode("utf-8")) for item in variants) > 900000:
+            raise ValueError("생성된 디자인 시안의 전체 크기가 저장 가능한 범위를 초과했습니다.")
         self.db.collection("website_content").document(page_id).set({
             "html": html,
+            "variants": [item["html"] for item in variants],
+            "selectedVariant": 0,
             "visibility": visibility,
             "clubCode": str(data.get("clubCode", "")),
             "updatedAt": firestore.SERVER_TIMESTAMP,
@@ -490,8 +499,9 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
         return {
             "html": firestore.DELETE_FIELD,
             "title": title,
-            "generator": "pcu-design-engine:v2",
+            "generator": "pcu-design-engine:v4",
             "designSystem": design_system,
+            "designVariants": [item["designSystem"] for item in variants],
             "sourceAnalysis": source_analysis,
             "referenceSiteUsed": bool(reference_site),
             "track": mode,
@@ -781,15 +791,32 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
             raise PermissionError("동아리 접근코드가 올바르지 않습니다.")
         if action == "view":
             content = self.db.collection("website_content").document(page_id).get()
-            html = content.to_dict().get("html", "") if content.exists else page_data.get("html", "")
+            content_data = content.to_dict() if content.exists else {}
+            html = content_data.get("html", "") or page_data.get("html", "")
             if not html:
                 raise ValueError("저장된 웹사이트 본문이 없습니다.")
             return {
                 "html": html,
+                "variants": content_data.get("variants", []),
+                "selectedVariant": int(content_data.get("selectedVariant", 0) or 0),
                 "title": page_data.get("title", page_id),
                 "track": page_data.get("track", page_data.get("mode", "startup")),
                 "accessCode": firestore.DELETE_FIELD,
             }
+        if action == "select_variant":
+            try:
+                selected = int(str(data.get("value", "0")))
+            except ValueError:
+                raise ValueError("디자인 시안 번호가 올바르지 않습니다.")
+            content_ref = self.db.collection("website_content").document(page_id)
+            content = content_ref.get()
+            content_data = content.to_dict() if content.exists else {}
+            variants = content_data.get("variants", [])
+            if not isinstance(variants, list) or selected < 0 or selected >= len(variants):
+                raise ValueError("선택할 수 있는 디자인 시안이 없습니다.")
+            content_ref.set({"html": variants[selected], "selectedVariant": selected, "updatedAt": firestore.SERVER_TIMESTAMP}, merge=True)
+            page_ref.set({"selectedVariant": selected, "updatedAt": firestore.SERVER_TIMESTAMP}, merge=True)
+            return {"accessCode": firestore.DELETE_FIELD, "result": "ok", "selectedVariant": selected, "html": variants[selected]}
         if action == "revision":
             instruction = str(data.get("value", "")).strip()[:1500]
             if not instruction:
@@ -839,6 +866,26 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
                 "generator": f"ollama:{self.website_model}:revision",
             })
             return {"accessCode": firestore.DELETE_FIELD, "result": "ok", "newPageId": new_page_id}
+        if action == "quick_edit":
+            edited_html = str(data.get("value", "")).strip()
+            if len(edited_html) < 300 or len(edited_html) > 750000:
+                raise ValueError("수정된 HTML 크기가 올바르지 않습니다.")
+            content_ref = self.db.collection("website_content").document(page_id)
+            current_content = content_ref.get()
+            current_html = current_content.to_dict().get("html", "") if current_content.exists else ""
+            if "<!DOCTYPE HTML" not in edited_html[:100].upper():
+                raise ValueError("완전한 HTML 문서가 아닙니다.")
+            scripts = lambda value: re.findall(r"<script\b[^>]*>[\s\S]*?</script>", value, flags=re.I)
+            if scripts(edited_html) != scripts(current_html):
+                raise ValueError("간단 편집에서는 스크립트를 추가하거나 변경할 수 없습니다.")
+            content_ref.set({
+                "html": edited_html,
+                "visibility": page_data.get("visibility", "club"),
+                "clubCode": club_id,
+                "updatedAt": firestore.SERVER_TIMESTAMP,
+            }, merge=True)
+            page_ref.set({"updatedAt": firestore.SERVER_TIMESTAMP}, merge=True)
+            return {"accessCode": firestore.DELETE_FIELD, "result": "ok"}
         if action == "finalize":
             page_ref.set({"publishStatus": "final", "finalizedAt": firestore.SERVER_TIMESTAMP}, merge=True)
         elif action == "draft":
@@ -852,6 +899,60 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
         else:
             raise ValueError("지원하지 않는 웹사이트 작업입니다.")
         return {"accessCode": firestore.DELETE_FIELD, "result": "ok"}
+
+    def _process_website_interview(self, reference, data):
+        access_code = str(data.get("accessCode", "")).strip().upper()
+        club_id = str(data.get("clubCode", "")).strip()
+        mode = "career" if str(data.get("mode")) == "career" else "startup"
+        if not access_code or not club_id:
+            raise ValueError("동아리 확인 정보가 필요합니다.")
+        club = self.db.collection("clubs").document(club_id).get()
+        if not club.exists or club.to_dict().get("status") != "active":
+            raise PermissionError("사용 가능한 동아리가 아닙니다.")
+        club_data = club.to_dict()
+        current_code = str(club_data.get("accessCode") or club_data.get("code") or club.id).upper()
+        if current_code != access_code:
+            raise PermissionError("동아리 접근코드가 올바르지 않습니다.")
+        source = str(data.get("sourceText", ""))[:30000]
+        messages = data.get("messages", [])
+        safe_messages = []
+        if isinstance(messages, list):
+            for item in messages[-10:]:
+                if not isinstance(item, dict):
+                    continue
+                role = "assistant" if item.get("role") == "assistant" else "user"
+                safe_messages.append({"role": role, "content": str(item.get("content", ""))[:1500]})
+        allowed = (["sProject", "sTeam", "sIntro", "sIndustry", "sProblem", "sSolution", "sActivities", "sAchievements", "sLearning"]
+                   if mode == "startup" else
+                   ["cName", "cRole", "cMajor", "cIndustry", "cIntro", "cSkills", "cStrengths", "cProjects", "cExperience", "cEducation", "cContact"])
+        prompt = f"""당신은 학생 웹사이트 제작을 돕는 인터뷰어입니다.
+현재 입력에서 웹사이트 품질에 가장 큰 영향을 주는 누락 정보 하나만 질문하세요.
+학생의 직전 답변이 충분하다면 해당 내용을 입력란에 반영할 fieldUpdates를 만드세요.
+사실을 추측하거나 성과를 만들어내지 마세요. 개인정보·사업기밀은 묻지 마세요.
+반드시 JSON 하나만 출력하세요.
+{{"reply":"짧은 안내와 다음 질문", "fieldUpdates":{{"허용된ID":"반영할 값"}}, "ready":false}}
+허용된ID: {', '.join(allowed)}
+
+[현재 입력]
+{source}
+"""
+        response = ollama.chat(
+            model=self.website_model,
+            messages=[{"role": "system", "content": prompt}, *safe_messages],
+            format="json",
+            options={"temperature": 0.35, "num_ctx": 12288, "num_predict": 900},
+        )
+        parsed = json.loads(response["message"]["content"])
+        updates = parsed.get("fieldUpdates", {}) if isinstance(parsed, dict) else {}
+        updates = {key: str(value)[:3500] for key, value in updates.items() if key in allowed and str(value).strip()}
+        return {
+            "accessCode": firestore.DELETE_FIELD,
+            "reply": str(parsed.get("reply", "다음 내용을 조금 더 알려주세요."))[:1200],
+            "fieldUpdates": updates,
+            "ready": bool(parsed.get("ready", False)),
+            "messages": firestore.DELETE_FIELD,
+            "sourceText": firestore.DELETE_FIELD,
+        }
 
     @staticmethod
     def _extract_generated_html(content):
