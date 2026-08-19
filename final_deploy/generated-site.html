@@ -7,13 +7,15 @@
     *{box-sizing:border-box}body{margin:0;font-family:"Noto Sans KR",sans-serif;background:#eef3f8;color:#18283b}
     .bar{height:58px;background:#10243e;color:white;display:flex;align-items:center;gap:10px;padding:0 16px;position:sticky;top:0;z-index:2}
     .bar strong{margin-right:auto}.bar button,.bar a{border:1px solid #8aa1ba;background:transparent;color:white;border-radius:7px;padding:7px 11px;text-decoration:none;cursor:pointer;font:inherit}.bar button:hover,.bar a:hover{background:#1d3a5c}.bar button:disabled{opacity:.62;cursor:wait}.bar #downloadBtn{background:#fff;color:#10243e;border-color:#fff;font-weight:850}.bar button:focus-visible,.bar a:focus-visible,.guide-close:focus-visible{outline:3px solid #75baff;outline-offset:2px}
+    .editor{display:none;align-items:center;gap:10px;padding:10px 16px;background:#fff;border-bottom:1px solid #ced9e4;font-size:.82rem}.editor.show{display:flex}.editor label{display:flex;align-items:center;gap:6px}.editor input[type=color]{width:38px;height:32px;border:0;background:transparent}.editor input[type=password]{padding:8px;border:1px solid #b9c7d6;border-radius:6px}.editor .note{margin-right:auto;color:#52667a}.editor button{padding:8px 12px;border:0;border-radius:7px;background:#0052cc;color:#fff;font-weight:750;cursor:pointer}
     iframe{display:block;width:100%;height:calc(100vh - 58px);border:0;background:white}.message{padding:4rem 1rem;text-align:center}
     dialog{width:min(680px,calc(100% - 28px));max-height:88vh;border:0;border-radius:16px;padding:0;box-shadow:0 24px 70px rgba(0,0,0,.35);color:#18283b}dialog::backdrop{background:rgba(6,19,34,.72);backdrop-filter:blur(3px)}.guide-head{display:flex;align-items:center;gap:1rem;padding:1.1rem 1.25rem;background:#10243e;color:#fff}.guide-head h2{font-size:1.05rem;margin:0;margin-right:auto}.guide-close{border:1px solid #8aa1ba;border-radius:7px;background:transparent;color:#fff;padding:6px 10px;cursor:pointer}.guide-body{padding:1.25rem;overflow:auto;line-height:1.65;font-size:.9rem}.guide-body h3{font-size:1rem;margin:1.3rem 0 .45rem}.guide-body h3:first-child{margin-top:0}.guide-body ol{padding-left:1.25rem}.guide-body li{margin:.5rem 0}.guide-note{background:#eef6ff;border-left:4px solid #0052cc;padding:.8rem 1rem;border-radius:6px;margin:.8rem 0}.guide-warn{background:#fff7ed;border-left-color:#ea580c}.guide-body code{background:#edf1f5;border-radius:4px;padding:2px 5px}.guide-body a{color:#0052cc;font-weight:700}
     @media(max-width:700px){.bar{height:auto;min-height:58px;flex-wrap:wrap;padding:9px}.bar strong{width:100%}.bar button,.bar a{flex:1;text-align:center;white-space:nowrap}iframe{height:calc(100vh - 100px)}.guide-body{padding:1rem}}
   </style>
 </head>
 <body>
-  <header class="bar"><strong id="resultType">PCU 생성 웹페이지</strong><button id="downloadBtn" disabled>HTML 준비 중…</button><button id="deployGuideBtn">GitHub 배포 방법</button><a href="website-builder.html">새로 만들기</a></header>
+  <header class="bar"><strong id="resultType">PCU 생성 웹페이지</strong><button id="editBtn" disabled>간단 수정</button><button id="downloadBtn" disabled>HTML 준비 중…</button><button id="deployGuideBtn">GitHub 배포 방법</button><a href="website-builder.html">새로 만들기</a></header>
+  <div id="editor" class="editor"><span class="note">미리보기에서 문구를 직접 클릭해 수정하세요. 구조와 스크립트는 보호됩니다.</span><label>강조색 <input id="accentColor" type="color" value="#31b37c"></label><input id="editCode" type="password" autocomplete="off" placeholder="동아리 접근코드"><button id="saveEditBtn" type="button">수정본 저장</button><button id="cancelEditBtn" type="button" style="background:#64748b">취소</button></div>
   <main id="content"><div class="message">웹페이지를 불러오는 중입니다.</div></main>
   <dialog id="deployGuide" aria-labelledby="guideTitle">
     <div class="guide-head"><h2 id="guideTitle">GitHub Pages로 무료 공개하기</h2><button class="guide-close" type="button" aria-label="안내 닫기">닫기</button></div>
@@ -51,15 +53,30 @@ const guide=document.getElementById('deployGuide');
 document.getElementById('deployGuideBtn').onclick=()=>guide.showModal();
 guide.querySelector('.guide-close').onclick=()=>guide.close();
 guide.addEventListener('click',event=>{if(event.target===guide)guide.close()});
-let html='';
+let html='',editing=false;
 let job={};
 function renderPage(markup){
   html=markup;
   document.getElementById('resultType').textContent=`${(job.track||job.mode)==='career'?'PCU 취업 포트폴리오':'PCU 창업 웹사이트'} · ${job.publishStatus==='final'?'최종 확정':'초안'}`;
-  const iframe=document.createElement('iframe');iframe.sandbox='allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox';iframe.srcdoc=html;iframe.title=job.title||id;content.replaceChildren(iframe);
+  const iframe=document.createElement('iframe');iframe.id='siteFrame';iframe.sandbox='allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox';iframe.srcdoc=html;iframe.title=job.title||id;content.replaceChildren(iframe);
   document.title=`${job.title||id} | PCU`;const download=document.getElementById('downloadBtn');download.disabled=false;download.textContent='HTML 다운로드';
+  document.getElementById('editBtn').disabled=false;
   download.onclick=()=>{const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`${id}.html`;a.click();URL.revokeObjectURL(url)};
 }
+function beginEdit(){
+  editing=true;document.getElementById('editor').classList.add('show');
+  const iframe=document.createElement('iframe');iframe.id='siteFrame';iframe.sandbox='allow-same-origin';iframe.srcdoc=html;iframe.title='간단 편집 미리보기';content.replaceChildren(iframe);
+  iframe.addEventListener('load',()=>{iframe.contentDocument.body.contentEditable='true';iframe.contentDocument.body.spellcheck=true});
+}
+function cancelEdit(){editing=false;document.getElementById('editor').classList.remove('show');renderPage(html)}
+document.getElementById('editBtn').onclick=()=>editing?cancelEdit():beginEdit();document.getElementById('cancelEditBtn').onclick=cancelEdit;
+document.getElementById('accentColor').addEventListener('input',event=>{const frame=document.getElementById('siteFrame');if(editing&&frame?.contentDocument)frame.contentDocument.documentElement.style.setProperty('--accent',event.target.value)});
+document.getElementById('saveEditBtn').onclick=async()=>{
+  const frame=document.getElementById('siteFrame'),code=document.getElementById('editCode').value.trim(),button=document.getElementById('saveEditBtn');if(!code){alert('동아리 접근코드를 입력해주세요.');return}
+  const docNode=frame?.contentDocument;if(!docNode)return;docNode.body.removeAttribute('contenteditable');const edited='<!DOCTYPE html>\n'+docNode.documentElement.outerHTML;
+  button.disabled=true;button.textContent='저장 중…';
+  try{const requestRef=doc(collection(db,'website_access'));await setDoc(requestRef,{status:'pending',pageId:id,accessCode:code,action:'quick_edit',value:edited,createdAt:serverTimestamp()});for(let attempt=0;attempt<80;attempt++){await new Promise(resolve=>setTimeout(resolve,1200));let snapshot;try{snapshot=await getDoc(requestRef)}catch(readError){continue}if(!snapshot.exists())continue;const result=snapshot.data();if(result.status==='failed')throw new Error(result.error||'수정본을 저장하지 못했습니다.');if(result.status==='completed'){html=edited;cancelEdit();alert('수정본을 저장했습니다. HTML 다운로드에도 반영됩니다.');return}}throw new Error('저장 시간이 초과되었습니다. AI 실행기를 확인해주세요.')}catch(error){alert(error.message||'수정본 저장에 실패했습니다.')}finally{button.disabled=false;button.textContent='수정본 저장'}
+};
 function showAccessForm(message='동아리 접근코드를 입력하면 이 페이지를 볼 수 있습니다.'){
   content.innerHTML=`<div class="message"><h2>동아리 전용 웹사이트</h2><p>${message}</p><div style="display:flex;gap:8px;justify-content:center;max-width:420px;margin:1rem auto"><input id="viewCode" type="password" autocomplete="off" placeholder="동아리 접근코드" style="flex:1;padding:10px;border:1px solid #b9c7d6;border-radius:7px"><button id="viewSubmit" style="padding:10px 15px;border:0;border-radius:7px;background:#0052cc;color:#fff;font-weight:700;cursor:pointer">확인</button></div><p id="viewError" style="color:#b42318"></p></div>`;
   document.getElementById('viewSubmit').onclick=requestPrivatePage;
