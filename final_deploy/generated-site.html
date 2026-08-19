@@ -9,12 +9,12 @@
     .bar strong{margin-right:auto}.bar button,.bar a{border:1px solid #8aa1ba;background:transparent;color:white;border-radius:7px;padding:7px 11px;text-decoration:none;cursor:pointer;font:inherit}.bar button:hover,.bar a:hover{background:#1d3a5c}.bar button:disabled{opacity:.62;cursor:wait}.bar #downloadBtn{background:#fff;color:#10243e;border-color:#fff;font-weight:850}.bar button:focus-visible,.bar a:focus-visible,.guide-close:focus-visible{outline:3px solid #75baff;outline-offset:2px}
     .editor{display:none;align-items:center;gap:10px;padding:10px 16px;background:#fff;border-bottom:1px solid #ced9e4;font-size:.82rem}.editor.show{display:flex}.editor label{display:flex;align-items:center;gap:6px}.editor input[type=color]{width:38px;height:32px;border:0;background:transparent}.editor input[type=password]{padding:8px;border:1px solid #b9c7d6;border-radius:6px}.editor .note{margin-right:auto;color:#52667a}.editor button{padding:8px 12px;border:0;border-radius:7px;background:#0052cc;color:#fff;font-weight:750;cursor:pointer}
     iframe{display:block;width:100%;height:calc(100vh - 58px);border:0;background:white}.message{padding:4rem 1rem;text-align:center}
-    dialog{width:min(680px,calc(100% - 28px));max-height:88vh;border:0;border-radius:16px;padding:0;box-shadow:0 24px 70px rgba(0,0,0,.35);color:#18283b}dialog::backdrop{background:rgba(6,19,34,.72);backdrop-filter:blur(3px)}.guide-head{display:flex;align-items:center;gap:1rem;padding:1.1rem 1.25rem;background:#10243e;color:#fff}.guide-head h2{font-size:1.05rem;margin:0;margin-right:auto}.guide-close{border:1px solid #8aa1ba;border-radius:7px;background:transparent;color:#fff;padding:6px 10px;cursor:pointer}.guide-body{padding:1.25rem;overflow:auto;line-height:1.65;font-size:.9rem}.guide-body h3{font-size:1rem;margin:1.3rem 0 .45rem}.guide-body h3:first-child{margin-top:0}.guide-body ol{padding-left:1.25rem}.guide-body li{margin:.5rem 0}.guide-note{background:#eef6ff;border-left:4px solid #0052cc;padding:.8rem 1rem;border-radius:6px;margin:.8rem 0}.guide-warn{background:#fff7ed;border-left-color:#ea580c}.guide-body code{background:#edf1f5;border-radius:4px;padding:2px 5px}.guide-body a{color:#0052cc;font-weight:700}
-    @media(max-width:700px){.bar{height:auto;min-height:58px;flex-wrap:wrap;padding:9px}.bar strong{width:100%}.bar button,.bar a{flex:1;text-align:center;white-space:nowrap}iframe{height:calc(100vh - 100px)}.guide-body{padding:1rem}}
+    dialog{width:min(760px,calc(100% - 28px));max-height:88vh;border:0;border-radius:16px;padding:0;box-shadow:0 24px 70px rgba(0,0,0,.35);color:#18283b}dialog::backdrop{background:rgba(6,19,34,.72);backdrop-filter:blur(3px)}.guide-head{display:flex;align-items:center;gap:1rem;padding:1.1rem 1.25rem;background:#10243e;color:#fff}.guide-head h2{font-size:1.05rem;margin:0;margin-right:auto}.guide-close{border:1px solid #8aa1ba;border-radius:7px;background:transparent;color:#fff;padding:6px 10px;cursor:pointer}.guide-body{padding:1.25rem;overflow:auto;line-height:1.65;font-size:.9rem}.guide-body h3{font-size:1rem;margin:1.3rem 0 .45rem}.guide-body h3:first-child{margin-top:0}.guide-body ol{padding-left:1.25rem}.guide-body li{margin:.5rem 0}.guide-note{background:#eef6ff;border-left:4px solid #0052cc;padding:.8rem 1rem;border-radius:6px;margin:.8rem 0}.guide-warn{background:#fff7ed;border-left-color:#ea580c}.guide-body code{background:#edf1f5;border-radius:4px;padding:2px 5px}.guide-body a{color:#0052cc;font-weight:700}.prompt-card{border:1px solid #d6e1ed;border-radius:11px;margin:.8rem 0;overflow:hidden}.prompt-head{display:flex;align-items:center;gap:10px;padding:.7rem .85rem;background:#f4f7fa}.prompt-head strong{margin-right:auto}.copy-prompt{border:0;border-radius:6px;background:#0052cc;color:#fff;padding:6px 10px;cursor:pointer}.prompt-text{margin:0;padding:.85rem;white-space:pre-wrap;font:13px/1.65 Consolas,"Malgun Gothic",sans-serif;background:#fff;color:#263c55}.ai-choice{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.ai-choice div{padding:.75rem;border:1px solid #dce5ee;border-radius:9px;background:#fafcfe}
+    @media(max-width:700px){.bar{height:auto;min-height:58px;flex-wrap:wrap;padding:9px}.bar strong{width:100%}.bar button,.bar a{flex:1;text-align:center;white-space:nowrap}iframe{height:calc(100vh - 100px)}.guide-body{padding:1rem}.ai-choice{grid-template-columns:1fr}.prompt-text{font-size:12px}.editor.show{flex-wrap:wrap}.editor .note{width:100%}}
   </style>
 </head>
 <body>
-  <header class="bar"><strong id="resultType">PCU 생성 웹페이지</strong><button id="editBtn" disabled>간단 수정</button><button id="downloadBtn" disabled>HTML 준비 중…</button><button id="deployGuideBtn">GitHub 배포 방법</button><a href="website-builder.html">새로 만들기</a></header>
+  <header class="bar"><strong id="resultType">PCU 생성 웹페이지</strong><button id="editBtn" disabled>간단 수정</button><button id="downloadBtn" disabled>HTML 준비 중…</button><button id="aiGuideBtn">외부 AI로 고급 수정</button><button id="deployGuideBtn">GitHub 배포 방법</button><a href="website-builder.html">새로 만들기</a></header>
   <div id="editor" class="editor"><span class="note">미리보기에서 문구를 직접 클릭해 수정하세요. 구조와 스크립트는 보호됩니다.</span><label>강조색 <input id="accentColor" type="color" value="#31b37c"></label><input id="editCode" type="password" autocomplete="off" placeholder="동아리 접근코드"><button id="saveEditBtn" type="button">수정본 저장</button><button id="cancelEditBtn" type="button" style="background:#64748b">취소</button></div>
   <main id="content"><div class="message">웹페이지를 불러오는 중입니다.</div></main>
   <dialog id="deployGuide" aria-labelledby="guideTitle">
@@ -44,15 +44,66 @@
       <div class="guide-note guide-warn"><strong>주의:</strong> Firebase 관리자 JSON, 접근코드, API 키, 개인정보가 포함된 원본 PDF는 GitHub에 절대 올리지 마세요. 공개할 HTML과 공개용 이미지만 업로드하세요.</div>
     </div>
   </dialog>
+  <dialog id="aiGuide" aria-labelledby="aiGuideTitle">
+    <div class="guide-head"><h2 id="aiGuideTitle">GPT·Gemini·Claude로 더 수정하기</h2><button class="guide-close" type="button" aria-label="안내 닫기">닫기</button></div>
+    <div class="guide-body">
+      <div class="guide-note"><strong>간단 수정</strong>은 이 화면에서 문구와 강조색을 고칠 때 사용합니다. 레이아웃·애니메이션·세부 디자인처럼 큰 수정은 HTML을 내려받아 외부 생성형 AI에 첨부하세요.</div>
+      <h3>사용 순서</h3>
+      <ol><li><strong>HTML 다운로드</strong>를 누릅니다.</li><li>GPT, Gemini 또는 Claude의 새 대화에 HTML 파일을 첨부합니다.</li><li>아래 예문을 복사하고 대괄호 부분을 자신의 요구사항으로 바꿉니다.</li><li><strong>설명 대신 수정된 전체 HTML</strong>을 요청합니다.</li><li>받은 파일을 브라우저에서 열어 PC·모바일·문구·링크를 확인합니다.</li></ol>
+      <div class="guide-note guide-warn"><strong>업로드 금지:</strong> Firebase 관리자 JSON, 접근코드, API 키, 주민등록번호, 상세 주소, 전화번호 등 공개하지 않을 자료는 외부 AI에 보내지 마세요. 사용하는 AI 서비스의 데이터 이용 정책도 확인하세요.</div>
+      <h3>어떤 AI를 사용해도 되나요?</h3>
+      <div class="ai-choice"><div><strong>GPT · Gemini · Claude</strong><br>HTML 첨부와 코드 수정이 가능한 모델이면 됩니다.</div><div><strong>선택 기준</strong><br>파일 전체 반환과 모바일 검토가 가능한지가 중요합니다.</div></div>
+      <h3>창업 웹사이트 수정 예문</h3>
+      <div class="prompt-card"><div class="prompt-head"><strong>서비스 성격과 디자인 개선</strong><button class="copy-prompt" data-prompt="startup">예문 복사</button></div><pre id="prompt-startup" class="prompt-text">첨부한 HTML은 [서비스명]의 창업 소개 웹사이트입니다.
+기존 문구에 없는 사실이나 성과를 만들지 말고 다음 요구사항만 반영해주세요.
+
+- 주요 고객: [고객]
+- 가장 강조할 가치: [핵심 가치]
+- 원하는 분위기: [예: 신뢰감 있는 산업적 디자인]
+- 바꾸고 싶은 부분: [구체적으로 작성]
+- 반드시 유지할 내용: [내용]
+
+모바일 360px, 태블릿, 데스크톱에서 깨지지 않게 확인하고 접근성과 가독성을 유지해주세요. 외부 빌드 도구 없이 CSS와 JS가 포함된 단일 HTML을 유지하세요. 설명이나 코드 일부가 아니라 수정된 전체 HTML만 반환해주세요.</pre></div>
+      <h3>취업 포트폴리오 수정 예문</h3>
+      <div class="prompt-card"><div class="prompt-head"><strong>직무 중심 포트폴리오 개선</strong><button class="copy-prompt" data-prompt="career">예문 복사</button></div><pre id="prompt-career" class="prompt-text">첨부한 HTML은 [희망 직무] 지원용 포트폴리오입니다.
+입력된 경험·역할·성과의 사실관계는 유지하고 허위 경력이나 수치를 추가하지 마세요.
+
+- 가장 강조할 프로젝트: [프로젝트명]
+- 지원 직무: [직무]
+- 보여주고 싶은 강점: [강점]
+- 원하는 분위기: [에디토리얼 / 기술 문서형 / 절제된 미니멀 등]
+- 변경 요청: [섹션 순서, 색상, 문구, 이미지 배치]
+
+채용 담당자가 역할·과정·결과를 빠르게 구분할 수 있게 정보 계층을 개선하고 모바일 360px에서도 잘리지 않게 해주세요. 단일 HTML을 유지하고 설명 없이 수정된 전체 HTML만 반환해주세요.</pre></div>
+      <h3>모바일·화면 깨짐 수정 예문</h3>
+      <div class="prompt-card"><div class="prompt-head"><strong>오류와 가독성만 보정</strong><button class="copy-prompt" data-prompt="repair">예문 복사</button></div><pre id="prompt-repair" class="prompt-text">첨부한 HTML의 콘텐츠와 전체 디자인 방향은 유지하면서 다음 문제만 수정해주세요.
+
+- 화면 크기: [예: 360px]
+- 문제 위치: [섹션 또는 문구]
+- 현재 증상: [겹침, 잘림, 너무 큰 글자 등]
+- 원하는 결과: [구체적인 결과]
+
+반응형 구간, 줄바꿈, 이미지 비율, 터치 영역, 색상 대비를 점검하고 기존 기능과 링크를 제거하지 마세요. 수정된 단일 HTML 전체만 반환해주세요.</pre></div>
+    </div>
+  </dialog>
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {getFirestore,collection,doc,getDoc,setDoc,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 const app=initializeApp({apiKey:"AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
 const db=getFirestore(app),id=new URLSearchParams(location.search).get('id'),content=document.getElementById('content');
 const guide=document.getElementById('deployGuide');
+const aiGuide=document.getElementById('aiGuide');
 document.getElementById('deployGuideBtn').onclick=()=>guide.showModal();
 guide.querySelector('.guide-close').onclick=()=>guide.close();
 guide.addEventListener('click',event=>{if(event.target===guide)guide.close()});
+document.getElementById('aiGuideBtn').onclick=()=>aiGuide.showModal();
+aiGuide.querySelector('.guide-close').onclick=()=>aiGuide.close();
+aiGuide.addEventListener('click',event=>{if(event.target===aiGuide)aiGuide.close()});
+document.querySelectorAll('.copy-prompt').forEach(button=>button.addEventListener('click',async()=>{
+  const prompt=document.getElementById(`prompt-${button.dataset.prompt}`).textContent;
+  try{await navigator.clipboard.writeText(prompt);button.textContent='복사됨'}catch(error){button.textContent='선택해 복사'}
+  setTimeout(()=>button.textContent='예문 복사',1600);
+}));
 let html='',editing=false;
 let job={};
 function renderPage(markup){
