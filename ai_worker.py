@@ -360,6 +360,13 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
         )
         options = data.get("options", {}) if isinstance(data.get("options"), dict) else {}
         reference_image = str(data.get("referenceImageData", ""))
+        raw_site_images = data.get("siteImageData", [])
+        site_images = []
+        if isinstance(raw_site_images, list):
+            for item in raw_site_images[:3]:
+                value = str(item or "")
+                if value.startswith("data:image/") and len(value) <= 120000:
+                    site_images.append(value)
         reference_site = str(options.get("referenceSiteUrl", "")).strip()
         visibility = str(data.get("visibility", "club"))
         if len(source) < 30:
@@ -402,6 +409,14 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
             except Exception as exc:
                 self.log(f"참고 이미지 분석 건너뜀: {exc}")
 
+        # Planner와 Builder를 분리한다. 로컬 AI는 먼저 콘텐츠와 레퍼런스를
+        # 바탕으로 디자인 의사결정만 JSON으로 작성하고, 검증된 렌더러가
+        # 그 스펙을 구현한다. 모델이 HTML/CSS를 즉흥 생성하지 않도록 한다.
+        design_plan = self._plan_website_design(source, mode, options, reference_brief)
+        options = dict(options)
+        options["_designPlan"] = design_plan
+        options["_siteImages"] = site_images
+
         mode_instruction = {
             "startup": """창업 목적 웹사이트입니다.
 - 사업화 단계라면 고객 문제, 가치 제안, 제품·서비스 특징, 검증 성과, 행동 유도 순으로 구성하세요.
@@ -431,7 +446,18 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
                 recent_systems = [item.to_dict().get("designSystem") for item in previous if item.id != page_id and isinstance(item.to_dict().get("designSystem"), dict)][:8]
             except Exception as exc:
                 self.log(f"최근 디자인 이력 확인 건너뜀: {exc}")
-        html, title, design_system = render_website(source, mode, options, page_id, reference_brief, recent_systems)
+        attempted_systems = list(recent_systems)
+        html = title = None
+        design_system = {}
+        for attempt in range(3):
+            html, title, design_system = render_website(source, mode, options, page_id, reference_brief, attempted_systems)
+            audit = design_system.get("qualityAudit", {}) if isinstance(design_system, dict) else {}
+            if audit.get("passed"):
+                break
+            attempted_systems.append(design_system)
+            self.log(f"디자인 품질 게이트 재시도 {attempt + 1}: {audit.get('checks', {})}")
+        if not design_system.get("qualityAudit", {}).get("passed"):
+            raise ValueError("생성 결과가 기본 디자인 품질 기준을 통과하지 못했습니다. 입력 자료를 보강한 뒤 다시 시도해주세요.")
         if len(html.encode("utf-8")) > 850000:
             raise ValueError("생성된 HTML이 저장 가능한 크기를 초과했습니다.")
         self.db.collection("website_content").document(page_id).set({
@@ -443,7 +469,6 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
         if mode == "career":
             fields = _fields(source)
             assessment = fields.get("진로검사 결과지 - AI 설계 참고용, 공개 금지", "")
-            code_match = re.search(r"(?:흥미 코드|코드)\s*[:：]?\s*([RIASEC]{3})", assessment)
             self.db.collection("career_records").document(page_id).set({
                 "pageId": page_id,
                 "clubCode": str(data.get("clubCode", "")),
@@ -455,10 +480,11 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
                 "careerField": fields.get("희망 산업·진로 분야", "")[:120],
                 "major": fields.get("전공·학과", "")[:100],
                 "assessmentUsed": bool(assessment),
+                "assessmentSource": "external-result-pdf" if assessment else "none",
                 "assessmentRecordId": fields.get("진로검사 기록 ID", "")[:40],
-                "assessmentCode": code_match.group(1) if code_match else "",
                 "createdAt": firestore.SERVER_TIMESTAMP,
                 "privacyScope": "admin-only-summary",
+                "copyrightScope": "no-questions-no-scoring-no-result-copy",
             }, merge=True)
         self.log(f"웹페이지 생성 완료: {page_id}")
         return {
@@ -477,7 +503,66 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
             "options": firestore.DELETE_FIELD,
             "referenceImageData": firestore.DELETE_FIELD,
             "referenceImageName": firestore.DELETE_FIELD,
+            "siteImageData": firestore.DELETE_FIELD,
+            "siteImageNames": firestore.DELETE_FIELD,
         }
+
+    def _plan_website_design(self, source, mode, options, reference_brief):
+        """Create a small factual art-direction spec; never author page copy here."""
+        fields = _fields(source)
+        public_fields = {
+            key: value[:1200]
+            for key, value in fields.items()
+            if key not in ("추가 원문", "진로검사 결과지 - AI 설계 참고용, 공개 금지")
+        }
+        prompt = f"""당신은 디지털 아트디렉터입니다. 아래 자료로 웹사이트 디자인 기획 JSON만 작성하세요.
+문구나 성과를 새로 만들지 말고, 디자인 판단만 하세요.
+
+[트랙] {mode}
+[콘텐츠]
+{json.dumps(public_fields, ensure_ascii=False)[:9000]}
+
+[참고자료 분석]
+{reference_brief[:3500]}
+
+[사용자 설정]
+{json.dumps({key: value for key, value in options.items() if key != '_designPlan'}, ensure_ascii=False)[:2500]}
+
+반드시 아래 키만 가진 JSON 객체 하나를 출력하세요.
+archetype: technology/editorial/human/premium/playful/utility 중 하나
+artDirection: 전체 시각 방향을 설명하는 한국어 한 문장
+contentPriority: 방문자가 먼저 이해해야 할 정보 3개 배열
+visualStrategy: 이미지·타이포그래피·도형을 어떻게 사용할지 한국어 한 문장
+motionStrategy: 꼭 필요한 모션만 한국어 한 문장
+avoid: 피해야 할 시각적 클리셰 3개 배열
+"""
+        try:
+            response = ollama.chat(
+                model=self.website_model,
+                messages=[{"role": "user", "content": prompt}],
+                format="json",
+                options={"temperature": .2, "num_ctx": 8192, "num_predict": 700},
+            )
+            plan = json.loads(str(response["message"]["content"]))
+            if not isinstance(plan, dict):
+                raise ValueError("디자인 기획 결과가 객체가 아닙니다.")
+            if str(plan.get("archetype", "")) not in ("technology", "editorial", "human", "premium", "playful", "utility"):
+                plan["archetype"] = "editorial" if mode == "career" else "technology"
+            return {
+                "archetype": str(plan.get("archetype"))[:24],
+                "artDirection": str(plan.get("artDirection", ""))[:300],
+                "contentPriority": [str(item)[:120] for item in plan.get("contentPriority", [])[:3]] if isinstance(plan.get("contentPriority"), list) else [],
+                "visualStrategy": str(plan.get("visualStrategy", ""))[:400],
+                "motionStrategy": str(plan.get("motionStrategy", ""))[:300],
+                "avoid": [str(item)[:120] for item in plan.get("avoid", [])[:5]] if isinstance(plan.get("avoid"), list) else [],
+            }
+        except Exception as exc:
+            self.log(f"디자인 기획 자동 분석 건너뜀: {exc}")
+            return {
+                "archetype": "editorial" if mode == "career" else "technology",
+                "artDirection": "콘텐츠 위계와 실제 근거를 중심으로 한 절제된 사이트",
+                "contentPriority": [], "visualStrategy": "", "motionStrategy": "", "avoid": [],
+            }
 
     def _structure_website_source(self, source, mode):
         fields = _fields(source)
