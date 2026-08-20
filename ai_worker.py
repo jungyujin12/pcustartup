@@ -446,7 +446,21 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
             try:
                 previous = list(self.db.collection("website_jobs").where("clubCode", "==", club_code).limit(30).stream())
                 previous.sort(key=lambda item: getattr(item.to_dict().get("completedAt"), "timestamp", lambda: 0)(), reverse=True)
-                recent_systems = [item.to_dict().get("designSystem") for item in previous if item.id != page_id and isinstance(item.to_dict().get("designSystem"), dict)][:8]
+                # 12개 방향 중 최근 6개를 피한다. 과거 작업의 대표 시안뿐
+                # 아니라 A/B/C 전체 이력을 읽되, 세 신규 방향을 고를 여지는
+                # 항상 남긴다.
+                for item in previous:
+                    if item.id == page_id or len(recent_systems) >= 6:
+                        continue
+                    payload = item.to_dict()
+                    systems = payload.get("designVariants")
+                    if not isinstance(systems, list):
+                        systems = [payload.get("designSystem")]
+                    for system in systems:
+                        if isinstance(system, dict):
+                            recent_systems.append(system)
+                        if len(recent_systems) >= 6:
+                            break
             except Exception as exc:
                 self.log(f"최근 디자인 이력 확인 건너뜀: {exc}")
         # 같은 콘텐츠로 구조가 실제로 다른 세 시안을 만든다. 단순 색상 변경이
@@ -464,6 +478,12 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
             if not audit.get("passed"):
                 raise ValueError(f"디자인 시안 {variant_index + 1}이 품질 기준을 통과하지 못했습니다.")
             variants.append({"html": variant_html, "title": variant_title, "designSystem": variant_system})
+        direction_keys = [item["designSystem"].get("artDirectionKey") for item in variants]
+        if len(set(direction_keys)) != 3 or any(not key for key in direction_keys):
+            raise ValueError("세 디자인 시안의 아트디렉션이 충분히 다르지 않습니다.")
+        structure_families = [item["designSystem"].get("structureFamily") for item in variants]
+        if "legacy-pitch" not in structure_families and (len(set(structure_families)) != 3 or any(not family for family in structure_families)):
+            raise ValueError("세 디자인 시안의 정보구조가 충분히 다르지 않습니다.")
         html, title, design_system = variants[0]["html"], variants[0]["title"], variants[0]["designSystem"]
         if sum(len(item["html"].encode("utf-8")) for item in variants) > 900000:
             raise ValueError("생성된 디자인 시안의 전체 크기가 저장 가능한 범위를 초과했습니다.")
@@ -499,7 +519,7 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
         return {
             "html": firestore.DELETE_FIELD,
             "title": title,
-            "generator": "pcu-design-engine:v4",
+            "generator": "pcu-design-engine:v6",
             "designSystem": design_system,
             "designVariants": [item["designSystem"] for item in variants],
             "sourceAnalysis": source_analysis,
