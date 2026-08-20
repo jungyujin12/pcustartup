@@ -261,6 +261,150 @@ ARCHETYPE_SYSTEMS = {
 }
 
 
+# A direction is more than a palette.  Each entry owns a recognisable spatial
+# grammar so three variants feel like three designers, not three theme swaps.
+# The renderer still keeps the combinations curated: career and startup use
+# different pools and the content archetype nudges the final choice.
+ART_DIRECTIONS = {
+    "swiss-ledger": "스위스 인덱스 에디토리얼",
+    "brand-campaign": "브랜드 캠페인 포스터",
+    "organic-journal": "유기적 임팩트 저널",
+    "product-lab": "제품 실험실 쇼케이스",
+    "cinematic-story": "시네마틱 스크롤 스토리",
+    "brutal-campus": "캠퍼스 네오 브루탈리즘",
+    "data-atlas": "데이터 아틀라스",
+    "quiet-portfolio": "절제된 포트폴리오 북",
+    "case-study": "UX 케이스 스터디",
+    "culture-zine": "컬처 진 스타일",
+    "industrial-spec": "인더스트리얼 스펙 시트",
+    "gallery-essay": "갤러리형 비주얼 에세이",
+}
+
+MODE_DIRECTION_POOLS = {
+    "startup": (
+        "brand-campaign", "product-lab", "organic-journal", "swiss-ledger",
+        "cinematic-story", "brutal-campus", "data-atlas", "culture-zine",
+        "industrial-spec", "gallery-essay",
+    ),
+    "career": (
+        "quiet-portfolio", "case-study", "swiss-ledger", "gallery-essay",
+        "data-atlas", "cinematic-story", "culture-zine", "product-lab",
+        "industrial-spec", "brutal-campus",
+    ),
+}
+
+ARCHETYPE_DIRECTION_HINTS = {
+    "technology": ("product-lab", "data-atlas", "industrial-spec"),
+    "editorial": ("swiss-ledger", "quiet-portfolio", "gallery-essay"),
+    "human": ("organic-journal", "cinematic-story", "gallery-essay"),
+    "premium": ("quiet-portfolio", "brand-campaign", "gallery-essay"),
+    "playful": ("culture-zine", "brutal-campus", "brand-campaign"),
+    "utility": ("industrial-spec", "data-atlas", "case-study"),
+}
+
+
+def _art_direction(mode, archetype, seed, variant_index, avoid=None):
+    pool = list(MODE_DIRECTION_POOLS.get(mode, MODE_DIRECTION_POOLS["startup"]))
+    hints = ARCHETYPE_DIRECTION_HINTS.get(archetype, ())
+    # Start with a compatible direction, then spread A/B/C across the full pool.
+    ordered = list(dict.fromkeys((*hints, *pool)))
+    used = {
+        str(item.get("artDirectionKey", ""))
+        for item in (avoid or []) if isinstance(item, dict)
+    }
+    family_targets = (
+        ("editorial-book", "campaign"),
+        ("product-system", "data-atlas"),
+        ("scroll-story",),
+    )[variant_index % 3]
+    targeted = [item for item in ordered if _structure_family(item) in family_targets]
+    candidates = targeted or ordered
+    start = (seed + variant_index * 5) % len(candidates)
+    for offset in range(len(candidates)):
+        candidate = candidates[(start + offset) % len(candidates)]
+        if candidate not in used:
+            return candidate
+    return candidates[start]
+
+
+def _direction_css(direction):
+    systems = {
+        "swiss-ledger": """
+          .hero-grid{grid-template-columns:minmax(0,.72fr) minmax(320px,.28fr);align-items:end}
+          .hero-copy{border-left:1px solid rgba(255,255,255,.5);padding-left:28px}.hero h1{font-weight:600}
+          .visual-stage{min-height:330px}.page-section{border-top:1px solid var(--line)}
+          .section-head{grid-template-columns:120px minmax(0,1fr)}.section-index{font-family:monospace}
+          .evidence,.case-card{border:1px solid var(--line);border-radius:0;background:transparent}
+        """,
+        "brand-campaign": """
+          .hero{background:var(--accent);color:var(--ink)}.hero:before{background:linear-gradient(120deg,var(--accent),var(--soft))}
+          .hero:after{background:radial-gradient(circle at 82% 16%,var(--paper) 0 13%,transparent 13.2%),radial-gradient(circle at 76% 73%,var(--secondary) 0 20%,transparent 20.2%);opacity:.55}
+          .site-nav,.hero .lead{color:var(--ink)}.eyebrow{color:var(--secondary)}.hero-meta span{border-color:color-mix(in srgb,var(--ink) 35%,transparent);color:var(--ink)}
+          .hero h1{text-transform:none;max-width:8ch}.page-section:nth-child(even){background:var(--soft)}
+          .section-index{display:inline-block;padding:7px 11px;background:var(--ink);color:var(--paper)}
+        """,
+        "organic-journal": """
+          .hero{background:var(--ink)}.hero:before{background:radial-gradient(circle at 80% 25%,var(--secondary),transparent 42%),linear-gradient(140deg,var(--ink),color-mix(in srgb,var(--ink) 68%,var(--accent)))}
+          .hero-grid{grid-template-columns:minmax(0,1fr) minmax(300px,.8fr)}.visual-stage{border-radius:48% 48% 8px 8px;transform:rotate(1.5deg)}
+          .page-section .shell{width:min(1060px,calc(100% - 48px))}.page-section:nth-child(odd){background:color-mix(in srgb,var(--soft) 42%,var(--paper))}
+          .section-head{grid-template-columns:1fr}.section-index{color:var(--secondary)}.tag{border-radius:40% 60% 55% 45%}
+        """,
+        "product-lab": """
+          .hero{margin:16px;min-height:calc(100svh - 32px);border-radius:32px}.hero-grid{grid-template-columns:minmax(0,.8fr) minmax(380px,1.2fr)}
+          .visual-stage{border-radius:24px;box-shadow:0 30px 80px rgba(0,0,0,.28)}main{padding:0 16px}
+          .page-section{margin:16px 0;border-radius:28px;background:color-mix(in srgb,var(--soft) 30%,var(--paper))}
+          .page-section.dark{background:var(--ink)}.section-head{grid-template-columns:1fr}.section-index{width:max-content;padding:7px 11px;border:1px solid currentColor;border-radius:999px}
+        """,
+        "cinematic-story": """
+          .hero{min-height:100svh}.hero-grid{display:block}.hero-copy{width:min(790px,68%);position:relative;z-index:3}
+          .visual-stage{position:absolute;inset:0 0 0 50%;min-height:100%;border:0;opacity:.72;mix-blend-mode:screen}
+          .page-section{padding:clamp(110px,12vw,180px) 0}.section-head{grid-template-columns:1fr;max-width:900px}
+          .evidence-grid{display:block;border-top:1px solid rgba(255,255,255,.22)}.evidence{min-height:auto;padding:26px 0;border-bottom:1px solid rgba(255,255,255,.22);background:none;border-radius:0;display:grid;grid-template-columns:150px 1fr}
+        """,
+        "brutal-campus": """
+          body{background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:28px 28px}
+          .hero{margin:12px;border:3px solid var(--ink);box-shadow:10px 10px 0 var(--accent)}.hero h1{text-shadow:5px 5px 0 var(--secondary)}
+          .page-section{margin:22px;border:3px solid var(--ink);box-shadow:8px 8px 0 var(--accent);background:var(--paper)}.page-section.dark{background:var(--ink)}
+          .evidence,.case-card,.tag{border:2px solid currentColor;border-radius:0}.section-index{font-weight:900}
+        """,
+        "data-atlas": """
+          .hero-grid{grid-template-columns:minmax(0,1fr) minmax(420px,.8fr)}.hero:after{background-size:28px 28px}
+          main{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;padding:14px}.page-section{grid-column:span 6;border:1px solid var(--line)}
+          .page-section:nth-child(3n+1){grid-column:span 12}.page-section .shell{width:auto;padding:clamp(28px,4vw,58px)}
+          .section-head{grid-template-columns:1fr}.section-index{font-family:monospace}.evidence,.case-card{border-radius:4px}
+        """,
+        "quiet-portfolio": """
+          .hero{background:var(--paper);color:var(--ink);min-height:78svh;border-bottom:1px solid var(--line)}.hero:before{background:linear-gradient(110deg,var(--paper),var(--soft))}.hero:after{display:none}
+          .site-nav,.hero .lead{color:var(--ink)}.hero-meta span{color:var(--secondary);border-color:var(--line)}.hero h1{font-weight:500}
+          .visual-stage{border:0;background:transparent}.page-section{border-bottom:1px solid var(--line)}.section-head{grid-template-columns:140px 1fr}
+          .case-card,.evidence{background:transparent;border-top:1px solid var(--line);border-radius:0;padding-left:0;padding-right:0}
+        """,
+        "case-study": """
+          .hero{min-height:680px}.hero-grid{grid-template-columns:minmax(0,.9fr) minmax(360px,1.1fr)}
+          .page-section:nth-child(odd){background:var(--soft)}.section-head{grid-template-columns:150px 1fr}
+          .evidence-grid,.showcase{gap:24px}.evidence,.case-card{border-radius:18px;border:1px solid var(--line);box-shadow:0 18px 50px rgba(0,0,0,.07)}
+          .feature{grid-template-columns:120px 1fr}.feature:before{font-family:monospace;font-size:13px}
+        """,
+        "culture-zine": """
+          .hero{transform:none;background:var(--ink)}.hero-copy{transform:rotate(-1deg)}.hero h1{font-weight:900;text-shadow:6px 6px 0 var(--accent)}
+          .visual-stage{transform:rotate(2deg);box-shadow:14px 14px 0 var(--accent)}.page-section:nth-child(odd){background:var(--soft)}
+          .page-section:nth-child(3n+2) .shell{transform:rotate(-.4deg)}.section-index{font-size:13px}.tag:nth-child(odd){transform:rotate(-2deg)}.tag:nth-child(even){transform:rotate(2deg)}
+        """,
+        "industrial-spec": """
+          .hero{background:#111;color:#f4f1e8}.hero:after{background:repeating-linear-gradient(90deg,rgba(255,255,255,.06) 0 1px,transparent 1px 80px)}
+          .hero-grid{grid-template-columns:minmax(0,1fr) 360px}.visual-stage{border:1px dashed rgba(255,255,255,.5)}
+          .page-section{border-top:4px solid var(--ink)}.section-head{grid-template-columns:220px 1fr}.section-index{font-family:monospace;letter-spacing:.08em}
+          .evidence,.case-card{border:1px dashed currentColor;border-radius:0}.tag{border-radius:0;font-family:monospace}
+        """,
+        "gallery-essay": """
+          .hero-grid{grid-template-columns:minmax(0,.68fr) minmax(420px,1.32fr)}.hero-copy{align-self:end;padding-bottom:34px}
+          .visual-stage{min-height:620px;border:0}.page-section{padding:clamp(120px,13vw,190px) 0}.section-head{grid-template-columns:1fr;max-width:860px}
+          .page-section:nth-child(even) .shell{width:min(920px,calc(100% - 48px));margin-left:8vw}.case-card,.evidence{background:transparent;border-left:1px solid currentColor;border-radius:0}
+        """,
+    }
+    return systems.get(direction, "")
+
+
 def _curated_system(data, mode, options, page_id, reference_brief, avoid):
     seed = int(hashlib.sha256(f"{page_id}|{mode}|{reference_brief}".encode()).hexdigest()[:12], 16)
     archetype, planner = _infer_archetype(data, mode, options, reference_brief, seed)
@@ -276,10 +420,12 @@ def _curated_system(data, mode, options, page_id, reference_brief, avoid):
     if _is_auto(options.get("layoutPreset")):
         layout = (seed // 13) % len(LAYOUTS)
     used = {(item.get("design"), item.get("layout"), item.get("palette"), item.get("typography")) for item in (avoid or []) if isinstance(item, dict)}
+    used_palettes = {item.get("palette") for item in (avoid or []) if isinstance(item, dict)}
+    used_types = {item.get("typography") for item in (avoid or []) if isinstance(item, dict)}
     if _is_auto(options.get("designConcept", options.get("designStyle"))):
         for shift in range(30):
             candidate = ((design + shift * 7) % 30, (layout + shift * 11) % 30, allowed["palettes"][(seed + shift) % len(allowed["palettes"])], allowed["types"][(seed // 7 + shift) % len(allowed["types"])])
-            if candidate not in used:
+            if candidate not in used and (candidate[2] not in used_palettes or candidate[3] not in used_types):
                 design, layout, palette, typography = candidate
                 break
     return design, layout, palette, typography, archetype, planner
@@ -303,7 +449,7 @@ def _image_figure(filename, alt, css_class="editorial-image", source=""):
     return f'<figure class="{css_class}"><img src="{_e(image_source)}" alt="{_e(alt)}" onerror="this.closest(\'figure\').classList.add(\'image-missing\');this.remove()"><span>이미지를 같은 폴더에 추가하면 이 영역에 표시됩니다.</span></figure>'
 
 
-def _generated_visual(words, mode, archetype, variant):
+def _generated_visual(words, mode, archetype, variant, direction="", seed=0):
     """Deterministic, content-labelled artwork for image-less sites.
 
     It is intentionally inline SVG: free, offline after download, crisp at every
@@ -312,7 +458,28 @@ def _generated_visual(words, mode, archetype, variant):
     labels = [_e(word) for word in (words or ["IDEA", "PROOF", "NEXT"])[:5]]
     while len(labels) < 3:
         labels.append(("WORK", "SYSTEM", "STORY")[len(labels)])
-    if variant == 1:
+    if direction in ("brand-campaign", "culture-zine", "brutal-campus"):
+        angle = 8 + seed % 18
+        art = f'''<g transform="rotate(-{angle} 260 160)"><rect x="38" y="42" width="315" height="92"/><text class="mega" x="58" y="108">{labels[0]}</text></g>
+        <circle cx="405" cy="216" r="82"/><text x="405" y="221">{labels[1]}</text><path class="wire" d="M24 270 L478 34"/>'''
+    elif direction in ("organic-journal", "gallery-essay"):
+        art = f'''<path class="wire" d="M18 242 C110 42 182 282 270 102 S410 264 504 72"/>
+        <circle cx="115" cy="112" r="72"/><circle cx="302" cy="190" r="96"/><circle cx="434" cy="86" r="42"/>
+        <text x="115" y="117">{labels[0]}</text><text x="302" y="195">{labels[1]}</text><text x="434" y="91">{labels[2]}</text>'''
+    elif direction in ("data-atlas", "industrial-spec", "case-study"):
+        marks = "".join(
+            f'<g transform="translate({44 + (i % 2) * 238} {42 + (i // 2) * 112})"><rect width="218" height="92"/><text x="18" y="52">{label}</text><text class="num" x="186" y="22">0{i+1}</text></g>'
+            for i, label in enumerate(labels[:4])
+        )
+        art = marks + '<path class="wire" d="M26 292 H494 M260 26 V292"/>'
+    elif direction in ("quiet-portfolio", "swiss-ledger"):
+        art = f'''<path class="wire" d="M42 62 H478 M42 138 H478 M42 214 H478 M168 38 V282"/>
+        <text class="mega" x="190" y="124">{labels[0]}</text><text x="190" y="180">{labels[1]} / {labels[2]}</text>
+        <circle cx="105" cy="176" r="48"/><text class="num" x="105" y="180">01</text>'''
+    elif direction == "cinematic-story":
+        art = f'''<circle class="halo" cx="354" cy="154" r="132"/><path class="wire" d="M18 278 C116 206 190 224 270 102 C330 12 420 42 506 86"/>
+        <text class="mega" x="30" y="132">{labels[0]}</text><text x="356" y="160">{labels[1]}</text>'''
+    elif variant == 1:
         marks = "".join(
             f'<g transform="translate({70 + i * 78} {88 + (i % 2) * 86})"><circle r="{32 + i * 7}"/><text y="5">{label}</text></g>'
             for i, label in enumerate(labels[:4])
@@ -343,14 +510,100 @@ def _quality_audit(document, mode, palette, data, site_purpose=""):
         "noRawSource": "[추가 원문]" not in document,
         "contentPresent": len(re.sub(r"<[^>]+>", "", document)) >= 400,
         "singleDocument": document.count("<!DOCTYPE html>") == 1,
+        "adaptiveTypography": "type-long" in document and "type-medium" in document,
+        "boundedHeadings": "clamp(58px,8vw,112px)" not in document and "clamp(44px,6.5vw,86px)" not in document,
+        "artDirectionApplied": "direction-" in document,
     }
     required = ("01 / CONTEXT", "02 / SOLUTION", "03 / PROCESS") if mode == "startup" else ("01 / POSITION", "02 / SELECTED WORK", "03 / EXPERIENCE")
     if mode == "startup" and site_purpose == "customer":
         required = ("01 / VALUE", "02 / HOW IT WORKS", "03 / WHY")
     checks["requiredNarrative"] = all(term in document for term in required)
     checks["notGenericPitchDeck"] = not (mode == "startup" and site_purpose == "customer" and "문제를 바꾸는<br>우리의 방식" in document)
+    if mode == "career" or site_purpose == "customer":
+        checks["v6IndependentStructure"] = 'class="v6-' in document
+        checks["noLegacySectionSkeleton"] = 'class="page-section' not in document
     score = round(sum(checks.values()) / len(checks) * 100)
     return {"score": score, "passed": score >= 88, "checks": checks}
+
+
+def _structure_family(direction):
+    if direction in ("brand-campaign", "culture-zine", "brutal-campus"):
+        return "campaign"
+    if direction in ("swiss-ledger", "quiet-portfolio", "gallery-essay"):
+        return "editorial-book"
+    if direction in ("product-lab", "case-study", "industrial-spec"):
+        return "product-system"
+    if direction in ("cinematic-story", "organic-journal"):
+        return "scroll-story"
+    return "data-atlas"
+
+
+def _compose_v6(mode, direction, context, visual, brand_logo):
+    """Build genuinely different document trees from the same factual slots."""
+    family = _structure_family(direction)
+    brand = _e(context["brand"])
+    eyebrow = _e(context["eyebrow"])
+    lead = _e(context["lead"])
+    meta = "".join(f'<span>{_e(item)}</span>' for item in context.get("meta", []) if item)
+    problem = _e(context["problem"])
+    solution = _e(context["solution"])
+    proof = _e(context.get("proof") or context.get("next") or context["lead"])
+    next_step = _e(context.get("next") or context["lead"])
+    items = [item for item in context.get("items", []) if item]
+    evidence = [item for item in context.get("evidence", []) if item]
+    item_cards = "".join(
+        f'<article class="v6-item"><small>{index:02d}</small><strong>{_e(item)}</strong></article>'
+        for index, item in enumerate(items[:6], 1)
+    ) or '<article class="v6-item"><small>01</small><strong>구체적인 실행 내용을 준비하고 있습니다.</strong></article>'
+    evidence_cards = "".join(
+        f'<article class="v6-evidence"><span>EVIDENCE {index:02d}</span><p>{_e(item)}</p></article>'
+        for index, item in enumerate(evidence[:6], 1)
+    ) or f'<article class="v6-evidence"><span>EVIDENCE 01</span><p>{proof}</p></article>'
+    labels = (
+        {"value": "01 / VALUE", "how": "02 / HOW IT WORKS", "why": "03 / WHY", "proof": "04 / PROOF", "next": "05 / BUILDING"}
+        if mode == "startup" else
+        {"value": "01 / POSITION", "how": "02 / SELECTED WORK", "why": "03 / EXPERIENCE", "proof": "04 / EVIDENCE", "next": "05 / NEXT"}
+    )
+    nav_index = "SERVICE / BRAND" if mode == "startup" else "CAREER / SELECTED WORK"
+    nav = f'<nav class="site-nav"><div class="shell"><div class="brand">{brand_logo}{brand}</div><div class="nav-index">{nav_index}</div></div></nav>'
+    hero_copy = f'<div class="hero-copy"><div class="eyebrow">{eyebrow}</div><h1>{brand}</h1><p class="lead">{lead}</p><div class="hero-meta">{meta}</div></div>'
+
+    if family == "campaign":
+        body = f'''{nav}<header class="v6-campaign-hero">{hero_copy}<div class="v6-campaign-art">{visual}</div><div class="v6-serial">PCU—26 / NEW VOICE</div></header>
+        <main class="v6-campaign-main"><section class="v6-slogan"><span>{labels['value']}</span><h2>{lead}</h2></section>
+        <section class="v6-campaign-split"><div><span>{labels['why']}</span><h2>바꿔야 할 장면</h2></div><p>{problem}</p></section>
+        <section class="v6-campaign-list"><header><span>{labels['how']}</span><h2>아이디어를 경험으로</h2></header><div>{item_cards}</div></section>
+        <section class="v6-proof-poster"><span>{labels['proof']}</span><p>{proof}</p><b>↗</b></section>
+        <section class="v6-next-line"><span>{labels['next']}</span><p>{next_step}</p></section></main>'''
+    elif family == "editorial-book":
+        body = f'''{nav}<header class="v6-book-cover"><div class="v6-book-number">ISSUE<br>NO. 01</div>{hero_copy}{visual}</header>
+        <main class="v6-book"><aside><b>CONTENTS</b><a href="#chapter-1">{labels['value']}</a><a href="#chapter-2">{labels['how']}</a><a href="#chapter-3">{labels['why']}</a></aside>
+        <div class="v6-book-pages"><article id="chapter-1" class="v6-chapter"><span>{labels['value']}</span><h2>{lead}</h2><p>{solution}</p></article>
+        <article id="chapter-2" class="v6-chapter v6-chapter-dark"><span>{labels['how']}</span><h2>선택한 방식과 실행</h2><div class="v6-evidence-stack">{item_cards}</div></article>
+        <article id="chapter-3" class="v6-chapter"><span>{labels['why']}</span><div class="v6-columns"><h2>출발점</h2><p>{problem}</p></div>{evidence_cards}</article>
+        <article class="v6-book-end"><span>{labels['next']}</span><p>{next_step}</p></article></div></main>'''
+    elif family == "product-system":
+        body = f'''{nav}<header class="v6-product-hero"><div class="shell">{hero_copy}{visual}</div></header>
+        <main class="v6-product-main"><section class="v6-product-intro"><span>{labels['value']}</span><h2>{lead}</h2><p>{solution}</p></section>
+        <section class="v6-product-board"><header><span>{labels['how']}</span><h2>구조와 작동 방식</h2></header><div class="v6-bento">{item_cards}</div></section>
+        <section class="v6-product-case"><div><span>{labels['why']}</span><h2>왜 지금 필요한가</h2></div><p>{problem}</p></section>
+        <section class="v6-product-proof"><header><span>{labels['proof']}</span><h2>확인한 근거</h2></header>{evidence_cards}</section>
+        <section class="v6-product-next"><span>{labels['next']}</span><strong>{next_step}</strong></section></main>'''
+    elif family == "scroll-story":
+        body = f'''{nav}<header class="v6-film-hero">{visual}<div class="v6-film-copy">{hero_copy}</div><div class="v6-film-caption">SCENE 01 — BEGIN</div></header>
+        <main class="v6-story"><section class="v6-story-opening"><span>{labels['why']}</span><p>“{problem}”</p></section>
+        <section class="v6-story-scene"><div class="v6-scene-no">02</div><div><span>{labels['value']}</span><h2>{lead}</h2><p>{solution}</p></div></section>
+        <section class="v6-story-track"><header><span>{labels['how']}</span><h2>생각이 실행이 된 과정</h2></header>{item_cards}</section>
+        <section class="v6-story-scene v6-story-proof"><div class="v6-scene-no">04</div><div><span>{labels['proof']}</span><h2>남겨진 근거</h2>{evidence_cards}</div></section>
+        <section class="v6-story-ending"><span>{labels['next']}</span><p>{next_step}</p><b>TO BE CONTINUED</b></section></main>'''
+    else:
+        body = f'''{nav}<header class="v6-atlas-hero"><div class="v6-atlas-title">{hero_copy}</div><div class="v6-atlas-visual">{visual}</div></header>
+        <main class="v6-atlas"><div class="v6-atlas-bar"><span>LIVE DOCUMENT</span><span>{eyebrow}</span><span>2026 / PCU</span></div>
+        <section class="v6-atlas-grid"><article class="v6-atlas-lead"><span>{labels['value']}</span><h2>{lead}</h2></article><article><span>{labels['why']}</span><p>{problem}</p></article><article><span>SOLUTION</span><p>{solution}</p></article></section>
+        <section class="v6-atlas-process"><header><span>{labels['how']}</span><h2>실행 데이터</h2></header>{item_cards}</section>
+        <section class="v6-atlas-evidence"><header><span>{labels['proof']}</span><h2>Evidence index</h2></header>{evidence_cards}</section>
+        <section class="v6-atlas-footer"><span>{labels['next']}</span><p>{next_step}</p></section></main>'''
+    return body, family
 
 
 def render_website(source, mode, options, page_id, reference_brief="", avoid=None):
@@ -361,6 +614,8 @@ def render_website(source, mode, options, page_id, reference_brief="", avoid=Non
     palette, typography = PALETTES[palette_index], TYPOGRAPHY[type_index]
     variant_index = max(0, min(2, int(options.get("_variantIndex", 0) or 0)))
     composition = ("editorial", "product", "narrative")[variant_index]
+    seed = int(hashlib.sha256(f"{page_id}|{mode}|{reference_brief}".encode()).hexdigest()[:12], 16)
+    direction = _art_direction(mode, archetype, seed, variant_index, avoid)
     _, ink, accent, soft, secondary, paper = palette
     _, heading_font, body_font, font_query = typography
     density = str(options.get("contentDensity", "balanced"))
@@ -382,27 +637,36 @@ def render_website(source, mode, options, page_id, reference_brief="", avoid=Non
     @import url('https://fonts.googleapis.com/css2?family={font_query}&display=swap');
     :root{{--ink:{ink};--accent:{accent};--soft:{soft};--secondary:{secondary};--paper:{paper};--line:color-mix(in srgb,var(--ink) 16%,transparent);--space:{space};--radius:{radius};--heading:'{heading_font}',serif;--body:'{body_font}',sans-serif}}
     *{{box-sizing:border-box}}html{{scroll-behavior:smooth}}body{{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.72 var(--body);overflow-x:hidden;text-rendering:optimizeLegibility}}a{{color:inherit}}img{{max-width:100%}}.shell{{width:min(1184px,calc(100% - 48px));margin:auto}}.site-nav{{position:absolute;inset:0 0 auto;z-index:10;color:#fff;padding:24px 0}}.site-nav .shell{{display:flex;align-items:center;justify-content:space-between;gap:24px}}.brand{{display:flex;align-items:center;gap:12px;font-weight:850;letter-spacing:-.03em}}.brand img{{width:36px;height:36px;object-fit:contain}}.nav-index{{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.7)}}
-    .hero{{position:relative;min-height:clamp(620px,82svh,880px);display:grid;align-items:center;padding:128px 0 88px;background:var(--ink);color:#fff;overflow:hidden;isolation:isolate}}.hero:before{{content:'';position:absolute;inset:0;background:linear-gradient(115deg,color-mix(in srgb,var(--ink) 92%,transparent),color-mix(in srgb,var(--secondary) 68%,transparent));z-index:-3}}.hero:after{{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);background-size:64px 64px;mask-image:linear-gradient(to right,#000,transparent 80%);z-index:-2}}.hero-grid{{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr);align-items:center;gap:clamp(48px,8vw,112px)}}.hero-copy{{position:relative;z-index:2}}.eyebrow{{display:flex;align-items:center;gap:12px;color:var(--accent);font-size:12px;font-weight:850;letter-spacing:.16em;text-transform:uppercase}}.eyebrow:before{{content:'';width:36px;height:2px;background:currentColor}}h1,h2,h3{{font-family:var(--heading);text-wrap:balance}}h1{{max-width:10ch;margin:24px 0 28px;font-size:clamp(64px,9vw,132px);line-height:.88;letter-spacing:-.065em}}.lead{{max-width:720px;margin:0;font-size:clamp(18px,2vw,25px);line-height:1.55;color:rgba(255,255,255,.78);word-break:keep-all}}.hero-meta{{display:flex;flex-wrap:wrap;gap:10px;margin-top:36px}}.hero-meta span{{padding:8px 12px;border:1px solid rgba(255,255,255,.2);border-radius:999px;font-size:12px;color:rgba(255,255,255,.72)}}
+    .hero{{position:relative;min-height:clamp(620px,82svh,880px);display:grid;align-items:center;padding:128px 0 88px;background:var(--ink);color:#fff;overflow:hidden;isolation:isolate}}.hero:before{{content:'';position:absolute;inset:0;background:linear-gradient(115deg,color-mix(in srgb,var(--ink) 92%,transparent),color-mix(in srgb,var(--secondary) 68%,transparent));z-index:-3}}.hero:after{{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);background-size:64px 64px;mask-image:linear-gradient(to right,#000,transparent 80%);z-index:-2}}.hero-grid{{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr);align-items:center;gap:clamp(48px,8vw,112px)}}.hero-copy{{position:relative;z-index:2}}.eyebrow{{display:flex;align-items:center;gap:12px;color:var(--accent);font-size:12px;font-weight:850;letter-spacing:.16em;text-transform:uppercase}}.eyebrow:before{{content:'';width:36px;height:2px;background:currentColor}}h1,h2,h3{{font-family:var(--heading);text-wrap:balance;word-break:keep-all}}h1{{max-width:10ch;margin:24px 0 28px;font-size:clamp(56px,7.2vw,108px);line-height:.96;letter-spacing:-.055em}}h1.type-medium{{font-size:clamp(50px,6.4vw,92px)}}h1.type-long{{max-width:14ch;font-size:clamp(42px,5.3vw,76px);line-height:1.04}}.lead{{max-width:720px;margin:0;font-size:clamp(18px,1.65vw,23px);line-height:1.68;color:rgba(255,255,255,.78);word-break:keep-all}}.hero-meta{{display:flex;flex-wrap:wrap;gap:10px;margin-top:36px}}.hero-meta span{{padding:8px 12px;border:1px solid rgba(255,255,255,.2);border-radius:999px;font-size:12px;color:rgba(255,255,255,.72)}}
     .visual-stage{{position:relative;min-height:460px;overflow:hidden;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.035)}}.visual-stage.has-image img{{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(.88) contrast(1.04)}}.visual-stage.has-image:after{{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 45%,rgba(0,0,0,.72))}}.visual-caption{{position:absolute;z-index:2;left:24px;right:24px;bottom:22px;display:flex;align-items:end;justify-content:space-between;gap:20px;color:#fff}}.visual-caption small{{font:800 10px/1.2 var(--body);letter-spacing:.15em}}.visual-caption strong{{max-width:12ch;text-align:right;font:600 clamp(20px,2.5vw,34px)/1.05 var(--heading)}}.visual-ledger{{height:100%;min-height:460px;padding:30px;display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(145deg,rgba(255,255,255,.08),transparent 58%)}}.visual-ledger-top{{display:flex;justify-content:space-between;font:800 10px/1 var(--body);letter-spacing:.14em;color:var(--accent)}}.visual-ledger strong{{max-width:9ch;font:600 clamp(38px,5vw,70px)/.94 var(--heading);letter-spacing:-.05em}}.visual-words{{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid rgba(255,255,255,.2)}}.visual-words span{{padding:12px 0;border-bottom:1px solid rgba(255,255,255,.12);font-size:11px;color:rgba(255,255,255,.68)}}
     .generated-art{{display:grid;place-items:center;background:color-mix(in srgb,var(--secondary) 25%,var(--ink))}}.generated-art svg{{width:100%;height:100%;padding:7%;overflow:visible}}.generated-art circle,.generated-art rect{{fill:color-mix(in srgb,var(--accent) 16%,transparent);stroke:var(--accent);stroke-width:1.4}}.generated-art text{{fill:#fff;font:700 12px var(--body);letter-spacing:.06em;text-anchor:middle}}.generated-art .num{{font-size:8px;fill:var(--accent)}}.generated-art .mega{{font:800 48px var(--heading);text-anchor:start;letter-spacing:-.06em}}.generated-art .wire{{fill:none;stroke:rgba(255,255,255,.68);stroke-width:1.6}}.generated-art .halo{{fill:none;stroke:var(--accent);stroke-width:34;stroke-dasharray:12 10;opacity:.5}}.art-stamp{{position:absolute;right:16px;bottom:12px;font-size:9px;letter-spacing:.14em;color:rgba(255,255,255,.58)}}
-    .hero.centered{{text-align:center}}.hero.centered .hero-grid{{display:block}}.hero.centered .hero-copy{{max-width:980px;margin:auto}}.hero.centered h1,.hero.centered .lead{{margin-left:auto;margin-right:auto}}.hero.centered .eyebrow,.hero.centered .hero-meta{{justify-content:center}}.hero.centered .visual-stage{{min-height:160px;margin-top:40px}}.hero.centered .visual-card{{width:min(620px,100%);transform:none}}.hero.poster .hero-grid{{display:block}}.hero.poster h1{{max-width:12ch;font-size:clamp(76px,13vw,172px)}}.hero.poster .visual-stage{{position:absolute;right:5vw;bottom:2vw;opacity:.62}}.hero.editorial .hero-grid{{grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr)}}.hero.editorial .hero-copy{{grid-column:2}}.hero.editorial .visual-stage{{grid-column:1;grid-row:1}}.hero.editorial h1{{font-size:clamp(62px,8vw,112px)}}
-    .page-section{{position:relative;padding:var(--space) 0}}.section-head{{display:grid;grid-template-columns:180px minmax(0,1fr);gap:32px;margin-bottom:clamp(48px,7vw,88px)}}.section-index{{font:850 11px/1.2 var(--body);letter-spacing:.16em;color:var(--secondary);text-transform:uppercase}}h2{{max-width:14ch;margin:0;font-size:clamp(44px,6.5vw,86px);line-height:.98;letter-spacing:-.055em}}h3{{margin:0 0 16px;font-size:clamp(24px,3vw,38px);line-height:1.1;letter-spacing:-.035em}}.section-intro{{max-width:720px;margin:20px 0 0;font-size:clamp(17px,1.8vw,21px);word-break:keep-all}}.dark{{background:var(--ink);color:#fff}}.dark .section-index{{color:var(--accent)}}.dark .section-intro,.dark .copy{{color:rgba(255,255,255,.72)}}
+    .hero.centered{{text-align:center}}.hero.centered .hero-grid{{display:block}}.hero.centered .hero-copy{{max-width:980px;margin:auto}}.hero.centered h1,.hero.centered .lead{{margin-left:auto;margin-right:auto}}.hero.centered .eyebrow,.hero.centered .hero-meta{{justify-content:center}}.hero.centered .visual-stage{{min-height:160px;margin-top:40px}}.hero.centered .visual-card{{width:min(620px,100%);transform:none}}.hero.poster .hero-grid{{display:block}}.hero.poster h1{{max-width:12ch;font-size:clamp(62px,9.5vw,128px)}}.hero.poster h1.type-medium{{font-size:clamp(52px,7.8vw,104px)}}.hero.poster h1.type-long{{font-size:clamp(42px,6vw,82px)}}.hero.poster .visual-stage{{position:absolute;right:5vw;bottom:2vw;opacity:.62}}.hero.editorial .hero-grid{{grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr)}}.hero.editorial .hero-copy{{grid-column:2}}.hero.editorial .visual-stage{{grid-column:1;grid-row:1}}.hero.editorial h1{{font-size:clamp(58px,7.2vw,104px)}}
+    .page-section{{position:relative;padding:var(--space) 0}}.section-head{{display:grid;grid-template-columns:180px minmax(0,1fr);gap:32px;margin-bottom:clamp(48px,7vw,88px)}}.section-index{{font:850 11px/1.2 var(--body);letter-spacing:.16em;color:var(--secondary);text-transform:uppercase}}h2{{max-width:15ch;margin:0;font-size:clamp(38px,5.2vw,68px);line-height:1.1;letter-spacing:-.045em}}h2.type-medium{{font-size:clamp(34px,4.5vw,58px)}}h2.type-long{{max-width:22ch;font-size:clamp(30px,3.7vw,48px);line-height:1.18;letter-spacing:-.035em}}h3{{margin:0 0 16px;font-size:clamp(24px,2.6vw,36px);line-height:1.18;letter-spacing:-.03em}}.section-intro{{max-width:720px;margin:20px 0 0;font-size:clamp(17px,1.55vw,20px);line-height:1.78;word-break:keep-all}}.dark{{background:var(--ink);color:#fff}}.dark .section-index{{color:var(--accent)}}.dark .section-intro,.dark .copy{{color:rgba(255,255,255,.72)}}
     .narrative-grid{{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:clamp(40px,8vw,112px);align-items:start}}.pull-quote{{position:sticky;top:32px;font-family:var(--heading);font-size:clamp(30px,4vw,52px);line-height:1.15;letter-spacing:-.04em}}.copy{{margin:0;font-size:clamp(17px,1.8vw,21px);white-space:pre-line;word-break:keep-all}}.evidence-grid{{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}}.evidence{{grid-column:span 6;min-height:176px;padding:28px;background:color-mix(in srgb,var(--paper) 6%,transparent);border-radius:var(--radius);display:flex;flex-direction:column;justify-content:space-between}}.evidence b{{font-family:var(--heading);font-size:clamp(22px,2.5vw,34px);line-height:1.2}}.evidence small{{color:var(--accent);font-size:11px;letter-spacing:.12em}}.feature-list{{counter-reset:feature}}.feature{{counter-increment:feature;display:grid;grid-template-columns:80px minmax(0,1fr);gap:24px;padding:28px 0;border-top:1px solid var(--line)}}.feature:before{{content:'0' counter(feature);font-weight:850;color:var(--secondary)}}.dark .feature{{border-color:rgba(255,255,255,.18)}}.dark .feature:before{{color:var(--accent)}}.feature strong{{font-size:clamp(18px,2vw,25px)}}
-    .showcase{{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}}.case-card{{grid-column:span 6;min-height:280px;padding:32px;background:var(--soft);border-radius:var(--radius);display:flex;flex-direction:column;justify-content:space-between}}.case-card:nth-child(3n+1){{grid-column:span 8}}.case-card:nth-child(3n+2){{grid-column:span 4}}.case-card small{{font-size:11px;letter-spacing:.14em;color:var(--secondary)}}.case-card p{{margin:32px 0 0;font-size:clamp(18px,2vw,25px);line-height:1.48}}.tag-cloud{{display:flex;flex-wrap:wrap;gap:10px}}.tag{{padding:10px 14px;background:var(--soft);border-radius:999px;font-size:13px;font-weight:750}}.statement{{overflow:hidden;background:var(--accent);color:var(--ink)}}.statement .shell{{position:relative}}.statement p{{max-width:980px;margin:0;font-family:var(--heading);font-size:clamp(38px,6vw,78px);font-weight:750;line-height:1.08;letter-spacing:-.05em}}.statement .mark{{position:absolute;right:-40px;top:-100px;font:900 280px/.8 var(--heading);opacity:.12}}
+    .showcase{{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}}.case-card{{grid-column:span 6;min-height:280px;padding:32px;background:var(--soft);border-radius:var(--radius);display:flex;flex-direction:column;justify-content:space-between}}.case-card:nth-child(3n+1){{grid-column:span 8}}.case-card:nth-child(3n+2){{grid-column:span 4}}.case-card small{{font-size:11px;letter-spacing:.14em;color:var(--secondary)}}.case-card p{{margin:32px 0 0;font-size:clamp(18px,1.8vw,23px);line-height:1.58}}.tag-cloud{{display:flex;flex-wrap:wrap;gap:10px}}.tag{{padding:10px 14px;background:var(--soft);border-radius:999px;font-size:13px;font-weight:750}}.statement{{overflow:hidden;background:var(--accent);color:var(--ink)}}.statement .shell{{position:relative}}.statement p{{max-width:980px;margin:0;font-family:var(--heading);font-size:clamp(32px,4.6vw,62px);font-weight:750;line-height:1.16;letter-spacing:-.04em}}.statement p.type-medium{{font-size:clamp(29px,4vw,52px)}}.statement p.type-long{{font-size:clamp(26px,3.3vw,44px);line-height:1.28}}.statement .mark{{position:absolute;right:-40px;top:-100px;font:900 280px/.8 var(--heading);opacity:.12}}
     .editorial-image{{position:relative;min-height:420px;margin:0;overflow:hidden;background:linear-gradient(145deg,var(--soft),color-mix(in srgb,var(--accent) 28%,var(--paper)));border-radius:var(--radius)}}.editorial-image img{{width:100%;height:100%;min-height:420px;object-fit:cover}}.editorial-image span{{display:none;position:absolute;inset:0;padding:32px;align-items:flex-end;color:var(--secondary)}}.editorial-image.image-missing span{{display:flex}}.image-row{{display:grid;grid-template-columns:1.4fr .6fr;gap:16px;margin-top:64px}}.image-row .editorial-image:nth-child(2){{margin-top:80px}}footer{{padding:40px 0;background:#101820;color:rgba(255,255,255,.68);font-size:13px}}footer .shell{{display:flex;justify-content:space-between;gap:24px}}.reveal{{opacity:0;transform:translateY(20px);transition:opacity .65s ease,transform .65s cubic-bezier(.2,.8,.2,1)}}.reveal.on{{opacity:1;transform:none}}
     body.archetype-editorial .hero:after{{background:none}}body.archetype-editorial .visual-stage{{transform:translateY(44px);border-radius:0}}body.archetype-human .hero:before{{background:linear-gradient(115deg,var(--ink),color-mix(in srgb,var(--secondary) 72%,var(--ink)))}}body.archetype-human .visual-stage{{border-radius:160px 160px 12px 12px}}body.archetype-premium .hero:after{{background:none;border:1px solid rgba(255,255,255,.12);inset:40px}}body.archetype-premium .eyebrow{{color:var(--accent)}}body.archetype-premium .visual-stage{{border:none}}body.archetype-playful .visual-stage{{transform:rotate(2deg);box-shadow:14px 14px 0 var(--accent)}}body.archetype-playful h1{{letter-spacing:-.04em}}body.archetype-utility .hero:after{{background-image:linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.08) 1px,transparent 1px);background-size:32px 32px}}body.archetype-utility .case-card{{border-radius:0}}
     body.sections-alternating .page-section:nth-child(even) .narrative-grid>*:first-child{{order:2}}body.sections-showcase .page-section:not(.dark):not(.statement){{margin:20px;border-radius:var(--radius);background:color-mix(in srgb,var(--soft) 40%,var(--paper))}}body.density-compact .case-card{{min-height:220px}}body.density-spacious .copy{{max-width:760px}}
     body.composition-product .hero{{margin:14px;min-height:calc(100svh - 28px);border-radius:28px}}body.composition-product .hero-grid{{grid-template-columns:minmax(0,.85fr) minmax(360px,1.15fr)}}body.composition-product h1{{font-size:clamp(58px,7vw,104px)}}body.composition-product main{{padding:14px}}body.composition-product .page-section{{margin:14px 0;border-radius:28px;background:color-mix(in srgb,var(--soft) 34%,var(--paper))}}body.composition-product .page-section.dark{{background:var(--ink)}}body.composition-product .section-head{{grid-template-columns:1fr}}body.composition-product .section-index{{display:inline-flex;width:max-content;padding:7px 10px;border:1px solid currentColor;border-radius:999px}}
-    body.composition-narrative .hero{{min-height:100svh}}body.composition-narrative .hero-grid{{display:block}}body.composition-narrative .hero-copy{{width:min(820px,78%)}}body.composition-narrative .visual-stage{{position:absolute;inset:0 0 0 55%;min-height:100%;border:0;opacity:.72;mix-blend-mode:screen}}body.composition-narrative .page-section{{padding:clamp(130px,14vw,220px) 0}}body.composition-narrative .section-head{{grid-template-columns:1fr;max-width:920px}}body.composition-narrative .section-head h2{{max-width:10ch;font-size:clamp(58px,8vw,112px)}}body.composition-narrative .evidence-grid{{display:block;border-top:1px solid rgba(255,255,255,.22)}}body.composition-narrative .evidence{{min-height:auto;padding:28px 0;border-bottom:1px solid rgba(255,255,255,.22);background:none;border-radius:0;display:grid;grid-template-columns:160px 1fr;gap:28px}}
-    @media(max-width:760px){{.shell{{width:min(100% - 28px,1184px)}}.site-nav{{padding:18px 0}}.nav-index{{display:none}}.hero,.hero.editorial,.hero.poster,body.composition-product .hero,body.composition-narrative .hero{{min-height:auto;padding:104px 0 56px;margin:0;border-radius:0}}.hero-grid,.hero.editorial .hero-grid,body.composition-product .hero-grid{{display:grid;grid-template-columns:1fr;gap:36px}}body.composition-narrative .hero-copy{{width:100%}}body.composition-narrative .visual-stage{{position:relative;inset:auto;min-height:290px;opacity:1;mix-blend-mode:normal;margin-top:36px}}body.composition-narrative .page-section{{padding:88px 0}}body.composition-narrative .evidence{{grid-template-columns:1fr;gap:10px}}.hero.editorial .hero-copy,.hero.editorial .visual-stage{{grid-column:auto;grid-row:auto}}.hero.poster .visual-stage{{position:relative;right:auto;bottom:auto;opacity:1}}.hero h1,.hero.poster h1,.hero.editorial h1{{font-size:clamp(48px,15vw,76px);line-height:.94;overflow-wrap:anywhere}}.hero.centered{{text-align:left}}.hero.centered .eyebrow,.hero.centered .hero-meta{{justify-content:flex-start}}.visual-stage,.visual-ledger{{min-height:320px}}body.archetype-editorial .visual-stage,body.archetype-playful .visual-stage{{transform:none}}.section-head{{grid-template-columns:1fr;gap:16px;margin-bottom:44px}}h2{{font-size:clamp(40px,13vw,62px)}}.narrative-grid{{grid-template-columns:1fr;gap:36px}}.pull-quote{{position:static}}.evidence,.case-card,.case-card:nth-child(n){{grid-column:span 12;min-height:auto}}.feature{{grid-template-columns:48px 1fr;padding:22px 0}}.image-row{{grid-template-columns:1fr}}.image-row .editorial-image:nth-child(2){{margin-top:0}}.editorial-image,.editorial-image img{{min-height:300px}}footer .shell{{display:block}}footer .shell span{{display:block;margin-top:8px}}}}@media(prefers-reduced-motion:reduce){{*{{scroll-behavior:auto!important}}.reveal{{opacity:1;transform:none;transition:none}}}}
+    body.composition-narrative .hero{{min-height:100svh}}body.composition-narrative .hero-grid{{display:block}}body.composition-narrative .hero-copy{{width:min(820px,78%)}}body.composition-narrative .visual-stage{{position:absolute;inset:0 0 0 55%;min-height:100%;border:0;opacity:.72;mix-blend-mode:screen}}body.composition-narrative .page-section{{padding:clamp(110px,12vw,180px) 0}}body.composition-narrative .section-head{{grid-template-columns:1fr;max-width:920px}}body.composition-narrative .section-head h2{{max-width:12ch;font-size:clamp(42px,5.4vw,70px)}}body.composition-narrative .section-head h2.type-medium{{font-size:clamp(36px,4.6vw,58px)}}body.composition-narrative .section-head h2.type-long{{max-width:20ch;font-size:clamp(30px,3.8vw,48px)}}body.composition-narrative .evidence-grid{{display:block;border-top:1px solid rgba(255,255,255,.22)}}body.composition-narrative .evidence{{min-height:auto;padding:28px 0;border-bottom:1px solid rgba(255,255,255,.22);background:none;border-radius:0;display:grid;grid-template-columns:160px 1fr;gap:28px}}
+    {_direction_css(direction)}
+    /* V6 independent document grammars */
+    .v6-campaign-hero{{position:relative;min-height:100svh;padding:150px 7vw 80px;overflow:hidden;background:var(--accent);color:var(--ink);display:grid;grid-template-columns:minmax(0,.8fr) minmax(420px,1.2fr);gap:6vw;align-items:center}}.v6-campaign-hero .lead,.v6-book-cover .lead{{color:inherit}}.v6-campaign-art .visual-stage{{min-height:560px;transform:rotate(2deg);box-shadow:18px 18px 0 var(--ink)}}.v6-serial{{position:absolute;right:24px;bottom:22px;font:800 10px/1 var(--body);letter-spacing:.18em}}.v6-campaign-main>section{{padding:clamp(80px,10vw,150px) max(7vw,24px)}}.v6-slogan span,.v6-campaign-split span,.v6-campaign-list span,.v6-proof-poster span,.v6-next-line span{{font:850 11px/1 var(--body);letter-spacing:.16em}}.v6-slogan h2{{max-width:18ch;margin-top:40px}}.v6-campaign-split{{display:grid;grid-template-columns:.85fr 1.15fr;gap:8vw;background:var(--ink);color:#fff}}.v6-campaign-split p{{font:500 clamp(25px,3.3vw,44px)/1.45 var(--heading)}}.v6-campaign-list header{{display:grid;grid-template-columns:180px 1fr;margin-bottom:70px}}.v6-campaign-list>div{{display:grid;grid-template-columns:repeat(2,1fr);border-top:2px solid var(--ink)}}.v6-item{{padding:28px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:54px 1fr;gap:20px}}.v6-item small{{font-weight:900;color:var(--secondary)}}.v6-item strong{{font-size:clamp(18px,2vw,26px);line-height:1.4}}.v6-proof-poster{{position:relative;background:var(--secondary);color:#fff}}.v6-proof-poster p{{max-width:1000px;font:600 clamp(30px,5vw,68px)/1.16 var(--heading)}}.v6-proof-poster b{{position:absolute;right:5vw;bottom:2vw;font-size:180px;opacity:.16}}.v6-next-line{{display:grid;grid-template-columns:180px 1fr}}.v6-next-line p{{margin:0;font-size:clamp(20px,2.6vw,34px)}}
+    .v6-book-cover{{min-height:92svh;padding:150px max(6vw,28px) 80px;background:var(--paper);display:grid;grid-template-columns:120px minmax(0,.72fr) minmax(360px,.8fr);gap:4vw;align-items:end;border-bottom:1px solid var(--line)}}.v6-book-number{{align-self:start;font:800 12px/1.5 monospace}}.v6-book-cover .visual-stage{{min-height:620px;border:0}}.v6-book{{display:grid;grid-template-columns:240px 1fr;max-width:1440px;margin:auto}}.v6-book>aside{{position:sticky;top:0;height:100svh;padding:50px 28px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:18px}}.v6-book>aside a{{text-decoration:none;font-size:11px;letter-spacing:.1em}}.v6-book-pages{{min-width:0}}.v6-chapter{{padding:clamp(100px,12vw,180px) clamp(40px,8vw,120px);border-bottom:1px solid var(--line)}}.v6-chapter>span,.v6-book-end span{{font:850 11px/1 var(--body);letter-spacing:.16em;color:var(--secondary)}}.v6-chapter>p{{max-width:760px;font-size:clamp(18px,1.7vw,22px);line-height:1.8}}.v6-chapter-dark{{background:var(--ink);color:#fff}}.v6-evidence-stack{{margin-top:70px;border-top:1px solid currentColor}}.v6-columns{{display:grid;grid-template-columns:.65fr 1.35fr;gap:6vw;margin-bottom:80px}}.v6-columns p{{font-size:clamp(19px,2vw,26px)}}.v6-evidence{{padding:26px 0;border-top:1px solid currentColor;display:grid;grid-template-columns:150px 1fr;gap:30px}}.v6-evidence span{{font-size:10px;letter-spacing:.14em}}.v6-evidence p{{margin:0;font-size:clamp(18px,1.8vw,24px)}}.v6-book-end{{padding:90px clamp(40px,8vw,120px);background:var(--accent)}}.v6-book-end p{{font:600 clamp(28px,4vw,54px)/1.25 var(--heading)}}
+    .v6-product-hero{{min-height:100svh;margin:16px;padding:130px 0 60px;border-radius:36px;background:var(--ink);color:#fff;overflow:hidden}}.v6-product-hero>.shell{{display:grid;grid-template-columns:minmax(0,.8fr) minmax(420px,1.2fr);gap:6vw;align-items:center}}.v6-product-main{{padding:16px}}.v6-product-main>section{{margin:16px 0;padding:clamp(70px,8vw,120px);border-radius:32px;background:var(--soft)}}.v6-product-intro{{display:grid;grid-template-columns:160px 1.1fr .9fr;gap:4vw}}.v6-product-intro p{{font-size:clamp(18px,1.7vw,22px)}}.v6-product-board{{background:var(--paper)!important;border:1px solid var(--line)}}.v6-product-board header,.v6-product-proof header{{display:flex;justify-content:space-between;align-items:end;gap:30px;margin-bottom:60px}}.v6-bento{{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}}.v6-bento .v6-item{{grid-column:span 6;min-height:170px;border:0;border-radius:20px;background:var(--paper)}}.v6-bento .v6-item:nth-child(3n+1){{grid-column:span 8}}.v6-bento .v6-item:nth-child(3n+2){{grid-column:span 4}}.v6-product-case{{display:grid;grid-template-columns:.8fr 1.2fr;gap:8vw;background:var(--ink)!important;color:#fff}}.v6-product-case p{{font:500 clamp(24px,3vw,42px)/1.5 var(--heading)}}.v6-product-proof{{background:var(--paper)!important;border:1px solid var(--line)}}.v6-product-next{{display:grid;grid-template-columns:160px 1fr;background:var(--accent)!important}}.v6-product-next strong{{font:600 clamp(28px,4vw,52px)/1.3 var(--heading)}}
+    .v6-film-hero{{position:relative;min-height:100svh;background:var(--ink);color:#fff;overflow:hidden}}.v6-film-hero>.visual-stage{{position:absolute;inset:0;min-height:100%;border:0;opacity:.68}}.v6-film-copy{{position:relative;z-index:2;width:min(720px,72%);padding:22vh 0 12vh 8vw}}.v6-film-caption{{position:absolute;z-index:3;right:24px;bottom:22px;font:800 10px/1 monospace;letter-spacing:.16em}}.v6-story>section{{padding:clamp(100px,13vw,190px) max(8vw,28px)}}.v6-story-opening{{background:var(--paper)}}.v6-story-opening>span,.v6-story-scene span,.v6-story-track span,.v6-story-ending span{{font:850 11px/1 var(--body);letter-spacing:.16em;color:var(--secondary)}}.v6-story-opening p{{max-width:1100px;font:500 clamp(34px,6vw,78px)/1.2 var(--heading)}}.v6-story-scene{{display:grid;grid-template-columns:160px 1fr;gap:5vw;background:var(--ink);color:#fff}}.v6-scene-no{{font:500 clamp(70px,10vw,150px)/.8 var(--heading);color:var(--accent)}}.v6-story-scene>div:last-child{{max-width:820px}}.v6-story-scene p{{font-size:clamp(18px,2vw,25px);line-height:1.8}}.v6-story-track header{{max-width:900px;margin-bottom:80px}}.v6-story-track .v6-item{{margin-left:15vw;border-top:1px solid var(--line);border-bottom:0}}.v6-story-proof{{background:var(--secondary)}}.v6-story-ending{{background:var(--accent)}}.v6-story-ending p{{max-width:1000px;font:600 clamp(30px,5vw,66px)/1.2 var(--heading)}}.v6-story-ending b{{font-size:11px;letter-spacing:.2em}}
+    .v6-atlas-hero{{min-height:88svh;padding:130px 4vw 50px;background:var(--ink);color:#fff;display:grid;grid-template-columns:minmax(0,.85fr) minmax(420px,1.15fr);gap:3vw}}.v6-atlas-visual .visual-stage{{min-height:100%;border:1px solid rgba(255,255,255,.3)}}.v6-atlas{{padding:14px;background:var(--paper)}}.v6-atlas-bar{{display:flex;justify-content:space-between;padding:14px 4px;font:800 10px/1 monospace;letter-spacing:.12em;border-bottom:1px solid var(--line)}}.v6-atlas-grid{{display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;margin-top:14px}}.v6-atlas-grid>article,.v6-atlas-process,.v6-atlas-evidence,.v6-atlas-footer{{padding:clamp(34px,5vw,76px);border:1px solid var(--line);background:var(--paper)}}.v6-atlas-grid span,.v6-atlas-process span,.v6-atlas-evidence span,.v6-atlas-footer span{{font:800 10px/1 monospace;letter-spacing:.12em;color:var(--secondary)}}.v6-atlas-grid p{{font-size:clamp(17px,1.6vw,21px)}}.v6-atlas-process,.v6-atlas-evidence{{margin-top:14px;display:grid;grid-template-columns:280px 1fr 1fr;gap:0}}.v6-atlas-process header,.v6-atlas-evidence header{{padding-right:40px}}.v6-atlas-process .v6-item,.v6-atlas-evidence .v6-evidence{{display:block;border:1px solid var(--line);padding:24px}}.v6-atlas-footer{{margin-top:14px;display:grid;grid-template-columns:280px 1fr}}.v6-atlas-footer p{{font:600 clamp(26px,4vw,50px)/1.25 var(--heading);margin:0}}
+    @media(max-width:760px){{.shell{{width:min(100% - 28px,1184px)}}.site-nav{{padding:18px 0}}.nav-index{{display:none}}.hero,.hero.editorial,.hero.poster,body.composition-product .hero,body.composition-narrative .hero{{min-height:auto;padding:104px 0 56px;margin:0;border-radius:0}}.hero-grid,.hero.editorial .hero-grid,body.composition-product .hero-grid{{display:grid;grid-template-columns:1fr;gap:36px}}body.composition-narrative .hero-copy{{width:100%}}body.composition-narrative .visual-stage{{position:relative;inset:auto;min-height:290px;opacity:1;mix-blend-mode:normal;margin-top:36px}}body.composition-narrative .page-section{{padding:82px 0}}body.composition-narrative .evidence{{grid-template-columns:1fr;gap:10px}}.hero.editorial .hero-copy,.hero.editorial .visual-stage{{grid-column:auto;grid-row:auto}}.hero.poster .visual-stage{{position:relative;right:auto;bottom:auto;opacity:1}}.hero h1,.hero.poster h1,.hero.editorial h1{{font-size:clamp(42px,13vw,60px);line-height:1.02;overflow-wrap:anywhere}}.hero h1.type-medium,.hero h1.type-long{{font-size:clamp(36px,11vw,50px)}}.hero.centered{{text-align:left}}.hero.centered .eyebrow,.hero.centered .hero-meta{{justify-content:flex-start}}.visual-stage,.visual-ledger{{min-height:300px}}body.archetype-editorial .visual-stage,body.archetype-playful .visual-stage{{transform:none}}.section-head{{grid-template-columns:1fr;gap:16px;margin-bottom:38px}}h2,body.composition-narrative .section-head h2{{font-size:clamp(34px,9.8vw,46px);line-height:1.14}}h2.type-medium,body.composition-narrative .section-head h2.type-medium{{font-size:clamp(31px,8.8vw,41px)}}h2.type-long,body.composition-narrative .section-head h2.type-long{{font-size:clamp(27px,7.7vw,36px);line-height:1.24}}.narrative-grid{{grid-template-columns:1fr;gap:36px}}.pull-quote{{position:static;font-size:clamp(28px,8vw,40px)}}.evidence,.case-card,.case-card:nth-child(n){{grid-column:span 12;min-height:auto}}.feature{{grid-template-columns:48px 1fr;padding:22px 0}}.image-row{{grid-template-columns:1fr}}.image-row .editorial-image:nth-child(2){{margin-top:0}}.editorial-image,.editorial-image img{{min-height:280px}}main{{display:block;padding:0}}.page-section{{margin:0;border-radius:0;box-shadow:none}}footer .shell{{display:block}}footer .shell span{{display:block;margin-top:8px}}}}@media(prefers-reduced-motion:reduce){{*{{scroll-behavior:auto!important}}.reveal{{opacity:1;transform:none;transition:none}}}}
+    @media(max-width:760px){{.v6-campaign-hero,.v6-book-cover,.v6-product-hero>.shell,.v6-atlas-hero{{display:grid;grid-template-columns:1fr;min-height:auto;padding:110px 20px 54px;margin:0;border-radius:0}}.v6-campaign-art .visual-stage,.v6-book-cover .visual-stage,.v6-product-hero .visual-stage,.v6-atlas-visual .visual-stage{{min-height:300px;margin-top:28px;transform:none;box-shadow:none}}.v6-book-number{{display:none}}.v6-campaign-main>section,.v6-story>section,.v6-chapter,.v6-book-end,.v6-product-main>section{{padding:72px 20px;margin:0;border-radius:0}}.v6-campaign-split,.v6-product-intro,.v6-product-case,.v6-product-next,.v6-story-scene,.v6-columns,.v6-next-line{{grid-template-columns:1fr;gap:28px}}.v6-campaign-list header,.v6-product-board header,.v6-product-proof header{{display:block;margin-bottom:38px}}.v6-campaign-list>div,.v6-bento{{display:block}}.v6-book{{display:block}}.v6-book>aside{{display:none}}.v6-evidence,.v6-item{{grid-template-columns:42px 1fr;gap:14px;padding:22px 0}}.v6-product-main{{padding:0}}.v6-bento .v6-item{{min-height:auto;margin-bottom:10px;padding:22px}}.v6-film-hero{{min-height:auto;padding-top:90px}}.v6-film-hero>.visual-stage{{position:relative;min-height:320px;opacity:1}}.v6-film-copy{{width:100%;padding:50px 20px 70px}}.v6-story-track .v6-item{{margin-left:0}}.v6-scene-no{{font-size:68px}}.v6-atlas-grid,.v6-atlas-process,.v6-atlas-evidence,.v6-atlas-footer{{display:block;margin-top:10px}}.v6-atlas-grid>article,.v6-atlas-process,.v6-atlas-evidence,.v6-atlas-footer{{padding:42px 20px}}.v6-atlas-bar{{overflow:auto;gap:24px}}.v6-atlas-process header,.v6-atlas-evidence header{{margin-bottom:36px}}}}
     """
+    css += ".v6-atlas-hero{overflow:hidden}.v6-atlas{overflow:hidden}.v6-atlas-title,.v6-atlas-visual,.v6-atlas-grid>*,.v6-atlas-process>*,.v6-atlas-evidence>*{min-width:0}.v6-atlas-title h1{white-space:normal!important;overflow-wrap:anywhere}"
     logo = _image_figure("Img_files_logo_01.png", "로고", "brand-logo") if include_logo else ""
     brand_logo = '<img src="Img_files_logo_01.png" alt="로고" onerror="this.remove()">' if include_logo else ""
     word_markup = "".join(f"<span>{_e(word)}</span>" for word in visual_words)
     if site_images:
         visual = f'<figure class="visual-stage has-image"><img src="{_e(site_images[0])}" alt="대표 이미지"><figcaption class="visual-caption"><small>{_e(art["label"])}</small><strong>{_e(visual_words[0] if visual_words else art["label"])}</strong></figcaption></figure>'
     else:
-        visual = _generated_visual(visual_words, mode, archetype, variant_index)
+        visual = _generated_visual(visual_words, mode, archetype, variant_index, direction, seed)
     if mode == "career":
         name = _get(data, "이름", default="포트폴리오")
         role = _get(data, "희망 직무", default=_get(data, "희망 산업·진로 분야", default="희망 진로"))
@@ -417,6 +681,13 @@ def render_website(source, mode, options, page_id, reference_brief="", avoid=Non
         education = _get(data, "교육·자격·수상", "교육")
         contact = _get(data, "공개 연락 방법")
         title = f"{name} · {role} 포트폴리오"
+        content_context = {
+            "brand": name, "eyebrow": field or "CAREER PORTFOLIO", "lead": intro,
+            "meta": [role, major], "problem": strengths,
+            "solution": projects, "items": project_items,
+            "proof": " ".join(experience), "evidence": experience,
+            "next": education or intro,
+        }
         assessment_note = '<span>공식 검사 결과 참고</span>' if career_assessment else ""
         body = f"""<nav class="site-nav"><div class="shell"><div class="brand">{brand_logo}{_e(name)}</div><div class="nav-index">CAREER / SELECTED WORK</div></div></nav>
         <header class="hero {hero_style}"><div class="shell hero-grid"><div class="hero-copy"><div class="eyebrow">{_e(field or 'CAREER PORTFOLIO')}</div><h1>{_e(name)}</h1><p class="lead">{_e(intro)}</p><div class="hero-meta"><span>{_e(role)}</span>{f'<span>{_e(major)}</span>' if major else ''}{assessment_note}</div></div>{visual}</div></header>
@@ -438,6 +709,13 @@ def render_website(source, mode, options, page_id, reference_brief="", avoid=Non
         learning = _get(data, "배운 점·향후 계획", "향후 계획")
         commercialized = str(options.get("commercialized", "unknown"))
         title = project
+        content_context = {
+            "brand": project, "eyebrow": industry, "lead": intro,
+            "meta": [team or "PCU STARTUP", "서비스 운영 중" if commercialized == "yes" else "서비스 준비 중"],
+            "problem": problem, "solution": solution, "items": solution_items or activities,
+            "proof": achievement, "evidence": _sentences(achievement, 5) if achievement else activities,
+            "next": learning or intro,
+        }
         if site_purpose == "customer":
             body = f"""<nav class="site-nav"><div class="shell"><div class="brand">{brand_logo}{_e(project)}</div><div class="nav-index">SERVICE / BRAND</div></div></nav>
             <header class="hero {hero_style}"><div class="shell hero-grid"><div class="hero-copy"><div class="eyebrow">{_e(industry)}</div><h1>{_e(project)}</h1><p class="lead">{_e(intro)}</p><div class="hero-meta"><span>{_e(team or 'PCU STARTUP')}</span><span>{_e('서비스 운영 중' if commercialized == 'yes' else '서비스 준비 중')}</span></div></div>{visual}</div></header>
@@ -454,11 +732,15 @@ def render_website(source, mode, options, page_id, reference_brief="", avoid=Non
             <section class="page-section"><div class="shell reveal"><div class="section-head"><span class="section-index">03 / PROCESS</span><div><h2>실행과 검증</h2></div></div><div class="feature-list">{''.join(f'<div class="feature"><strong>{_e(item)}</strong></div>' for item in activities)}</div></div></section>
             <section class="page-section statement"><div class="shell reveal"><span class="section-index">04 / PROOF</span><p>{_e(achievement or learning or intro)}</p><b class="mark">✦</b></div></section></main>"""
         default_footer = "본 프로젝트는 배재대학교 창업지원단의 지원을 받았습니다."
+    if mode == "career" or site_purpose == "customer":
+        body, structure_family = _compose_v6(mode, direction, content_context, visual, brand_logo)
+    else:
+        structure_family = "legacy-pitch"
     if bool(options.get("includeFooter", True)):
         footer_text = str(options.get("footerText", "")).strip() or default_footer
         body += f'<footer><div class="shell">{_e(footer_text)}<span>© 2026 PCU Student Project</span></div></footer>'
-    metadata = {"engineVersion": "4.1", "design": design, "designName": DESIGN_CONCEPTS[design], "layout": layout, "layoutName": LAYOUTS[layout], "palette": palette_index, "paletteName": palette[0], "typography": type_index, "typographyName": typography[0], "archetype": archetype, "composition": composition, "variantIndex": variant_index, "sitePurpose": site_purpose, "artDirection": str(planner.get("artDirection") or art["label"])[:200], "heroStyle": hero_style, "sectionStyle": section_style, "careerAssessmentUsed": bool(career_assessment), "careerBasis": _get(data, "진로 설계 기준") if mode == "career" else "not_applicable"}
-    meta_text = _e(" · ".join((metadata["artDirection"], metadata["paletteName"], metadata["typographyName"])))
-    document = f'<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="PCU Design Engine v4"><meta name="design-system" content="{meta_text}"><title>{_e(title)}</title><style>{css}</style></head><body class="mode-{_e(mode)} archetype-{archetype} composition-{composition} sections-{_e(section_style)} density-{_e(density)}">{body}<script>const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{{if(entry.isIntersecting){{entry.target.classList.add(\'on\');observer.unobserve(entry.target)}}}}),{{threshold:.12}});document.querySelectorAll(\'.reveal\').forEach(element=>observer.observe(element));</script></body></html>'
+    metadata = {"engineVersion": "6.0", "design": design, "designName": DESIGN_CONCEPTS[design], "layout": layout, "layoutName": LAYOUTS[layout], "palette": palette_index, "paletteName": palette[0], "typography": type_index, "typographyName": typography[0], "archetype": archetype, "composition": composition, "variantIndex": variant_index, "sitePurpose": site_purpose, "artDirectionKey": direction, "artDirectionName": ART_DIRECTIONS[direction], "structureFamily": structure_family, "artDirection": str(planner.get("artDirection") or art["label"])[:200], "heroStyle": hero_style, "sectionStyle": section_style, "careerAssessmentUsed": bool(career_assessment), "careerBasis": _get(data, "진로 설계 기준") if mode == "career" else "not_applicable"}
+    meta_text = _e(" · ".join((metadata["artDirectionName"], metadata["paletteName"], metadata["typographyName"])))
+    document = f'<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="PCU Design Engine v6"><meta name="design-system" content="{meta_text}"><title>{_e(title)}</title><style>{css}</style></head><body class="mode-{_e(mode)} archetype-{archetype} composition-{composition} direction-{direction} structure-{structure_family} sections-{_e(section_style)} density-{_e(density)}">{body}<script>document.querySelectorAll("h1,h2,.statement p,.v6-proof-poster p,.v6-story-opening p,.v6-story-ending p").forEach(element=>{{const count=Array.from(element.textContent.trim()).length;element.classList.add(count>=36?"type-long":count>=18?"type-medium":"type-short")}});const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{{if(entry.isIntersecting){{entry.target.classList.add(\'on\');observer.unobserve(entry.target)}}}}),{{threshold:.12}});document.querySelectorAll(\'.reveal\').forEach(element=>observer.observe(element));</script></body></html>'
     metadata["qualityAudit"] = _quality_audit(document, mode, palette, data, site_purpose)
     return document, title, metadata
