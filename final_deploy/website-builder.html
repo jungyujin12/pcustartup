@@ -16,7 +16,8 @@
     .optional-box{grid-column:1/-1;border:1.5px solid #dce9f8;border-radius:10px;background:#f8fbff}.optional-box>summary{cursor:pointer;padding:.9rem 1rem;font-size:.8rem;font-weight:850;color:#24425f;list-style:none}.optional-box>summary::-webkit-details-marker{display:none}.optional-box>summary:after{content:"＋";float:right;color:#0052cc}.optional-box[open]>summary:after{content:"－"}.optional-box .optional-grid{padding:0 1rem 1rem}.source-note{padding:.75rem 1rem;color:#52667a;font-size:.72rem;line-height:1.55}.source-note strong{color:#087443}
     .basis-box{grid-column:1/-1;border:2px solid #cfe0f4;border-radius:14px;padding:1rem;background:#f8fbff}.basis-box>strong{display:block;font-size:.9rem;margin-bottom:.3rem}.basis-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-top:.8rem}.basis-option{display:block;border:1.5px solid #d7e3f0;border-radius:11px;padding:.9rem;background:#fff;cursor:pointer}.basis-option:has(input:checked){border-color:#0052cc;background:#edf5ff;box-shadow:0 0 0 3px rgba(0,82,204,.08)}.basis-option input{width:auto;margin-right:6px}.basis-option b{font-size:.83rem}.basis-option span{display:block;margin:5px 0 0 22px;font-size:.71rem;line-height:1.5;color:#61758a}.basis-alert{margin-top:.75rem;padding:.7rem .8rem;border-radius:8px;background:#fff4e8;color:#92530b;font-size:.72rem;line-height:1.55}
     .ai-helper{border-color:#b9d8cb;background:linear-gradient(145deg,#fff,#f2fcf7)}.ai-helper-head{display:flex;gap:1rem;align-items:center}.ai-helper-head div{flex:1}.ai-chat{display:none;margin-top:1rem}.ai-chat.open{display:block}.chat-log{height:290px;overflow:auto;border:1px solid #cfddd7;border-radius:12px;padding:1rem;background:#fff}.bubble{max-width:82%;padding:.75rem .9rem;border-radius:13px;margin:.55rem 0;font-size:.8rem;line-height:1.6;white-space:pre-wrap}.bubble.ai{background:#edf7f2;color:#153d2d}.bubble.user{margin-left:auto;background:#10243e;color:#fff}.chat-compose{display:flex;gap:.6rem;margin-top:.7rem}.chat-compose textarea{min-height:74px}.chat-compose button{align-self:stretch}.applied{font-size:.7rem;color:#087443;margin-top:.45rem}
-    @media(max-width:700px){.track-grid,.grid,.checks{grid-template-columns:1fr}.hero{padding:1.5rem}.builder{padding-top:1rem}.actions{flex-direction:column}.btn-main{width:100%}}
+    .career-review{display:none;border-color:#b9c9ee;background:linear-gradient(145deg,#fff,#f5f8ff)}.career-review.show{display:block}.review-flow{display:flex;gap:.45rem;flex-wrap:wrap;margin:.7rem 0 1rem}.review-step{padding:.42rem .65rem;border-radius:999px;background:#e9eef8;color:#52667a;font-size:.7rem;font-weight:800}.review-step.active{background:#10243e;color:#fff}.review-draft{min-height:220px;max-height:520px;overflow:auto;border:1.5px solid #cdd9ea;border-radius:12px;background:#fff;padding:1.1rem;white-space:pre-wrap;font-size:.82rem;line-height:1.72;color:#1d334a}.review-draft.empty{color:#718096}.review-compose{display:grid;grid-template-columns:1fr auto;gap:.65rem;margin-top:.75rem}.review-compose textarea{min-height:82px}.review-checks{display:grid;gap:.55rem;margin-top:1rem;padding:1rem;border-radius:11px;background:#fff;border:1px solid #dbe5f1}.review-checks label{display:flex;gap:.55rem;align-items:flex-start;font-size:.76rem;line-height:1.5}.review-checks input{width:auto;margin-top:.18rem}.btn-submit{background:#087443}.review-actions{display:flex;justify-content:space-between;gap:.7rem;align-items:center;flex-wrap:wrap;margin-top:1rem}.review-state{font-size:.74rem;color:#52667a}.review-state.done{color:#087443;font-weight:800}
+    @media(max-width:700px){.track-grid,.grid,.checks{grid-template-columns:1fr}.hero{padding:1.5rem}.builder{padding-top:1rem}.actions{flex-direction:column}.btn-main{width:100%}.review-compose{grid-template-columns:1fr}.review-compose .btn-main{width:100%}}
   </style>
 </head>
 <body>
@@ -88,12 +89,28 @@
         <div class="field"><label for="cEducation">교육·자격·수상</label><textarea id="cEducation" maxlength="1800"></textarea></div>
         <div class="field full"><label for="cContact">공개할 연락 방법</label><input id="cContact" maxlength="300" placeholder="공개에 동의한 이메일·GitHub·LinkedIn만 입력"></div>
         <div class="field full"><label for="careerResultPdf">공식·외부 진로검사 결과지 PDF</label><input id="careerResultPdf" type="file" accept=".pdf,application/pdf"><div id="careerResultStatus" class="hint">고용24 등에서 본인이 적법하게 받은 결과지 1개를 선택하세요. 문항·채점법을 복제하지 않으며 원본 PDF는 서버나 공개 사이트에 저장하지 않습니다.</div></div>
+        <details id="careerScoreCheck" class="optional-box" hidden><summary>PDF 글자 인식 보완 · 결과표 점수 확인</summary><div class="optional-grid grid"><p class="field full hint">일부 고용24 PDF는 화면은 정상이지만 내부 글자가 깨져 자동 판독이 어렵습니다. 결과지의 ‘직업 흥미 유형별 점수’ 표에 표시된 <b>표준점수</b>만 옮겨 적으세요.</p><div class="field"><label for="careerCode">대표 흥미 코드</label><input id="careerCode" maxlength="3" placeholder="예: SE"></div><div class="field"><label for="careerReliability">응답 신뢰도 주의사항</label><input id="careerReliability" maxlength="200" placeholder="예: 사회적 바람직성 기준 초과"></div><div class="field"><label for="careerR">현실형 R</label><input id="careerR" type="number" min="0" max="100"></div><div class="field"><label for="careerI">탐구형 I</label><input id="careerI" type="number" min="0" max="100"></div><div class="field"><label for="careerA">예술형 A</label><input id="careerA" type="number" min="0" max="100"></div><div class="field"><label for="careerS">사회형 S</label><input id="careerS" type="number" min="0" max="100"></div><div class="field"><label for="careerE">진취형 E</label><input id="careerE" type="number" min="0" max="100"></div><div class="field"><label for="careerC">관습형 C</label><input id="careerC" type="number" min="0" max="100"></div></div></details>
         <div class="field full"><label for="cSource">이력서·자기소개서 원문</label><textarea id="cSource" class="source-area" maxlength="50000" placeholder="직접 붙여넣거나 위의 근거 문서에서 불러오세요. 생성 페이지에는 원문을 그대로 노출하지 않고 사실과 성과를 선별해 재구성합니다."></textarea><div class="hint"><span id="cCharCount">0</span> / 50,000자 · 주민등록번호, 상세 주소, 계좌정보는 제거하세요.</div></div>
       </div>
     </section>
 
+    <section id="careerReviewCard" class="card career-review" aria-labelledby="careerReviewTitle">
+      <h2 id="careerReviewTitle">4. 검사 결과 AI 분석 · 학생 검토</h2>
+      <p class="hint">AI가 공식 결과지와 학생이 입력한 희망 직무를 교차 분석해 초안을 만듭니다. 검사 점수는 바꾸지 않고, 해석·강조점·진로 방향만 대화로 다듬을 수 있습니다.</p>
+      <div class="review-flow"><span id="reviewStep1" class="review-step active">1 결과지 판독</span><span id="reviewStep2" class="review-step">2 AI 초안</span><span id="reviewStep3" class="review-step">3 학생 수정</span><span id="reviewStep4" class="review-step">4 최종 제출</span></div>
+      <div id="careerDraft" class="review-draft empty">결과지 PDF를 선택한 뒤 ‘AI 분석 초안 만들기’를 누르세요.</div>
+      <div class="review-compose"><textarea id="careerReviewInput" maxlength="1500" placeholder="예: 대학교수는 희망하지 않으니 제외하고, 교육 프로그램 기획과 운영 경험을 더 강조해 주세요."></textarea><button id="careerAiSendBtn" type="button" class="btn-main">AI 분석 초안 만들기</button></div>
+      <div class="hint">수정 요청은 여러 번 보낼 수 있습니다. Ctrl+Enter로 AI에게 전송하며 Enter는 줄바꿈입니다. AI가 입력에 없는 경력이나 성과를 만들면 반드시 삭제하도록 요청하세요.</div>
+      <div class="review-checks">
+        <label><input id="careerConfirmScores" type="checkbox">검사 결과의 점수·기본정보가 원본과 일치하는지 확인했습니다.</label>
+        <label><input id="careerConfirmFacts" type="checkbox">AI 분석문에 허위·과장된 경험이 없고 제 실제 희망 방향과 일치합니다.</label>
+        <label><input id="careerConfirmSubmit" type="checkbox">현재 분석문을 최종 진로분석 결과로 관리자에게 제출하는 데 동의합니다.</label>
+      </div>
+      <div class="review-actions"><span id="careerReviewState" class="review-state">아직 제출되지 않았습니다.</span><button id="careerFinalSubmitBtn" type="button" class="btn-main btn-submit" disabled>검토 완료 · 최종 제출</button></div>
+    </section>
+
     <section id="optionsCard" class="card" hidden>
-      <h2>4. 이미지·푸터 설정</h2>
+      <h2 id="optionsTitle">4. 이미지·푸터 설정</h2>
       <div class="grid">
         <div class="field"><label for="bannerCount">배너 이미지</label><select id="bannerCount"><option value="0">사용 안 함</option><option value="1">1장</option><option value="2">2장</option><option value="3">3장</option></select></div>
         <div class="field"><label for="footerText">푸터 추가 문구</label><input id="footerText" placeholder="없으면 기본 지원 문구 사용"></div>
@@ -120,7 +137,7 @@ import {getFirestore,collection,doc,getDoc,getDocs,setDoc,serverTimestamp,query,
 const app=initializeApp({apiKey:"AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
 const db=getFirestore(app),$=id=>document.getElementById(id);
 const status=(message,type='')=>{const el=$('jobStatus');el.className=`status show ${type}`;el.innerHTML=message};
-let selectedTrack='',workerAvailable=false,currentClub=null,referenceImageData='',siteImageData=[],siteImageNames=[],careerResultText='',careerProfileLoaded=false,careerAssessmentRecordId='',interviewMessages=[];
+let selectedTrack='',workerAvailable=false,currentClub=null,referenceImageData='',siteImageData=[],siteImageNames=[],careerResultText='',careerProfileLoaded=false,careerAssessmentRecordId='',careerPdfNeedsConfirmation=false,interviewMessages=[],careerReviewMessages=[],careerAnalysisDraft='',careerAnalysisData={},careerReviewSubmitted=false;
 const designCatalog=['에디토리얼 매거진','네오 브루탈리즘','스위스 그리드','벤토 인터페이스','터미널 테크','오가닉 내추럴','럭셔리 미니멀','레트로 퓨처','블루프린트','뉴스페이퍼','아트 갤러리','키네틱 타이포','모노크롬 포커스','노르딕 소프트','플레이풀 캠퍼스','컨설팅 리포트','글래스 레이어','페이퍼 콜라주','오로라 그라디언트','인더스트리얼 유틸리티','데이터 대시보드','캠페인 포스터','스토리북','절제된 미니멀','레트로 컴퓨팅','아카이브 인덱스','프로덕트 쇼케이스','컬처 매거진','크리에이티브 스튜디오','캠퍼스 랩'];
 const layoutCatalog=['분할 히어로·서사형','분할 히어로·카드형','분할 히어로·교차형','분할 히어로·타임라인형','분할 히어로·벤토형','중앙 히어로·서사형','중앙 히어로·카드형','중앙 히어로·교차형','중앙 히어로·타임라인형','중앙 히어로·벤토형','세로 라인 히어로·서사형','세로 라인 히어로·카드형','세로 라인 히어로·교차형','세로 라인 히어로·타임라인형','세로 라인 히어로·벤토형','포스터 히어로·서사형','포스터 히어로·카드형','포스터 히어로·교차형','포스터 히어로·타임라인형','포스터 히어로·벤토형','사이드바 히어로·서사형','사이드바 히어로·카드형','사이드바 히어로·교차형','사이드바 히어로·타임라인형','사이드바 히어로·벤토형','프레임 히어로·서사형','프레임 히어로·카드형','프레임 히어로·교차형','프레임 히어로·타임라인형','프레임 히어로·벤토형'];
 const paletteCatalog=['심해 민트','코발트 선','잉크 코랄','포레스트 라임','왕실 금빛','클린 블루','토마토 크림','라벤더 잉크','사이버 시안','체리 페이퍼','세이지 클레이','레몬 네이비','스카이 레드','블랙 아이보리','민트 퍼플','버건디 핑크','오션 오렌지','올리브 머스타드','슬레이트 아쿠아','플럼 피치','인디고 그린','차콜 옐로','브릭 스카이','에메랄드 샌드','그래파이트 핑크','블루 바이올렛','모스 코랄','커피 민트','나이트 핑크','화이트 레드'];
@@ -168,6 +185,8 @@ window.selectTrack=function(track){
   $('commonCard').hidden=false;$('optionsCard').hidden=false;
   $('aiHelperCard').hidden=false;
   $('startupForm').classList.toggle('show',selectedTrack==='startup');$('careerForm').classList.toggle('show',selectedTrack==='career');
+  $('careerReviewCard').classList.toggle('show',selectedTrack==='career'&&selectedCareerBasis()==='assessment');
+  $('optionsTitle').textContent=selectedTrack==='career'&&selectedCareerBasis()==='assessment'?'5. 이미지·푸터 설정':'4. 이미지·푸터 설정';
   $('generateBtn').textContent=selectedTrack==='startup'?'무료 창업 웹사이트 생성':'무료 취업 포트폴리오 생성';
   $('commonCard').scrollIntoView({behavior:'smooth',block:'start'});
 };
@@ -252,7 +271,7 @@ $('pdfFile').addEventListener('change',async event=>{
 });
 
 $('careerResultPdf').addEventListener('change',async event=>{
-  const file=event.target.files[0];careerResultText='';if(!file)return;
+  const file=event.target.files[0];careerResultText='';careerProfileLoaded=false;careerPdfNeedsConfirmation=false;$('careerScoreCheck').hidden=true;careerAnalysisDraft='';careerAnalysisData={};careerReviewMessages=[];careerReviewSubmitted=false;resetCareerReview();if(!file)return;
   if(file.size>15*1024*1024){$('careerResultStatus').textContent='결과지는 15MB 이하 PDF만 선택할 수 있습니다.';event.target.value='';return}
   $('careerResultStatus').textContent='진로검사 결과지 내용을 읽는 중입니다...';
   try{
@@ -265,8 +284,62 @@ $('careerResultPdf').addEventListener('change',async event=>{
     careerProfileLoaded=true;
     careerAssessmentRecordId=(careerResultText.match(/진로검사 기록 ID:\s*([A-Za-z0-9]+)/)||[])[1]||'';
     if(careerResultText.length<20)throw new Error('텍스트를 추출하지 못했습니다. 이미지로 된 결과지는 요약 내용을 직접 입력해 주세요.');
-    $('careerResultStatus').textContent=`${pdf.numPages}페이지 결과지를 준비했습니다. 흥미유형·직무추천·업무선호만 AI 설계에 참고하며 원본 PDF는 공개하지 않습니다.`;
+    const recognitionTerms=['직업','흥미','표준점수','사회형','진취형','관습형'].filter(term=>careerResultText.includes(term)).length;
+    careerPdfNeedsConfirmation=recognitionTerms<3;$('careerScoreCheck').hidden=!careerPdfNeedsConfirmation;$('careerScoreCheck').open=careerPdfNeedsConfirmation;
+    $('careerResultStatus').textContent=careerPdfNeedsConfirmation?`${pdf.numPages}페이지를 불러왔지만 내부 한글 인식이 불완전합니다. 아래 점수 확인란을 작성해야 정확하게 분석할 수 있습니다.`:`${pdf.numPages}페이지 결과지를 준비했습니다. 흥미유형·직무추천·업무선호만 AI 설계에 참고하며 원본 PDF는 공개하지 않습니다.`;
   }catch(error){careerResultText='';$('careerResultStatus').textContent=error.message||'진로검사 결과지를 읽지 못했습니다.'}
+});
+
+function resetCareerReview(){
+  const draft=$('careerDraft');if(!draft)return;
+  draft.className='review-draft empty';draft.textContent='결과지 PDF를 선택한 뒤 ‘AI 분석 초안 만들기’를 누르세요.';
+  $('careerReviewInput').value='';$('careerAiSendBtn').textContent='AI 분석 초안 만들기';$('careerReviewState').className='review-state';$('careerReviewState').textContent='아직 제출되지 않았습니다.';
+  ['careerConfirmScores','careerConfirmFacts','careerConfirmSubmit'].forEach(id=>$(id).checked=false);updateCareerSubmitState();setCareerReviewStep(1);
+}
+function setCareerReviewStep(step){for(let index=1;index<=4;index++)$(`reviewStep${index}`).classList.toggle('active',index<=step)}
+function updateCareerSubmitState(){
+  const confirmed=['careerConfirmScores','careerConfirmFacts','careerConfirmSubmit'].every(id=>$(id).checked);
+  $('careerFinalSubmitBtn').disabled=!careerAnalysisDraft||!confirmed||careerReviewSubmitted;
+}
+['careerConfirmScores','careerConfirmFacts','careerConfirmSubmit'].forEach(id=>$(id).addEventListener('change',updateCareerSubmitState));
+
+async function createCareerReviewRequest(purpose){
+  const accessCode=clean($('accessCode').value);if(!accessCode)throw new Error('먼저 동아리 접근코드를 입력해주세요.');
+  if(!(await checkWorker()))throw new Error('AI 실행기가 꺼져 있습니다.');
+  const club=currentClub||await verifyAccess(accessCode),requestRef=doc(collection(db,'website_interviews'));
+  const source=[buildSource(),careerResultText?`\n[고용24 직업선호도검사 L형 결과 텍스트]\n${careerResultText}`:''].join('').slice(0,30000);
+  const payload={status:'pending',purpose,clubCode:club.id,accessCode,mode:'career',sourceText:source,messages:careerReviewMessages.slice(-10),createdAt:serverTimestamp()};
+  if(careerAnalysisDraft)payload.analysisDraft=careerAnalysisDraft.slice(0,12000);
+  if(purpose==='career_submit'){
+    payload.analysisData=careerAnalysisData;payload.studentName=clean($('cName').value);payload.desiredRole=clean($('cRole').value);payload.careerField=clean($('cIndustry').value);payload.confirmations={scores:true,facts:true,submit:true};
+  }
+  await setDoc(requestRef,payload);
+  for(let attempt=0;attempt<120;attempt++){
+    await new Promise(resolve=>setTimeout(resolve,1500));let snapshot;try{snapshot=await getDoc(requestRef)}catch(readError){continue}if(!snapshot.exists())continue;
+    const result=snapshot.data();if(result.status==='failed')throw new Error(result.error||'진로분석 요청을 처리하지 못했습니다.');if(result.status==='completed')return result;
+  }
+  throw new Error('AI 응답 시간이 초과되었습니다. 실행기 상태를 확인해주세요.');
+}
+async function sendCareerAnalysis(){
+  if(!careerProfileLoaded||!careerResultText){$('careerReviewState').textContent='먼저 공식 결과지 PDF를 선택해주세요.';return}
+  if(careerPdfNeedsConfirmation&&(!/^[RIASEC]{2,3}$/.test(clean($('careerCode').value).toUpperCase())||['R','I','A','S','E','C'].some(code=>!clean($(`career${code}`).value)))){$('careerReviewState').textContent='PDF 글자 인식 보완란에서 대표 코드와 표준점수 6개를 먼저 입력해주세요.';return}
+  const instruction=clean($('careerReviewInput').value);if(careerAnalysisDraft&& !instruction){$('careerReviewState').textContent='수정할 내용을 입력해주세요.';return}
+  if(instruction){careerReviewMessages.push({role:'user',content:instruction});$('careerReviewInput').value=''}
+  const button=$('careerAiSendBtn');button.disabled=true;button.textContent='AI 분석 중…';$('careerReviewState').textContent=careerAnalysisDraft?'수정 요청을 반영하고 있습니다.':'결과지를 구조적으로 분석하고 있습니다.';
+  try{
+    const result=await createCareerReviewRequest('career_analysis');careerAnalysisDraft=String(result.analysisDraft||result.reply||'').trim();careerAnalysisData=result.analysisData&&typeof result.analysisData==='object'?result.analysisData:{};
+    if(!careerAnalysisDraft)throw new Error('AI가 분석문을 반환하지 않았습니다.');careerReviewMessages.push({role:'assistant',content:careerAnalysisDraft.slice(0,1500)});
+    $('careerDraft').className='review-draft';$('careerDraft').textContent=careerAnalysisDraft;$('careerReviewState').textContent='AI 초안입니다. 사실과 희망 방향을 확인하고 필요한 내용을 AI에게 수정 요청하세요.';$('careerAiSendBtn').textContent='AI에게 수정 요청 보내기';setCareerReviewStep(instruction?3:2);updateCareerSubmitState();
+  }catch(error){$('careerReviewState').textContent=error.message||'진로분석을 만들지 못했습니다.'}finally{button.disabled=false;if(!careerAnalysisDraft)button.textContent='AI 분석 초안 만들기'}
+}
+$('careerAiSendBtn').addEventListener('click',sendCareerAnalysis);
+$('careerReviewInput').addEventListener('keydown',event=>{if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();sendCareerAnalysis()}});
+$('careerFinalSubmitBtn').addEventListener('click',async()=>{
+  if(!careerAnalysisDraft||!['careerConfirmScores','careerConfirmFacts','careerConfirmSubmit'].every(id=>$(id).checked))return;
+  if(!confirm('현재 분석문을 최종 제출할까요?\n제출 후 웹사이트 제작에는 이 학생 확인본이 사용됩니다.'))return;
+  const button=$('careerFinalSubmitBtn');button.disabled=true;button.textContent='제출 중…';
+  try{const result=await createCareerReviewRequest('career_submit');careerReviewSubmitted=true;careerAssessmentRecordId=String(result.reviewId||careerAssessmentRecordId);$('careerReviewState').className='review-state done';$('careerReviewState').textContent='최종 제출이 완료되었습니다. 아래에서 취업 포트폴리오를 생성할 수 있습니다.';button.textContent='제출 완료';setCareerReviewStep(4)}
+  catch(error){$('careerReviewState').textContent=error.message||'최종 제출에 실패했습니다.';button.disabled=false;button.textContent='검토 완료 · 최종 제출'}
 });
 
 function selectedCareerBasis(){return document.querySelector('input[name="careerBasis"]:checked')?.value||''}
@@ -275,6 +348,8 @@ function updateCareerBasisUI(){
   if(basis==='assessment'){resultField.style.opacity='1';$('careerResultPdf').disabled=false;guide.textContent=careerProfileLoaded?'검사 결과가 준비되었습니다. 추천 방향을 참고하되 입력한 실제 경험과 역량을 중심으로 제작합니다.':'고용24 등 공식·외부 검사 결과지 PDF를 선택해주세요.'}
   else if(basis==='independent'){resultField.style.opacity='.55';$('careerResultPdf').disabled=true;guide.textContent='검사 결과는 사용하지 않습니다. 희망 직무와 희망 산업·진로 분야를 직접 입력해주세요.'}
   else{resultField.style.opacity='1';$('careerResultPdf').disabled=false;guide.textContent='검사 결과를 사용할지 선택해주세요.'}
+  $('careerReviewCard').classList.toggle('show',selectedTrack==='career'&&basis==='assessment');
+  $('optionsTitle').textContent=selectedTrack==='career'&&basis==='assessment'?'5. 이미지·푸터 설정':'4. 이미지·푸터 설정';
 }
 document.querySelectorAll('input[name="careerBasis"]').forEach(input=>input.addEventListener('change',updateCareerBasisUI));
 
@@ -344,10 +419,14 @@ $('siteImages').addEventListener('change',async event=>{
 });
 
 function clean(value){return String(value||'').trim()}
+function careerScoreSummary(){
+  const scores=['R','I','A','S','E','C'].map(code=>`${code}:${clean($(`career${code}`).value)}`).join(', ');
+  return `[학생이 결과표와 대조 확인한 값]\n대표 흥미 코드: ${clean($('careerCode').value).toUpperCase()}\nRIASEC 표준점수: ${scores}\n응답 신뢰도 메모: ${clean($('careerReliability').value)}`;
+}
 function buildSource(){
   if(selectedTrack==='startup')return `[제작 목적] 창업 목적 웹사이트\n[프로젝트·서비스명] ${clean($('sProject').value)}\n[팀명·동아리명] ${clean($('sTeam').value)}\n[핵심 한 줄 소개] ${clean($('sIntro').value)}\n[분야·업종] ${clean($('sIndustry').value)}\n[사업화 여부] ${$('commercialized').value}\n[문제 정의] ${clean($('sProblem').value)}\n[해결 방법] ${clean($('sSolution').value)}\n[주요 활동] ${clean($('sActivities').value)}\n[성과·검증 결과] ${clean($('sAchievements').value)}\n[배운 점·향후 계획] ${clean($('sLearning').value)}\n[추가 원문]\n${clean($('sSource').value)}`;
   const basis=selectedCareerBasis(),basisText=basis==='assessment'?'진로검사 결과 기반':'검사 결과와 별개인 희망 직무·진로 분야 기반 (직접 입력한 희망 방향을 최우선 적용)';
-  return `[제작 목적] 취업용 포트폴리오\n[진로 설계 기준] ${basisText}\n[진로검사 기록 ID] ${basis==='assessment'?careerAssessmentRecordId:''}\n[이름] ${clean($('cName').value)}\n[희망 직무] ${clean($('cRole').value)}\n[전공·학과] ${clean($('cMajor').value)}\n[희망 산업·진로 분야] ${clean($('cIndustry').value)}\n[한 줄 소개] ${clean($('cIntro').value)}\n[핵심 역량·기술] ${clean($('cSkills').value)}\n[강점·업무 방식] ${clean($('cStrengths').value)}\n[프로젝트] ${clean($('cProjects').value)}\n[경험·경력·대외활동] ${clean($('cExperience').value)}\n[교육·자격·수상] ${clean($('cEducation').value)}\n[공개 연락 방법] ${clean($('cContact').value)}\n[추가 원문]\n${clean($('cSource').value)}`;
+  return `[제작 목적] 취업용 포트폴리오\n[진로 설계 기준] ${basisText}\n[진로검사 기록 ID] ${basis==='assessment'?careerAssessmentRecordId:''}\n[이름] ${clean($('cName').value)}\n[희망 직무] ${clean($('cRole').value)}\n[전공·학과] ${clean($('cMajor').value)}\n[희망 산업·진로 분야] ${clean($('cIndustry').value)}\n[한 줄 소개] ${clean($('cIntro').value)}\n[핵심 역량·기술] ${clean($('cSkills').value)}\n[강점·업무 방식] ${clean($('cStrengths').value)}\n[프로젝트] ${clean($('cProjects').value)}\n[경험·경력·대외활동] ${clean($('cExperience').value)}\n[교육·자격·수상] ${clean($('cEducation').value)}\n[공개 연락 방법] ${clean($('cContact').value)}\n${basis==='assessment'?careerScoreSummary():''}\n[추가 원문]\n${clean($('cSource').value)}`;
 }
 function validateTrack(){
   if(!selectedTrack)return '제작 목적을 선택해주세요.';
@@ -355,6 +434,8 @@ function validateTrack(){
   if(selectedTrack==='career'){
     const basis=selectedCareerBasis();if(!basis)return '검사 결과 기반 또는 별도 희망 진로 기반 중 하나를 선택해주세요.';
     if(basis==='assessment'&&!careerProfileLoaded)return '검사 결과 참고 제작을 선택했습니다. 고용24 등에서 받은 결과지 PDF를 선택해주세요.';
+    if(basis==='assessment'&&careerPdfNeedsConfirmation&&(!/^[RIASEC]{2,3}$/.test(clean($('careerCode').value).toUpperCase())||['R','I','A','S','E','C'].some(code=>!clean($(`career${code}`).value))))return 'PDF 글자 인식이 불완전합니다. 대표 흥미 코드와 RIASEC 표준점수 6개를 결과표와 대조해 입력해주세요.';
+    if(basis==='assessment'&&!careerReviewSubmitted)return 'AI 분석 초안을 검토하고 최종 제출한 뒤 포트폴리오를 생성해주세요.';
     if(!clean($('cName').value)||!clean($('cIntro').value))return '이름과 한 줄 소개를 입력해주세요.';
     if(basis==='independent'&&!clean($('cRole').value)&&!clean($('cIndustry').value))return '희망 직무 또는 희망 진로 분야를 하나 이상 입력해주세요.';
   }
@@ -365,7 +446,7 @@ async function verifyAccess(code){const club=currentClub||await resolveClub(code
 window.submitWebsiteJob=async function(){
   const validation=validateTrack();if(validation){status(validation,'error');return}
   const pageId=clean($('pageId').value),accessCode=clean($('accessCode').value);let sourceText=buildSource();
-  if(selectedTrack==='career'&&selectedCareerBasis()==='assessment'&&careerResultText)sourceText+=`\n[진로검사 결과지 - AI 설계 참고용, 공개 금지]\n${careerResultText}`;
+  if(selectedTrack==='career'&&selectedCareerBasis()==='assessment'&&careerAnalysisDraft)sourceText+=`\n[학생 확인 완료 진로분석 - AI 설계 참고용, 공개 시 민감정보 제외]\n${careerAnalysisDraft}`;
   if(!accessCode){status('생성 접근코드를 입력해주세요.','error');return}
   if(!/^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])?$/.test(pageId)){status('페이지 주소는 영문 소문자·숫자·하이픈 3~32자로 입력해주세요.','error');return}
   if(sourceText.length>50000){status('전체 입력 내용이 50,000자를 초과했습니다. 추가 원문을 줄여주세요.','error');return}
