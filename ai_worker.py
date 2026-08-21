@@ -933,6 +933,7 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
         current_code = str(club_data.get("accessCode") or club_data.get("code") or club.id).upper()
         if current_code != access_code:
             raise PermissionError("동아리 접근코드가 올바르지 않습니다.")
+        purpose = str(data.get("purpose", "content_interview"))
         source = str(data.get("sourceText", ""))[:30000]
         messages = data.get("messages", [])
         safe_messages = []
@@ -942,6 +943,116 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
                     continue
                 role = "assistant" if item.get("role") == "assistant" else "user"
                 safe_messages.append({"role": role, "content": str(item.get("content", ""))[:1500]})
+        if mode == "career" and purpose == "career_submit":
+            draft = str(data.get("analysisDraft", "")).strip()[:12000]
+            confirmations = data.get("confirmations", {})
+            if len(draft) < 300:
+                raise ValueError("최종 진로분석 내용이 충분하지 않습니다.")
+            if not isinstance(confirmations, dict) or not all(
+                confirmations.get(key) is True for key in ("scores", "facts", "submit")
+            ):
+                raise ValueError("최종 제출 확인 항목에 동의해야 합니다.")
+            analysis_data = data.get("analysisData", {})
+            if not isinstance(analysis_data, dict):
+                analysis_data = {}
+            safe_analysis = {
+                "representativeCode": str(analysis_data.get("representativeCode", ""))[:8],
+                "riasecScores": analysis_data.get("riasecScores", {}) if isinstance(analysis_data.get("riasecScores"), dict) else {},
+                "reliabilityStatus": str(analysis_data.get("reliabilityStatus", ""))[:30],
+                "reliabilityReason": str(analysis_data.get("reliabilityReason", ""))[:500],
+                "careerDirections": [str(item)[:120] for item in analysis_data.get("careerDirections", [])[:8]] if isinstance(analysis_data.get("careerDirections"), list) else [],
+                "strengths": [str(item)[:200] for item in analysis_data.get("strengths", [])[:8]] if isinstance(analysis_data.get("strengths"), list) else [],
+            }
+            review_ref = self.db.collection("career_reviews").document()
+            review_ref.set({
+                "clubCode": club_id,
+                "clubName": str(club_data.get("name", ""))[:100],
+                "clubYear": str(club_data.get("year", ""))[:4],
+                "studentName": str(data.get("studentName", ""))[:60],
+                "desiredRole": str(data.get("desiredRole", ""))[:100],
+                "careerField": str(data.get("careerField", ""))[:120],
+                "analysisDraft": draft,
+                "analysisData": safe_analysis,
+                "status": "submitted",
+                "studentConfirmed": True,
+                "sourceType": "work24-l-result-student-upload",
+                "privacyScope": "admin-only-approved-analysis",
+                "submittedAt": firestore.SERVER_TIMESTAMP,
+            })
+            return {
+                "accessCode": firestore.DELETE_FIELD,
+                "messages": firestore.DELETE_FIELD,
+                "sourceText": firestore.DELETE_FIELD,
+                "analysisDraft": firestore.DELETE_FIELD,
+                "analysisData": firestore.DELETE_FIELD,
+                "studentName": firestore.DELETE_FIELD,
+                "desiredRole": firestore.DELETE_FIELD,
+                "careerField": firestore.DELETE_FIELD,
+                "confirmations": firestore.DELETE_FIELD,
+                "reviewId": review_ref.id,
+                "reply": "최종 진로분석 결과가 제출되었습니다.",
+            }
+        if mode == "career" and purpose == "career_analysis":
+            current_draft = str(data.get("analysisDraft", "")).strip()[:12000]
+            previous = ""
+            if safe_messages and safe_messages[-1]["role"] == "user":
+                previous = safe_messages[-1]["content"]
+            prompt = f"""당신은 고용24 직업선호도검사(L형) 결과를 학생과 함께 검토하는 진로상담 보조 AI입니다.
+결과지 원문에서 확인되는 사실만 사용하고 점수나 경력, 성과를 추측하지 마세요.
+반드시 다음 순서로 분석하세요.
+1) 대표 흥미코드와 RIASEC 6개 표준점수
+2) 응답신뢰도(사회적 바람직성·부주의성)를 먼저 판정하고 주의가 있으면 단정적 표현 금지
+3) 흥미·성격 5요인·생활사·희망직업 간 일치점과 차이
+4) 학생이 입력한 희망직무 및 실제 경험과의 연결
+5) 핵심 강점, 가능한 직무 방향, 확인이 필요한 가설
+6) 30일·90일 실행계획과 포트폴리오 강조점
+검사 결과는 진단이나 직업 확정이 아니라 탐색 자료임을 밝히세요.
+민감한 성격·생활사 정보는 공개 포트폴리오에 직접 노출하지 말고 내부 상담 참고로 표시하세요.
+사용자의 수정 요청이 있으면 검사 원점수는 유지하고 해석·강조·희망 방향만 수정하세요.
+JSON 객체 하나만 출력하세요.
+{{
+  "reply":"학생이 읽고 수정할 수 있는 한국어 분석문. 명확한 소제목을 포함하고 1200~2500자",
+  "analysisData":{{
+    "representativeCode":"예: SE 또는 확인불가",
+    "riasecScores":{{"R":0,"I":0,"A":0,"S":0,"E":0,"C":0}},
+    "reliabilityStatus":"정상|주의|재검토 권장|확인불가",
+    "reliabilityReason":"근거",
+    "careerDirections":["방향"],
+    "strengths":["강점"]
+  }},
+  "ready":true
+}}
+
+[학생의 최근 수정 요청]
+{previous or '첫 분석 초안을 작성하세요.'}
+
+[현재 분석 초안]
+{current_draft or '아직 없음'}
+
+[입력 및 결과지 텍스트]
+{source}
+"""
+            response = ollama.chat(
+                model=self.website_model,
+                messages=[{"role": "system", "content": prompt}],
+                format="json",
+                options={"temperature": 0.2, "num_ctx": 16384, "num_predict": 2200},
+            )
+            parsed = json.loads(response["message"]["content"])
+            if not isinstance(parsed, dict):
+                raise ValueError("진로분석 결과 형식이 올바르지 않습니다.")
+            analysis_data = parsed.get("analysisData", {})
+            if not isinstance(analysis_data, dict):
+                analysis_data = {}
+            return {
+                "accessCode": firestore.DELETE_FIELD,
+                "reply": str(parsed.get("reply", "결과를 다시 확인해주세요."))[:12000],
+                "analysisDraft": str(parsed.get("reply", ""))[:12000],
+                "analysisData": analysis_data,
+                "ready": bool(parsed.get("ready", True)),
+                "messages": firestore.DELETE_FIELD,
+                "sourceText": firestore.DELETE_FIELD,
+            }
         allowed = (["sProject", "sTeam", "sIntro", "sIndustry", "sProblem", "sSolution", "sActivities", "sAchievements", "sLearning"]
                    if mode == "startup" else
                    ["cName", "cRole", "cMajor", "cIndustry", "cIntro", "cSkills", "cStrengths", "cProjects", "cExperience", "cEducation", "cContact"])
