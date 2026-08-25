@@ -1032,24 +1032,88 @@ JSON 객체 하나만 출력하세요.
 [입력 및 결과지 텍스트]
 {source}
 """
-            response = ollama.chat(
-                model=self.website_model,
-                messages=[{"role": "system", "content": prompt}],
-                format="json",
-                options={"temperature": 0.2, "num_ctx": 16384, "num_predict": 2200},
+            # 긴 PDF를 JSON 초안과 본문 생성에 두 번 넣으면 로컬 8B 모델에서
+            # 브라우저 제한 시간을 넘기기 쉽다. 본문은 한 번만 생성하고,
+            # 구조화 값은 아래에서 원문·수동 확인값으로 결정론적으로 추출한다.
+            compact_source = source[:9000]
+            detailed_prompt = f"""고용24 직업선호도검사(L형) 결과와 학생 입력을 바탕으로 진로분석 본문을 작성하세요.
+JSON이나 작성 지시를 출력하지 말고 학생에게 바로 보여줄 완성된 한국어 분석문만 출력합니다.
+제목과 본문을 포함한 모든 문장은 반드시 자연스러운 한국어로 작성하세요. 영어 제목과 영어 설명은 금지합니다.
+입력에 없는 사실·점수·경력은 절대 만들지 마세요. 검사 결과는 직업을 확정하는 진단이 아니라 탐색 자료입니다.
+학위 취득, 성격 특성, 자격, 경력, 성과를 원문에서 직접 확인하지 못했다면 사실처럼 쓰지 말고
+‘추가 확인이 필요한 항목’으로만 제시하세요. 추천 방향에는 반드시 원문에서 확인한 근거를 함께 적으세요.
+반드시 아래 소제목을 모두 사용하고 각 항목을 구체적으로 설명하세요.
+전체 분량은 1,800~2,300자이며 각 항목은 2~4문장 또는 짧은 글머리표로 작성합니다.
+7번 항목까지 반드시 완결하고 표는 사용하지 마세요.
+
+## 1. 검사 결과 한눈에 보기
+## 2. 흥미·성격·생활사 교차분석
+## 3. 희망 직무와 연결되는 강점
+## 4. 확인하거나 보완할 점
+## 5. 추천 진로 방향과 근거
+## 6. 30일·90일 실행계획
+## 7. 포트폴리오에 반영할 내용
+
+응답 신뢰도에 주의가 있으면 맨 앞에서 그 의미를 설명하고 단정적인 표현을 피하세요.
+민감한 성격·생활사 정보는 공개 포트폴리오가 아닌 내부 상담 참고사항으로 구분하세요.
+학생의 수정 요청이 있으면 검사 원점수는 그대로 유지하면서 현재 초안을 수정하세요.
+RIASEC 숫자는 입력에 'RIASEC 표준점수:'라는 구조화 문장이 있을 때만 적으세요.
+PDF 그래프에서 추정한 숫자나 유형별 설명의 예시 숫자는 결과 점수로 쓰지 마세요.
+
+[학생의 최근 수정 요청]
+{previous or '첫 분석 초안을 작성하세요.'}
+
+[현재 분석 초안]
+{current_draft or '아직 없음'}
+
+[입력 및 결과지 텍스트]
+{compact_source}
+"""
+            detailed = ollama.chat(
+                model=self.text_model,
+                messages=[{"role": "user", "content": detailed_prompt}],
+                options={"temperature": 0.16, "num_ctx": 12288, "num_predict": 1600},
             )
-            parsed = json.loads(response["message"]["content"])
-            if not isinstance(parsed, dict):
-                raise ValueError("진로분석 결과 형식이 올바르지 않습니다.")
-            analysis_data = parsed.get("analysisData", {})
-            if not isinstance(analysis_data, dict):
-                analysis_data = {}
+            reply = str(detailed["message"]["content"]).strip()
+            if len(reply) < 700:
+                raise ValueError("AI 분석문이 너무 짧아 품질 기준을 통과하지 못했습니다. 다시 시도해주세요.")
+            latin_letters = len(re.findall(r"[A-Za-z]", reply))
+            korean_letters = len(re.findall(r"[가-힣]", reply))
+            if latin_letters > korean_letters:
+                raise ValueError("AI가 한국어 분석문을 만들지 못했습니다. 다시 시도해주세요.")
+            required_headings = (
+                "검사 결과 한눈에 보기", "흥미·성격·생활사 교차분석", "희망 직무와 연결되는 강점",
+                "확인하거나 보완할 점", "추천 진로 방향과 근거", "30일·90일 실행계획",
+                "포트폴리오에 반영할 내용",
+            )
+            if any(heading not in reply for heading in required_headings):
+                raise ValueError("AI 분석문이 필수 7개 항목을 모두 완성하지 못했습니다. 다시 시도해주세요.")
+            analysis_data = {
+                "representativeCode": "확인불가",
+                "riasecScores": {},
+                "reliabilityStatus": "확인불가",
+                "reliabilityReason": "원문 결과지와 AI 분석문을 학생이 직접 대조해야 합니다.",
+                "careerDirections": [],
+                "strengths": [],
+            }
+            manual_code = re.search(r"대표 흥미 코드:\s*([RIASEC]{2,3})", source, re.I)
+            manual_scores = re.search(
+                r"RIASEC 표준점수:\s*R:(\d{1,3}),\s*I:(\d{1,3}),\s*A:(\d{1,3}),\s*S:(\d{1,3}),\s*E:(\d{1,3}),\s*C:(\d{1,3})",
+                source, re.I,
+            )
+            if manual_code:
+                analysis_data["representativeCode"] = manual_code.group(1).upper()
+            if manual_scores:
+                analysis_data["riasecScores"] = dict(zip(
+                    ("R", "I", "A", "S", "E", "C"),
+                    (int(value) for value in manual_scores.groups()),
+                ))
             return {
                 "accessCode": firestore.DELETE_FIELD,
-                "reply": str(parsed.get("reply", "결과를 다시 확인해주세요."))[:12000],
-                "analysisDraft": str(parsed.get("reply", ""))[:12000],
+                "reply": reply[:12000],
+                "analysisDraft": reply[:12000],
                 "analysisData": analysis_data,
-                "ready": bool(parsed.get("ready", True)),
+                "ready": True,
                 "messages": firestore.DELETE_FIELD,
                 "sourceText": firestore.DELETE_FIELD,
             }
