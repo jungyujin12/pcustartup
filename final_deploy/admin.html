@@ -46,6 +46,7 @@
       cursor:pointer; border-bottom:3px solid transparent;
       margin-bottom:-2px; font-family:var(--font-family-base);
       transition:var(--transition-fast); white-space:nowrap; border-radius:8px 8px 0 0;
+      line-height:1.2; word-break:keep-all;
     }
     .tab-btn.active { color:var(--pcu-blue); border-bottom-color:var(--pcu-blue); background:#f2f7ff; }
     .tab-btn:hover { color:var(--pcu-blue); background:#f7faff; }
@@ -110,6 +111,7 @@
     .btn-sm {
       padding:8px 20px; border-radius:8px; font-size:0.83rem; font-weight:700;
       border:none; cursor:pointer; font-family:var(--font-family-base); transition:var(--transition-fast);
+      white-space:nowrap; word-break:keep-all; line-height:1.2;
     }
     .btn-sm-blue { background:var(--pcu-blue); color:white; }
     .btn-sm-blue:hover { background:#0042A0; }
@@ -127,8 +129,9 @@
       background:linear-gradient(90deg,var(--pcu-dark) 0%,#1e3a5f 100%);
       color:white; padding:1.2rem 1.8rem;
       display:flex; align-items:center; justify-content:space-between;
+      gap:.8rem;
     }
-    .table-head h3 { font-size:1rem; font-weight:800; color:white; margin:0; }
+    .table-head h3 { font-size:1rem; font-weight:800; color:white; margin:0; word-break:keep-all; }
     .table-count {
       background:rgba(255,255,255,0.15); color:white;
       font-size:0.78rem; font-weight:700; padding:4px 12px; border-radius:20px;
@@ -140,7 +143,7 @@
       font-weight:800; text-align:left; border-bottom:2px solid rgba(0,82,204,0.1);
       white-space:nowrap; font-size:0.78rem;
     }
-    table.mt td { padding:12px 16px; border-bottom:1px solid var(--pcu-lightgray); vertical-align:middle; }
+    table.mt td { padding:12px 16px; border-bottom:1px solid var(--pcu-lightgray); vertical-align:middle; line-height:1.45; }
     table.mt tr:last-child td { border-bottom:none; }
     table.mt tr:hover td { background:rgba(0,82,204,0.02); }
     #dashboardClubTable { min-width:1180px; table-layout:fixed; }
@@ -187,6 +190,23 @@
     .td-right { text-align:right; font-weight:600; }
     .td-date  { font-size:0.8rem; color:var(--pcu-gray); }
     .td-btn   { font-size:0.78rem !important; padding:5px 12px !important; }
+    .td-btn, .tb, .table-count, .code-preview, .nav-admin-tag, .btn-logout,
+    .file-view-tab, .file-club-code, .admin-file-meta, .td-date {
+      white-space:nowrap; word-break:keep-all;
+    }
+    .nav-logo { white-space:nowrap; }
+    .nav-right { flex:0 0 auto; }
+    .filter-bar > span, .filter-bar > label { white-space:nowrap; word-break:keep-all; }
+    table.mt td strong, .file-primary-name, .file-club-name {
+      word-break:keep-all;
+    }
+    /* 이름·코드·날짜·작업 버튼은 한 줄, 설명·아이템만 여러 줄로 유지 */
+    table.mt td:not(.td-item) { overflow-wrap:normal; }
+    table.mt .td-item, .dv, .tl-c { word-break:keep-all; overflow-wrap:anywhere; }
+    table.mt td:last-child { white-space:nowrap; }
+    .member-table th, .member-table td { word-break:keep-all; }
+    .member-table th { white-space:nowrap; }
+    .file-actions { flex-wrap:nowrap; }
 
     /* 차트 */
     .charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:var(--spacing-lg); }
@@ -408,6 +428,9 @@
       .filter-bar input { width: 100%; }
       table.mt { font-size: 0.78rem; }
       table.mt th, table.mt td { padding: 8px 10px; }
+      .table-head { padding:.9rem 1rem; align-items:flex-start; }
+      .table-head > div { min-width:0; }
+      .table-head h3 { font-size:.9rem; }
       .modal-box { max-width: 100%; margin: 0; border-radius: 16px 16px 0 0; max-height: 90vh; }
       .modal-overlay { align-items: flex-end; padding: 0; }
       .dg { grid-template-columns: 1fr; }
@@ -432,6 +455,14 @@
       .file-actions { grid-column:2 / 4; justify-content:flex-start; padding-left:0; }
       .file-organizer { grid-template-columns:1fr; }
       .organizer-source-list, .organizer-folders { max-height:none; }
+    }
+
+    @media (max-width: 420px) {
+      .nav-admin-tag { display:none; }
+      .page-header p { font-size:.76rem; }
+      .table-head { flex-wrap:wrap; }
+      .file-actions { flex-wrap:wrap; }
+      .filter-bar .btn-sm { width:100%; }
     }
 
 
