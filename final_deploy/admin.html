@@ -35,18 +35,25 @@
     /* 탭 네비 */
     .tab-nav {
       background:var(--bg-white); border-bottom:2px solid var(--pcu-lightgray);
-      display:flex; gap:0; padding:0 var(--spacing-md);
+      display:flex; gap:0.2rem; padding:0.35rem clamp(0.5rem,2vw,1.25rem);
       position:sticky; top:60px; z-index:90;
+      overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:thin;
+      box-shadow:0 5px 18px rgba(15,48,87,0.06);
     }
     .tab-btn {
-      padding:1rem 1.5rem; font-size:0.9rem; font-weight:700;
+      flex:0 0 auto; padding:0.72rem 0.72rem; font-size:0.76rem; font-weight:800;
       color:var(--pcu-gray); border:none; background:none;
       cursor:pointer; border-bottom:3px solid transparent;
       margin-bottom:-2px; font-family:var(--font-family-base);
-      transition:var(--transition-fast);
+      transition:var(--transition-fast); white-space:nowrap; border-radius:8px 8px 0 0;
     }
-    .tab-btn.active { color:var(--pcu-blue); border-bottom-color:var(--pcu-blue); }
-    .tab-btn:hover { color:var(--pcu-blue); }
+    .tab-btn.active { color:var(--pcu-blue); border-bottom-color:var(--pcu-blue); background:#f2f7ff; }
+    .tab-btn:hover { color:var(--pcu-blue); background:#f7faff; }
+    .tab-actions {
+      flex:0 0 auto; position:sticky; right:0; z-index:2;
+      min-height:42px; background:linear-gradient(90deg,rgba(255,255,255,.82),#fff 16%);
+      box-shadow:-14px 0 18px rgba(255,255,255,.98);
+    }
 
     /* 탭 패널 */
     .tab-panel { display:none; }
@@ -55,7 +62,7 @@
     /* 페이지 헤더 */
     .page-header {
       background:linear-gradient(135deg,#1F2933 0%,#0052CC 100%);
-      color:white; padding:2.5rem var(--spacing-md); text-align:center;
+      color:white; padding:1.55rem var(--spacing-md) 1.7rem; text-align:center;
     }
     .page-header-badge {
       display:inline-block; background:rgba(255,255,255,0.15);
@@ -64,7 +71,7 @@
       border-radius:20px; margin-bottom:0.8rem; letter-spacing:0.5px;
     }
     .page-header h1 {
-      font-size:2rem; font-weight:900; color:white; margin-bottom:0.4rem;
+      font-size:clamp(1.45rem,2.4vw,1.9rem); font-weight:900; color:white; margin-bottom:0.3rem;
       letter-spacing:-1px; background:none; -webkit-text-fill-color:white;
     }
     .page-header p { color:rgba(255,255,255,0.7); font-size:0.9rem; margin:0; }
@@ -82,8 +89,8 @@
     .btn-logout:hover { border-color:var(--pcu-blue); color:var(--pcu-blue); }
 
     /* 대시보드 */
-    .dashboard { padding:var(--spacing-2xl) var(--spacing-md); background:linear-gradient(180deg,#F5F9FF 0%,#FFFFFF 100%); }
-    .section-wrap { max-width:var(--container-max-width); margin:0 auto var(--spacing-2xl); }
+    .dashboard { padding:1.65rem var(--spacing-md) var(--spacing-2xl); background:linear-gradient(180deg,#F4F8FD 0%,#FFFFFF 100%); }
+    .section-wrap { max-width:var(--container-max-width); margin:0 auto 1.35rem; }
     .admin-summary-grid { max-width:var(--container-max-width); margin:0 auto; }
 
     /* 필터 */
@@ -391,8 +398,10 @@
     tr.expanded { background: #f0f6ff !important; }
     /* 모바일 최적화 */
     @media (max-width: 768px) {
-      .tab-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 0 8px; }
-      .tab-btn { padding: 0.8rem 0.9rem; font-size: 0.78rem; white-space: nowrap; }
+      .page-header { padding:1.05rem 1rem 1.2rem; text-align:left; }
+      .page-header-badge { margin-bottom:.45rem; }
+      .tab-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 0.25rem 8px; }
+      .tab-btn { padding: 0.68rem 0.72rem; font-size: 0.74rem; white-space: nowrap; }
       .page-header h1 { font-size: 1.4rem; }
       .charts-grid { grid-template-columns: 1fr; }
       .filter-bar { flex-direction: column; }
@@ -405,11 +414,9 @@
       .club-manage-wrap { padding: var(--spacing-md); }
       .add-club-form { flex-direction: column; }
       #notiPanel { right: 10px; left: 10px; width: auto; }
-      .tab-actions {
-        position: sticky; right: 0; flex-shrink: 0;
-        margin-left: 0 !important; padding: 0 8px !important;
-        background: var(--bg-white); box-shadow: -10px 0 12px var(--bg-white);
-      }
+      .tab-actions { margin-left:0 !important; padding:0 8px !important; gap:.4rem !important; }
+      .tab-actions .btn-sm-red { padding:7px 10px; }
+      .dashboard { padding:1rem .7rem 2rem; }
       .rise-summary-grid { grid-template-columns:repeat(2,1fr); gap:0.6rem; }
       .contest-form-grid { grid-template-columns:1fr; }
       .contest-form-grid #contest-desc { grid-column:auto !important; }
@@ -1036,7 +1043,7 @@ function logout() { if(window._logout) window._logout(); }
             <div class="file-drop-zone-admin" id="adminDropZone">
               <div style="font-size:1.5rem;margin-bottom:0.25rem">⬆️</div>
               <p style="font-weight:700;font-size:0.82rem">클릭하거나 파일을 끌어놓아 업로드</p>
-              <p style="font-size:0.7rem;color:var(--pcu-gray);margin-top:3px">HWP 권장 · PDF·이미지·DOCX·XLSX 지원 · 파일당 최대 20MB</p>
+              <p style="font-size:0.7rem;color:var(--pcu-gray);margin-top:3px">HWP 권장 · 10MB 초과 파일도 가능 · PDF·이미지·DOCX·XLSX 지원 · 파일당 최대 20MB</p>
               <input type="file" id="adminFileInput" multiple
                 accept=".pdf,.jpg,.jpeg,.png,.webp,.hwp,.doc,.docx,.xls,.xlsx"
                 style="display:none" onchange="handleAdminFiles(this.files)">
@@ -1299,6 +1306,21 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const storage = getStorage(app);
 const auth = getAuth(app);
+
+// 한글 IME가 조합 종료 직후 마지막 낱자(예: ㅏ, ㅌ)를 중복 전달하는
+// 일부 브라우저/자동입력 환경을 방어한다. 검색창은 초성 검색을 위해 제외한다.
+function normalizeAdminWriteInput(input) {
+  if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) return;
+  if (input.type === 'search' || /검색/.test(input.placeholder || '')) return;
+  if (!['text','tel','email',''].includes(input.type || '')) return;
+  const normalized = String(input.value || '').normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\u3131-\u318E]+$/g, '')
+    .trim();
+  if (normalized !== input.value) input.value = normalized;
+}
+document.addEventListener('compositionend', event => normalizeAdminWriteInput(event.target));
+document.addEventListener('change', event => normalizeAdminWriteInput(event.target));
 
 function initializeYearOptions() {
   const currentYear = new Date().getFullYear();
@@ -6112,7 +6134,7 @@ function uploadExternalFilesToOrganizer(fileList,code) {
   const validFiles=files.filter(file => {
     const extension=(file.name.split('.').pop() || '').toLowerCase();
     if(!allowedExtensions.includes(extension)){showToast(`❌ ${file.name}: 지원하지 않는 형식`);return false;}
-    if(file.size > 20 * 1024 * 1024){showToast(`❌ ${file.name}: 20MB 초과`);return false;}
+    if(file.size > 20 * 1024 * 1024){showToast(`❌ ${file.name}: 파일당 최대 20MB입니다. HWP 그림 압축 후 다시 시도해주세요.`,4200);return false;}
     return true;
   });
   if(!validFiles.length) return;
@@ -6420,7 +6442,7 @@ window.handleAdminFiles = function(files) {
   [...files].forEach(file => {
     const ext = (file.name.split('.').pop() || '').toLowerCase();
     if (!allowed.has(ext)) { alert(`${file.name}: 지원하지 않는 형식입니다.`); return; }
-    if (file.size > 20 * 1024 * 1024) { alert(`${file.name}: 20MB 초과`); return; }
+    if (file.size > 20 * 1024 * 1024) { alert(`${file.name}: 파일당 최대 20MB입니다. HWP 그림 압축 후 다시 시도해주세요.`); return; }
     uploadAdminFile(file, code, uploadOptions);
   });
   document.getElementById('adminFileInput').value = '';
