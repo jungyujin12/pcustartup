@@ -103,6 +103,18 @@ def _get(data, *names, default=""):
     return default
 
 
+def _markdown_section(text, heading):
+    """Return one completed Markdown section without leaking the full assessment."""
+    if not text:
+        return ""
+    pattern = rf"(?:^|\n)#+\s*\d*\.?\s*{re.escape(heading)}\s*\n(.*?)(?=\n#+\s*\d+\.?\s|\Z)"
+    match = re.search(pattern, str(text), re.S | re.I)
+    if not match:
+        return ""
+    value = re.sub(r"[*_#|]", "", match.group(1))
+    return re.sub(r"\n{3,}", "\n\n", value).strip()
+
+
 def _e(value):
     return html.escape(str(value or ""), quote=True)
 
@@ -198,7 +210,14 @@ def _legacy_concept_css(design):
 
 def _sentences(value, limit=8):
     parts = re.split(r"(?:\s+/\s+)|(?<=[.!?。])\s+|[\n;•]+", str(value or ""))
-    return [part.strip(" -\t") for part in parts if part.strip(" -\t")][:limit]
+    cleaned = []
+    for part in parts:
+        item = re.sub(r"^\s*(?:[-*]+|\d+[.)])\s*", "", part).strip(" -\t")
+        if not item or re.fullmatch(r"\d+[.)]?", item) or item.endswith("실행 계획:"):
+            continue
+        if item not in cleaned:
+            cleaned.append(item)
+    return cleaned[:limit]
 
 
 def _is_auto(value):
@@ -254,7 +273,7 @@ def _infer_archetype(data, mode, options, reference_brief, seed):
 ARCHETYPE_SYSTEMS = {
     "technology": {"palettes": (0, 5, 8, 18, 20, 25), "types": (3, 9, 20, 24), "label": "정밀한 기술 제품 쇼케이스", "motif": "SYSTEM / SIGNAL / PROOF"},
     "editorial": {"palettes": (2, 9, 13, 19, 24, 29), "types": (1, 6, 14, 21, 22), "label": "에디토리얼 사례집", "motif": "CONTEXT / WORK / POINT OF VIEW"},
-    "human": {"palettes": (3, 10, 16, 17, 23, 26), "types": (4, 6, 7, 17), "label": "따뜻한 사람 중심 스토리", "motif": "PEOPLE / CHANGE / CARE"},
+    "human": {"palettes": (3, 10, 16, 17, 23, 26), "types": (0, 3, 6, 23, 26), "label": "따뜻한 사람 중심 스토리", "motif": "PEOPLE / CHANGE / CARE"},
     "premium": {"palettes": (4, 13, 15, 19, 27), "types": (1, 6, 14, 22), "label": "절제된 프리미엄 브랜드", "motif": "CRAFT / DETAIL / VALUE"},
     "playful": {"palettes": (1, 6, 11, 12, 14, 28), "types": (4, 7, 11, 17, 29), "label": "활기 있는 컬처 포스터", "motif": "IDEA / ENERGY / TOGETHER"},
     "utility": {"palettes": (3, 12, 18, 21, 22, 29), "types": (3, 9, 19, 20), "label": "산업적 정보 시스템", "motif": "INPUT / PROCESS / OUTPUT"},
@@ -440,6 +459,9 @@ def _visual_words(data, mode):
     for value in values:
         for word in re.findall(r"[가-힣A-Za-z0-9+#]{2,}", str(value or "")):
             if word not in words:
+                if len(word) > 6:
+                    cut = min(6, max(3, len(word) // 2))
+                    word = f"{word[:cut]} · {word[cut:12]}"
                 words.append(word)
     return words[:6]
 
@@ -504,7 +526,7 @@ def _quality_audit(document, mode, palette, data, site_purpose=""):
     checks = {
         "responsiveCss": "@media(max-width:760px)" in document,
         "viewport": 'name="viewport"' in document,
-        "semanticMain": "<main" in document and "<section" in document,
+        "semanticMain": "<main" in document and ("<section" in document or "<article" in document),
         "safeContrast": _contrast(ink, paper) >= 7 and max(_contrast(ink, accent), _contrast(paper, accent)) >= 3,
         "noRawAssessment": "진로검사 결과지 - AI 설계 참고용" not in document,
         "noRawSource": "[추가 원문]" not in document,
@@ -608,7 +630,11 @@ def _compose_v6(mode, direction, context, visual, brand_logo):
 
 def render_website(source, mode, options, page_id, reference_brief="", avoid=None):
     data = _fields(source)
-    career_assessment = _get(data, "진로검사 결과지 - AI 설계 참고용, 공개 금지") if mode == "career" else ""
+    career_assessment = _get(
+        data,
+        "학생 확인 완료 진로분석 - AI 설계 참고용, 공개 시 민감정보 제외",
+        "진로검사 결과지 - AI 설계 참고용, 공개 금지",
+    ) if mode == "career" else ""
     site_purpose = str(options.get("startupPurpose", "customer")) if mode == "startup" else "career"
     design, layout, palette_index, type_index, archetype, planner = _curated_system(data, mode, options, page_id, reference_brief, avoid)
     palette, typography = PALETTES[palette_index], TYPOGRAPHY[type_index]
@@ -660,6 +686,27 @@ def render_website(source, mode, options, page_id, reference_brief="", avoid=Non
     @media(max-width:760px){{.v6-campaign-hero,.v6-book-cover,.v6-product-hero>.shell,.v6-atlas-hero{{display:grid;grid-template-columns:1fr;min-height:auto;padding:110px 20px 54px;margin:0;border-radius:0}}.v6-campaign-art .visual-stage,.v6-book-cover .visual-stage,.v6-product-hero .visual-stage,.v6-atlas-visual .visual-stage{{min-height:300px;margin-top:28px;transform:none;box-shadow:none}}.v6-book-number{{display:none}}.v6-campaign-main>section,.v6-story>section,.v6-chapter,.v6-book-end,.v6-product-main>section{{padding:72px 20px;margin:0;border-radius:0}}.v6-campaign-split,.v6-product-intro,.v6-product-case,.v6-product-next,.v6-story-scene,.v6-columns,.v6-next-line{{grid-template-columns:1fr;gap:28px}}.v6-campaign-list header,.v6-product-board header,.v6-product-proof header{{display:block;margin-bottom:38px}}.v6-campaign-list>div,.v6-bento{{display:block}}.v6-book{{display:block}}.v6-book>aside{{display:none}}.v6-evidence,.v6-item{{grid-template-columns:42px 1fr;gap:14px;padding:22px 0}}.v6-product-main{{padding:0}}.v6-bento .v6-item{{min-height:auto;margin-bottom:10px;padding:22px}}.v6-film-hero{{min-height:auto;padding-top:90px}}.v6-film-hero>.visual-stage{{position:relative;min-height:320px;opacity:1}}.v6-film-copy{{width:100%;padding:50px 20px 70px}}.v6-story-track .v6-item{{margin-left:0}}.v6-scene-no{{font-size:68px}}.v6-atlas-grid,.v6-atlas-process,.v6-atlas-evidence,.v6-atlas-footer{{display:block;margin-top:10px}}.v6-atlas-grid>article,.v6-atlas-process,.v6-atlas-evidence,.v6-atlas-footer{{padding:42px 20px}}.v6-atlas-bar{{overflow:auto;gap:24px}}.v6-atlas-process header,.v6-atlas-evidence header{{margin-bottom:36px}}}}
     """
     css += ".v6-atlas-hero{overflow:hidden}.v6-atlas{overflow:hidden}.v6-atlas-title,.v6-atlas-visual,.v6-atlas-grid>*,.v6-atlas-process>*,.v6-atlas-evidence>*{min-width:0}.v6-atlas-title h1{white-space:normal!important;overflow-wrap:anywhere}"
+    # Gallery-grade Korean typography guardrails. Decorative fonts may still
+    # be selected explicitly, but automatic career/startup output keeps
+    # predictable glyph metrics, balanced headings, and controlled hero space.
+    css += """
+    h1,h2,h3,.pull-quote,.statement p{font-kerning:normal;text-wrap:balance;word-break:keep-all;overflow-wrap:normal}
+    h1{font-size:clamp(48px,5.8vw,84px)!important;line-height:1.06!important;letter-spacing:-.045em!important}
+    h2{font-size:clamp(34px,4.2vw,58px)!important;line-height:1.16!important;letter-spacing:-.035em!important}
+    .hero{min-height:clamp(560px,74svh,760px);padding:112px 0 72px}
+    .hero-grid{grid-template-columns:minmax(0,1.05fr) minmax(360px,.95fr);gap:clamp(40px,6vw,88px)}
+    .visual-stage{min-height:400px}.generated-art text{font-family:var(--body);font-weight:650;letter-spacing:-.02em}
+    .generated-art .mega{font-family:var(--heading);font-size:clamp(25px,2.7vw,34px);letter-spacing:-.04em}
+    .generated-art text{paint-order:stroke;stroke:color-mix(in srgb,var(--ink) 20%,transparent);stroke-width:.35px}
+    body.structure-campaign .site-nav{color:var(--ink)}
+    body.structure-campaign .nav-index{color:color-mix(in srgb,var(--ink) 68%,transparent)}
+    .v6-campaign-hero .hero-meta span{color:color-mix(in srgb,var(--ink) 78%,transparent);border-color:color-mix(in srgb,var(--ink) 28%,transparent);background:color-mix(in srgb,var(--paper) 10%,transparent)}
+    .v6-book-cover{min-height:min(78svh,780px);padding:112px max(6vw,28px) 64px;grid-template-columns:88px minmax(0,.78fr) minmax(360px,.9fr);align-items:center}
+    .v6-book-cover .visual-stage{min-height:480px}
+    .v6-film-copy{padding-top:18vh}.v6-story>section{padding:clamp(88px,10vw,150px) max(8vw,28px)}
+    .v6-atlas-hero{min-height:min(78svh,800px);padding-top:112px}
+    @media(max-width:760px){h1{font-size:clamp(40px,12vw,58px)!important;overflow-wrap:anywhere}h2{font-size:clamp(30px,9vw,42px)!important}.hero{padding:96px 0 52px}.hero-grid{grid-template-columns:1fr}.visual-stage{min-height:280px}.v6-book-cover{min-height:auto;padding:96px 20px 48px;grid-template-columns:1fr}.v6-book-cover .visual-stage{min-height:300px}}
+    """
     logo = _image_figure("Img_files_logo_01.png", "로고", "brand-logo") if include_logo else ""
     brand_logo = '<img src="Img_files_logo_01.png" alt="로고" onerror="this.remove()">' if include_logo else ""
     word_markup = "".join(f"<span>{_e(word)}</span>" for word in visual_words)
@@ -674,10 +721,15 @@ def render_website(source, mode, options, page_id, reference_brief="", avoid=Non
         major = _get(data, "전공·학과")
         intro = _get(data, "한 줄 소개", default="경험과 역량을 사실에 근거해 구성한 포트폴리오입니다.")
         skills = _items(_get(data, "핵심 역량·기술", "핵심 역량", "기술"), 10)
-        strengths = _get(data, "강점·업무 방식", "강점", default=intro)
-        projects = _get(data, "프로젝트", default="프로젝트 정보를 준비하고 있습니다.")
+        assessment_strengths = _markdown_section(career_assessment, "희망 직무와 연결되는 강점")
+        assessment_plan = _markdown_section(career_assessment, "30일·90일 실행계획")
+        assessment_portfolio = _markdown_section(career_assessment, "포트폴리오에 반영할 내용")
+        if assessment_strengths:
+            assessment_strengths = " ".join(_sentences(assessment_strengths, 3))
+        strengths = _get(data, "강점·업무 방식", "강점", default=assessment_strengths or intro)
+        projects = _get(data, "프로젝트", default=assessment_portfolio or "실제 프로젝트와 수행 근거를 추가해주세요.")
         project_items = _sentences(projects.replace(" / ", "\n"), 8)
-        experience = _sentences(_get(data, "경험·경력·대외활동", "경험"), 8)
+        experience = _sentences(_get(data, "경험·경력·대외활동", "경험", default=assessment_plan), 8)
         education = _get(data, "교육·자격·수상", "교육")
         contact = _get(data, "공개 연락 방법")
         title = f"{name} · {role} 포트폴리오"
@@ -692,8 +744,8 @@ def render_website(source, mode, options, page_id, reference_brief="", avoid=Non
         body = f"""<nav class="site-nav"><div class="shell"><div class="brand">{brand_logo}{_e(name)}</div><div class="nav-index">CAREER / SELECTED WORK</div></div></nav>
         <header class="hero {hero_style}"><div class="shell hero-grid"><div class="hero-copy"><div class="eyebrow">{_e(field or 'CAREER PORTFOLIO')}</div><h1>{_e(name)}</h1><p class="lead">{_e(intro)}</p><div class="hero-meta"><span>{_e(role)}</span>{f'<span>{_e(major)}</span>' if major else ''}{assessment_note}</div></div>{visual}</div></header>
         <main><section class="page-section"><div class="shell reveal"><div class="section-head"><span class="section-index">01 / POSITION</span><div><h2>어떤 방식으로<br>문제를 푸는가</h2><p class="section-intro">{_e(strengths)}</p></div></div><div class="showcase"><article class="case-card"><small>ROLE DIRECTION</small><div><h3>{_e(role)}</h3><p>{_e(field or '희망 분야를 구체화하고 있습니다.')}</p></div></article><article class="case-card"><small>CAPABILITY</small><div class="tag-cloud">{''.join(f'<span class="tag">{_e(item)}</span>' for item in skills) or '<span class="tag">역량 정리 중</span>'}</div></article></div></div></section>
-        <section class="page-section dark"><div class="shell reveal"><div class="section-head"><span class="section-index">02 / SELECTED WORK</span><div><h2>말보다 결과로<br>보여주는 경험</h2><p class="section-intro">프로젝트에서 맡은 역할과 실제 수행 내용을 중심으로 정리했습니다.</p></div></div><div class="evidence-grid">{''.join(f'<article class="evidence"><small>EVIDENCE {index:02d}</small><b>{_e(item)}</b></article>' for index,item in enumerate(project_items,1))}</div></div></section>
-        <section class="page-section"><div class="shell reveal"><div class="narrative-grid"><div><span class="section-index">03 / EXPERIENCE</span><p class="pull-quote">경험이 역량이<br>된 과정</p></div><div class="feature-list">{''.join(f'<div class="feature"><strong>{_e(item)}</strong></div>' for item in experience) or '<div class="feature"><strong>경험 정보를 준비하고 있습니다.</strong></div>'}</div></div>{_image_figure('Img_files_section_01.jpg','프로젝트 또는 활동 이미지',source=site_images[0] if site_images else '') if include_section_image or site_images else ''}</div></section>
+        <section class="page-section dark"><div class="shell reveal"><div class="section-head"><span class="section-index">02 / {'CAREER EVIDENCE' if career_assessment and not _get(data, '프로젝트') else 'SELECTED WORK'}</span><div><h2>{'검사 해석을<br>행동으로 옮기기' if career_assessment and not _get(data, '프로젝트') else '말보다 결과로<br>보여주는 경험'}</h2><p class="section-intro">{'검사 결과에서 확인한 방향을 실제 포트폴리오 근거로 발전시키는 계획입니다.' if career_assessment and not _get(data, '프로젝트') else '프로젝트에서 맡은 역할과 실제 수행 내용을 중심으로 정리했습니다.'}</p></div></div><div class="evidence-grid">{''.join(f'<article class="evidence"><small>EVIDENCE {index:02d}</small><b>{_e(item)}</b></article>' for index,item in enumerate(project_items,1))}</div></div></section>
+        <section class="page-section"><div class="shell reveal"><div class="narrative-grid"><div><span class="section-index">03 / {'ACTION PLAN' if career_assessment and not _get(data, '경험·경력·대외활동', '경험') else 'EXPERIENCE'}</span><p class="pull-quote">{'다음 행동을<br>경험으로 만들기' if career_assessment and not _get(data, '경험·경력·대외활동', '경험') else '경험이 역량이<br>된 과정'}</p></div><div class="feature-list">{''.join(f'<div class="feature"><strong>{_e(item)}</strong></div>' for item in experience) or '<div class="feature"><strong>실제 경험과 수행 근거를 추가해주세요.</strong></div>'}</div></div>{_image_figure('Img_files_section_01.jpg','프로젝트 또는 활동 이미지',source=site_images[0] if site_images else '') if include_section_image or site_images else ''}</div></section>
         <section class="page-section statement"><div class="shell reveal"><span class="section-index">04 / NEXT</span><p>{_e(education or intro)}</p><b class="mark">↗</b></div></section>{f'<section class="page-section"><div class="shell"><div class="section-head"><span class="section-index">05 / CONTACT</span><div><h2>함께 이야기하기</h2><p class="section-intro">{_e(contact)}</p></div></div></div></section>' if contact and '공개하지' not in contact else ''}</main>"""
         default_footer = "배재대학교 학생 포트폴리오 · 입력된 사실을 바탕으로 제작되었습니다."
     else:
