@@ -586,13 +586,19 @@ def _compose_v6(mode, direction, context, visual, brand_logo):
         if mode == "startup" else
         {"value": "01 / POSITION", "how": "02 / SELECTED WORK", "why": "03 / EXPERIENCE", "proof": "04 / EVIDENCE", "next": "05 / NEXT"}
     )
+    value_title = "서비스가 만드는 변화" if mode == "startup" else "내가 지향하는 역할"
+    process_title = "아이디어가 작동하는 방식" if mode == "startup" else "경험으로 증명한 과정"
+    proof_title = "확인한 근거와 배운 점" if mode == "startup" else "역량을 보여주는 근거"
     nav_index = "SERVICE / BRAND" if mode == "startup" else "CAREER / SELECTED WORK"
-    nav = f'<nav class="site-nav"><div class="shell"><div class="brand">{brand_logo}{brand}</div><div class="nav-index">{nav_index}</div></div></nav>'
-    hero_copy = f'<div class="hero-copy"><div class="eyebrow">{eyebrow}</div><h1>{brand}</h1><p class="lead">{lead}</p><div class="hero-meta">{meta}</div></div>'
+    cta_label = "서비스 살펴보기" if mode == "startup" else "경험 살펴보기"
+    nav = f'''<nav class="site-nav" aria-label="주요 메뉴"><div class="shell"><a class="brand" href="#top" aria-label="{brand} 처음으로">{brand_logo}{brand}</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-menu"><span></span><span></span><span></span><b>메뉴</b></button>
+    <div class="nav-menu" id="site-menu"><a href="#overview">소개</a><a href="#process">과정</a><a href="#evidence">근거</a><a href="#next">다음 단계</a><a class="nav-cta" href="#overview">{cta_label}</a></div><div class="nav-index">{nav_index}</div></div></nav>'''
+    hero_copy = f'<div class="hero-copy"><div class="eyebrow">{eyebrow}</div><h1>{brand}</h1><p class="lead">{lead}</p><div class="hero-meta">{meta}</div><div class="hero-actions"><a class="primary-action" href="#overview">{cta_label}<span>↘</span></a><a class="text-action" href="#next">다음 계획 보기</a></div></div>'
 
     if family == "campaign":
         body = f'''{nav}<header class="v6-campaign-hero">{hero_copy}<div class="v6-campaign-art">{visual}</div><div class="v6-serial">PCU—26 / NEW VOICE</div></header>
-        <main class="v6-campaign-main"><section class="v6-slogan"><span>{labels['value']}</span><h2>{lead}</h2></section>
+        <main class="v6-campaign-main"><section class="v6-slogan"><span>{labels['value']}</span><h2>{value_title}</h2><p>{lead}</p></section>
         <section class="v6-campaign-split"><div><span>{labels['why']}</span><h2>바꿔야 할 장면</h2></div><p>{problem}</p></section>
         <section class="v6-campaign-list"><header><span>{labels['how']}</span><h2>아이디어를 경험으로</h2></header><div>{item_cards}</div></section>
         <section class="v6-proof-poster"><span>{labels['proof']}</span><p>{proof}</p><b>↗</b></section>
@@ -600,31 +606,38 @@ def _compose_v6(mode, direction, context, visual, brand_logo):
     elif family == "editorial-book":
         body = f'''{nav}<header class="v6-book-cover"><div class="v6-book-number">ISSUE<br>NO. 01</div>{hero_copy}{visual}</header>
         <main class="v6-book"><aside><b>CONTENTS</b><a href="#chapter-1">{labels['value']}</a><a href="#chapter-2">{labels['how']}</a><a href="#chapter-3">{labels['why']}</a></aside>
-        <div class="v6-book-pages"><article id="chapter-1" class="v6-chapter"><span>{labels['value']}</span><h2>{lead}</h2><p>{solution}</p></article>
+        <div class="v6-book-pages"><article id="chapter-1" class="v6-chapter"><span>{labels['value']}</span><h2>{value_title}</h2><p>{lead}</p><p>{solution}</p></article>
         <article id="chapter-2" class="v6-chapter v6-chapter-dark"><span>{labels['how']}</span><h2>선택한 방식과 실행</h2><div class="v6-evidence-stack">{item_cards}</div></article>
         <article id="chapter-3" class="v6-chapter"><span>{labels['why']}</span><div class="v6-columns"><h2>출발점</h2><p>{problem}</p></div>{evidence_cards}</article>
         <article class="v6-book-end"><span>{labels['next']}</span><p>{next_step}</p></article></div></main>'''
     elif family == "product-system":
         body = f'''{nav}<header class="v6-product-hero"><div class="shell">{hero_copy}{visual}</div></header>
-        <main class="v6-product-main"><section class="v6-product-intro"><span>{labels['value']}</span><h2>{lead}</h2><p>{solution}</p></section>
-        <section class="v6-product-board"><header><span>{labels['how']}</span><h2>구조와 작동 방식</h2></header><div class="v6-bento">{item_cards}</div></section>
+        <main class="v6-product-main"><section class="v6-product-intro"><span>{labels['value']}</span><div><h2>{value_title}</h2><p>{lead}</p><p>{solution}</p></div></section>
+        <section class="v6-product-board"><header><span>{labels['how']}</span><h2>{process_title}</h2></header><div class="v6-bento">{item_cards}</div></section>
         <section class="v6-product-case"><div><span>{labels['why']}</span><h2>왜 지금 필요한가</h2></div><p>{problem}</p></section>
-        <section class="v6-product-proof"><header><span>{labels['proof']}</span><h2>확인한 근거</h2></header>{evidence_cards}</section>
+        <section class="v6-product-proof"><header><span>{labels['proof']}</span><h2>{proof_title}</h2></header>{evidence_cards}</section>
         <section class="v6-product-next"><span>{labels['next']}</span><strong>{next_step}</strong></section></main>'''
     elif family == "scroll-story":
         body = f'''{nav}<header class="v6-film-hero">{visual}<div class="v6-film-copy">{hero_copy}</div><div class="v6-film-caption">SCENE 01 — BEGIN</div></header>
         <main class="v6-story"><section class="v6-story-opening"><span>{labels['why']}</span><p>“{problem}”</p></section>
-        <section class="v6-story-scene"><div class="v6-scene-no">02</div><div><span>{labels['value']}</span><h2>{lead}</h2><p>{solution}</p></div></section>
-        <section class="v6-story-track"><header><span>{labels['how']}</span><h2>생각이 실행이 된 과정</h2></header>{item_cards}</section>
-        <section class="v6-story-scene v6-story-proof"><div class="v6-scene-no">04</div><div><span>{labels['proof']}</span><h2>남겨진 근거</h2>{evidence_cards}</div></section>
+        <section class="v6-story-scene"><div class="v6-scene-no">02</div><div><span>{labels['value']}</span><h2>{value_title}</h2><p>{lead}</p><p>{solution}</p></div></section>
+        <section class="v6-story-track"><header><span>{labels['how']}</span><h2>{process_title}</h2></header>{item_cards}</section>
+        <section class="v6-story-scene v6-story-proof"><div class="v6-scene-no">04</div><div><span>{labels['proof']}</span><h2>{proof_title}</h2>{evidence_cards}</div></section>
         <section class="v6-story-ending"><span>{labels['next']}</span><p>{next_step}</p><b>TO BE CONTINUED</b></section></main>'''
     else:
         body = f'''{nav}<header class="v6-atlas-hero"><div class="v6-atlas-title">{hero_copy}</div><div class="v6-atlas-visual">{visual}</div></header>
         <main class="v6-atlas"><div class="v6-atlas-bar"><span>LIVE DOCUMENT</span><span>{eyebrow}</span><span>2026 / PCU</span></div>
-        <section class="v6-atlas-grid"><article class="v6-atlas-lead"><span>{labels['value']}</span><h2>{lead}</h2></article><article><span>{labels['why']}</span><p>{problem}</p></article><article><span>SOLUTION</span><p>{solution}</p></article></section>
+        <section class="v6-atlas-grid"><article class="v6-atlas-lead"><span>{labels['value']}</span><h2>{value_title}</h2><p>{lead}</p></article><article><span>{labels['why']}</span><p>{problem}</p></article><article><span>SOLUTION</span><p>{solution}</p></article></section>
         <section class="v6-atlas-process"><header><span>{labels['how']}</span><h2>실행 데이터</h2></header>{item_cards}</section>
         <section class="v6-atlas-evidence"><header><span>{labels['proof']}</span><h2>Evidence index</h2></header>{evidence_cards}</section>
         <section class="v6-atlas-footer"><span>{labels['next']}</span><p>{next_step}</p></section></main>'''
+    # Every visual grammar still behaves like a complete, navigable website.
+    # Anchors are attached to factual sections instead of introducing invented content.
+    body = body.replace("<header ", '<header id="top" ', 1)
+    body = body.replace(f"<span>{labels['value']}</span>", f'<span id="overview">{labels["value"]}</span>', 1)
+    body = body.replace(f"<span>{labels['how']}</span>", f'<span id="process">{labels["how"]}</span>', 1)
+    body = body.replace(f"<span>{labels['proof']}</span>", f'<span id="evidence">{labels["proof"]}</span>', 1)
+    body = body.replace(f"<span>{labels['next']}</span>", f'<span id="next">{labels["next"]}</span>', 1)
     return body, family
 
 
@@ -706,6 +719,35 @@ def render_website(source, mode, options, page_id, reference_brief="", avoid=Non
     .v6-film-copy{padding-top:18vh}.v6-story>section{padding:clamp(88px,10vw,150px) max(8vw,28px)}
     .v6-atlas-hero{min-height:min(78svh,800px);padding-top:112px}
     @media(max-width:760px){h1{font-size:clamp(40px,12vw,58px)!important;overflow-wrap:anywhere}h2{font-size:clamp(30px,9vw,42px)!important}.hero{padding:96px 0 52px}.hero-grid{grid-template-columns:1fr}.visual-stage{min-height:280px}.v6-book-cover{min-height:auto;padding:96px 20px 48px;grid-template-columns:1fr}.v6-book-cover .visual-stage{min-height:300px}}
+    """
+    css += """
+    /* Complete-site navigation, calls to action and motion system */
+    .site-nav{position:fixed;top:0;left:0;right:0;padding:14px 0;color:#fff;background:linear-gradient(180deg,rgba(10,18,28,.68),transparent);transition:background .35s ease,box-shadow .35s ease,backdrop-filter .35s ease;z-index:1000}
+    .site-nav.is-scrolled{background:color-mix(in srgb,var(--ink) 88%,transparent);box-shadow:0 1px 0 rgba(255,255,255,.12);backdrop-filter:blur(18px)}
+    .site-nav .shell{width:min(1240px,calc(100% - 40px));min-height:44px}.brand{flex:0 1 auto;color:inherit;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:28ch}
+    .nav-menu{display:flex;align-items:center;justify-content:center;gap:clamp(16px,2.4vw,34px);margin-left:auto}.nav-menu>a{position:relative;color:inherit;text-decoration:none;font-size:13px;font-weight:700;white-space:nowrap;opacity:.76;transition:opacity .2s ease,transform .2s ease}.nav-menu>a:not(.nav-cta):after{content:'';position:absolute;left:0;right:100%;bottom:-5px;height:1px;background:currentColor;transition:right .25s ease}.nav-menu>a:hover,.nav-menu>a:focus-visible{opacity:1;transform:translateY(-1px)}.nav-menu>a:hover:after,.nav-menu>a:focus-visible:after{right:0}
+    .nav-cta{padding:9px 14px;border:1px solid currentColor;border-radius:999px;opacity:1!important}.nav-index{display:none}.nav-toggle{display:none;color:inherit;background:none;border:0}.nav-toggle b{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+    .hero-actions{display:flex;align-items:center;flex-wrap:wrap;gap:18px;margin-top:34px}.primary-action,.text-action{display:inline-flex;align-items:center;gap:22px;color:inherit;text-decoration:none;font-size:13px;font-weight:800}.primary-action{padding:13px 17px;background:var(--accent);color:var(--ink);border-radius:999px;box-shadow:0 10px 30px color-mix(in srgb,var(--accent) 22%,transparent);transition:transform .25s ease,box-shadow .25s ease}.primary-action:hover,.primary-action:focus-visible{transform:translateY(-3px);box-shadow:0 16px 38px color-mix(in srgb,var(--accent) 34%,transparent)}.primary-action span{font-size:18px}.text-action{border-bottom:1px solid currentColor;padding:8px 0;opacity:.72}.text-action:hover,.text-action:focus-visible{opacity:1}
+    [id]{scroll-margin-top:90px}.scroll-progress{position:fixed;top:0;left:0;width:0;height:3px;background:var(--accent);z-index:1100;box-shadow:0 0 18px var(--accent)}.back-top{position:fixed;right:20px;bottom:20px;width:44px;height:44px;border:1px solid color-mix(in srgb,var(--ink) 20%,transparent);border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--paper) 88%,transparent);color:var(--ink);text-decoration:none;backdrop-filter:blur(14px);opacity:0;transform:translateY(12px);pointer-events:none;transition:.25s ease;z-index:900}.back-top.show{opacity:1;transform:none;pointer-events:auto}
+    .v6-campaign-main>section,.v6-book-pages>article,.v6-product-main>section,.v6-story>section,.v6-atlas>section{opacity:0;transform:translateY(42px);transition:opacity .8s cubic-bezier(.2,.7,.2,1),transform .8s cubic-bezier(.2,.7,.2,1)}.motion-in{opacity:1!important;transform:none!important}.v6-item,.v6-evidence,.case-card{transition:transform .3s ease,background .3s ease,box-shadow .3s ease}.v6-item:hover,.v6-evidence:hover,.case-card:hover{transform:translateY(-5px);box-shadow:0 18px 45px rgba(0,0,0,.10)}.generated-art .artwork{transform-origin:center;animation:artFloat 8s ease-in-out infinite alternate}.generated-art .halo{animation:haloSpin 28s linear infinite;transform-origin:center;transform-box:fill-box}@keyframes artFloat{to{transform:translate3d(0,-8px,0) rotate(.6deg)}}@keyframes haloSpin{to{transform:rotate(360deg)}}
+    :focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+    @media(max-width:760px){.site-nav{padding:10px 0;background:color-mix(in srgb,var(--ink) 90%,transparent);backdrop-filter:blur(16px)}.site-nav .shell{width:100%;padding:0 16px;min-width:0}.brand{max-width:calc(100% - 60px);font-size:14px}.nav-toggle{display:grid;width:42px;height:42px;padding:10px;margin-left:auto;place-content:center;gap:4px;cursor:pointer}.nav-toggle span{display:block;width:20px;height:2px;background:currentColor;transition:.25s}.nav-toggle[aria-expanded=true] span:nth-child(1){transform:translateY(6px) rotate(45deg)}.nav-toggle[aria-expanded=true] span:nth-child(2){opacity:0}.nav-toggle[aria-expanded=true] span:nth-child(3){transform:translateY(-6px) rotate(-45deg)}.nav-menu{position:absolute;top:62px;left:12px;right:12px;padding:18px;display:grid;gap:4px;background:var(--ink);color:#fff;border:1px solid rgba(255,255,255,.16);box-shadow:0 24px 60px rgba(0,0,0,.25);border-radius:16px;opacity:0;visibility:hidden;transform:translateY(-8px);transition:.22s}.nav-menu.open{opacity:1;visibility:visible;transform:none}.nav-menu>a{padding:11px 10px;font-size:14px}.nav-cta{text-align:center;margin-top:5px}.hero-actions{align-items:stretch;gap:12px}.primary-action{justify-content:space-between}.text-action{justify-content:center}.back-top{right:14px;bottom:14px}.v6-product-hero>.shell{width:100%;box-sizing:border-box}.v6-product-hero,.v6-campaign-hero,.v6-book-cover,.v6-atlas-hero{overflow:hidden}}
+    @media(prefers-reduced-motion:reduce){.generated-art .artwork,.generated-art .halo{animation:none}.v6-campaign-main>section,.v6-book-pages>article,.v6-product-main>section,.v6-story>section,.v6-atlas>section{opacity:1;transform:none;transition:none}}
+    """
+    css += """
+    /* Korean editorial typography: restrained scale, readable measure, stable rhythm */
+    :root{--content-wide:min(1120px,calc(100% - 64px));--content-text:min(720px,100%);--section-y:clamp(76px,8vw,124px)}
+    body{font-size:16px;line-height:1.7;letter-spacing:-.012em}p{max-width:68ch;word-break:keep-all;overflow-wrap:break-word}h1,h2,h3{text-wrap:balance}
+    h1,.hero h1,.v6-film-copy h1{max-width:11ch!important;font-size:clamp(42px,5vw,68px)!important;line-height:1.08!important;letter-spacing:-.048em!important}
+    h2,.v6-slogan h2,.v6-product-main h2,.v6-story h2,.v6-book h2,.v6-atlas h2{max-width:17ch!important;font-size:clamp(30px,3.45vw,48px)!important;line-height:1.18!important;letter-spacing:-.036em!important}
+    h3{font-size:clamp(21px,2vw,30px)!important;line-height:1.3!important}.lead{max-width:34em;font-size:clamp(17px,1.35vw,20px);line-height:1.75}.hero-meta{margin-top:28px}.hero-actions{margin-top:30px}
+    .v6-product-hero>.shell,.v6-campaign-main>section,.v6-product-main>section,.v6-story>section{width:var(--content-wide);margin-inline:auto}.v6-product-main>section,.v6-story>section{padding:var(--section-y) clamp(0px,3vw,36px)}
+    .v6-product-intro{grid-template-columns:minmax(120px,.34fr) minmax(0,1fr);gap:clamp(32px,7vw,96px)}.v6-product-intro>div>p:first-of-type{margin-top:28px;font-size:clamp(18px,1.6vw,22px);line-height:1.75;color:var(--secondary)}.v6-product-intro>div>p:last-of-type{margin-top:18px}
+    .v6-product-board header,.v6-product-proof header{grid-template-columns:180px minmax(0,1fr);align-items:start}.v6-product-case{grid-template-columns:minmax(220px,.72fr) minmax(0,1.28fr);gap:clamp(44px,7vw,100px)}.v6-product-case>p{font-size:clamp(18px,1.55vw,22px);line-height:1.8}
+    .v6-story-opening p{max-width:18ch;font-size:clamp(30px,4.4vw,58px);line-height:1.25}.v6-story-scene{grid-template-columns:110px minmax(0,760px);justify-content:center;gap:clamp(30px,5vw,72px)}.v6-story-scene>div:last-child>p{font-size:clamp(17px,1.5vw,21px);line-height:1.8}.v6-story-track header{display:grid;grid-template-columns:180px minmax(0,1fr);gap:28px}.v6-story-track .v6-item{max-width:820px;margin-left:auto;margin-right:auto}.v6-scene-no{font-size:clamp(58px,7vw,104px)}
+    .v6-item strong{font-size:clamp(17px,1.45vw,21px);line-height:1.65;font-weight:650}.v6-evidence p{font-size:clamp(16px,1.35vw,19px);line-height:1.75}.v6-product-next strong,.v6-atlas-footer p{font-size:clamp(25px,3.2vw,42px);line-height:1.35}
+    .v6-slogan>p,.v6-atlas-lead>p{margin-top:24px;font-size:clamp(17px,1.45vw,21px)}.v6-book-cover{grid-template-columns:72px minmax(0,.82fr) minmax(340px,.9fr);gap:clamp(28px,4vw,64px)}.v6-book-cover .lead{max-width:30em}
+    @media(max-width:760px){:root{--content-wide:calc(100% - 32px);--section-y:68px}body{font-size:15.5px;line-height:1.72}h1,.hero h1,.v6-film-copy h1{font-size:clamp(36px,10.5vw,46px)!important;line-height:1.12!important;max-width:100%!important}h2,.v6-slogan h2,.v6-product-main h2,.v6-story h2,.v6-book h2,.v6-atlas h2{font-size:clamp(27px,7.8vw,36px)!important;line-height:1.25!important;max-width:15ch!important}.lead{font-size:16.5px;line-height:1.72}.hero-actions{margin-top:26px}.v6-product-main>section,.v6-story>section{width:100%;padding:68px 20px}.v6-product-intro,.v6-product-board header,.v6-product-proof header,.v6-product-case,.v6-story-track header,.v6-story-scene{display:grid;grid-template-columns:1fr;gap:24px}.v6-product-intro>div>p:first-of-type{font-size:17px;margin-top:20px}.v6-film-hero{display:flex;flex-direction:column;padding-top:62px}.v6-film-copy{order:1;padding:62px 20px 52px}.v6-film-hero>.visual-stage{order:2;margin:0;min-height:280px}.v6-film-caption{bottom:12px}.v6-story-opening p{font-size:clamp(27px,8vw,36px);line-height:1.34}.v6-story-track .v6-item{margin-left:0}.v6-scene-no{font-size:52px}.v6-item strong{font-size:16.5px}.v6-product-next strong,.v6-atlas-footer p{font-size:26px}.v6-book-cover{grid-template-columns:1fr}.v6-campaign-main>section{width:100%;padding-inline:20px}}
     """
     logo = _image_figure("Img_files_logo_01.png", "로고", "brand-logo") if include_logo else ""
     brand_logo = '<img src="Img_files_logo_01.png" alt="로고" onerror="this.remove()">' if include_logo else ""
@@ -793,6 +835,13 @@ def render_website(source, mode, options, page_id, reference_brief="", avoid=Non
         body += f'<footer><div class="shell">{_e(footer_text)}<span>© 2026 PCU Student Project</span></div></footer>'
     metadata = {"engineVersion": "6.0", "design": design, "designName": DESIGN_CONCEPTS[design], "layout": layout, "layoutName": LAYOUTS[layout], "palette": palette_index, "paletteName": palette[0], "typography": type_index, "typographyName": typography[0], "archetype": archetype, "composition": composition, "variantIndex": variant_index, "sitePurpose": site_purpose, "artDirectionKey": direction, "artDirectionName": ART_DIRECTIONS[direction], "structureFamily": structure_family, "artDirection": str(planner.get("artDirection") or art["label"])[:200], "heroStyle": hero_style, "sectionStyle": section_style, "careerAssessmentUsed": bool(career_assessment), "careerBasis": _get(data, "진로 설계 기준") if mode == "career" else "not_applicable"}
     meta_text = _e(" · ".join((metadata["artDirectionName"], metadata["paletteName"], metadata["typographyName"])))
-    document = f'<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="PCU Design Engine v6"><meta name="design-system" content="{meta_text}"><title>{_e(title)}</title><style>{css}</style></head><body class="mode-{_e(mode)} archetype-{archetype} composition-{composition} direction-{direction} structure-{structure_family} sections-{_e(section_style)} density-{_e(density)}">{body}<script>document.querySelectorAll("h1,h2,.statement p,.v6-proof-poster p,.v6-story-opening p,.v6-story-ending p").forEach(element=>{{const count=Array.from(element.textContent.trim()).length;element.classList.add(count>=36?"type-long":count>=18?"type-medium":"type-short")}});const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{{if(entry.isIntersecting){{entry.target.classList.add(\'on\');observer.unobserve(entry.target)}}}}),{{threshold:.12}});document.querySelectorAll(\'.reveal\').forEach(element=>observer.observe(element));</script></body></html>'
+    document = f'''<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="PCU Design Engine v6"><meta name="design-system" content="{meta_text}"><title>{_e(title)}</title><style>{css}</style></head><body class="mode-{_e(mode)} archetype-{archetype} composition-{composition} direction-{direction} structure-{structure_family} sections-{_e(section_style)} density-{_e(density)}"><div class="scroll-progress" aria-hidden="true"></div>{body}<a class="back-top" href="#top" aria-label="맨 위로 이동">↑</a><script>
+    document.querySelectorAll("h1,h2,.statement p,.v6-proof-poster p,.v6-story-opening p,.v6-story-ending p").forEach(element=>{{const count=Array.from(element.textContent.trim()).length;element.classList.add(count>=36?"type-long":count>=18?"type-medium":"type-short")}});
+    const motionTargets=document.querySelectorAll('.reveal,.v6-campaign-main>section,.v6-book-pages>article,.v6-product-main>section,.v6-story>section,.v6-atlas>section');
+    const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{{if(entry.isIntersecting){{entry.target.classList.add('on','motion-in');observer.unobserve(entry.target)}}}}),{{threshold:.1,rootMargin:'0px 0px -6%'}});motionTargets.forEach(element=>observer.observe(element));
+    const nav=document.querySelector('.site-nav'),progress=document.querySelector('.scroll-progress'),backTop=document.querySelector('.back-top'),toggle=document.querySelector('.nav-toggle'),menu=document.querySelector('.nav-menu');
+    const updateScroll=()=>{{const y=scrollY,max=Math.max(1,document.documentElement.scrollHeight-innerHeight);nav?.classList.toggle('is-scrolled',y>24);backTop?.classList.toggle('show',y>innerHeight*.7);if(progress)progress.style.width=`${{Math.min(100,y/max*100)}}%`}};addEventListener('scroll',updateScroll,{{passive:true}});updateScroll();
+    toggle?.addEventListener('click',()=>{{const open=toggle.getAttribute('aria-expanded')!=='true';toggle.setAttribute('aria-expanded',String(open));menu?.classList.toggle('open',open)}});menu?.querySelectorAll('a').forEach(link=>link.addEventListener('click',()=>{{toggle?.setAttribute('aria-expanded','false');menu?.classList.remove('open')}}));
+    </script></body></html>'''
     metadata["qualityAudit"] = _quality_audit(document, mode, palette, data, site_purpose)
     return document, title, metadata
