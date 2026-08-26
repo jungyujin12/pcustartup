@@ -23,7 +23,7 @@
 <body>
   <nav class="navbar"><div class="nav-container"><a href="index.html" class="nav-logo">PCU 창업지원</a><a href="index.html" class="btn btn-secondary" style="padding:7px 12px;font-size:.76rem">홈으로</a></div></nav>
   <main class="builder">
-    <section class="hero"><span class="free">OLLAMA · 비용 없는 로컬 AI 생성</span><h1>웹사이트 제작 스튜디오</h1><p>목적을 먼저 선택하고 사실에 근거한 내용을 입력하면 단일 HTML 웹사이트를 생성합니다.<br>AI 실행기가 켜진 동안만 생성되며 공개하면 안 되는 개인정보와 사업기밀은 입력하지 마세요.</p></section>
+    <section class="hero"><span class="free">비용 없이 이용하는 학교 AI</span><h1>웹사이트 제작 스튜디오</h1><p>만들고 싶은 사이트 종류를 고르고 내용을 입력하면 웹페이지 파일을 만들어드립니다.<br>공개하면 안 되는 개인정보와 사업기밀은 입력하지 마세요.</p></section>
 
     <section class="card" aria-labelledby="trackTitle">
       <h2 id="trackTitle">1. 제작 목적 선택</h2>
@@ -36,8 +36,8 @@
     <section id="commonCard" class="card" hidden>
       <h2>2. 공통 설정</h2>
       <div class="grid">
-        <div class="field"><label for="accessCode">동아리 접근코드 <span class="required">*</span></label><div style="display:flex;gap:7px"><input id="accessCode" type="password" autocomplete="off" placeholder="동아리별 접근코드"><button id="historyBtn" type="button" class="btn-main" style="padding:8px 12px;white-space:nowrap">이력 보기</button></div><div id="clubStatus" class="hint">코드를 확인하면 해당 동아리의 과거 생성 결과가 표시됩니다.</div></div>
-        <div class="field"><label for="pageId">페이지 주소 <span class="required">*</span></label><input id="pageId" maxlength="32" placeholder="영문 소문자·숫자·하이픈"><div class="hint">완성 주소: /generated-site.html?id=<span id="slugPreview">...</span></div></div>
+        <div class="field" id="accessField"><label for="accessCode">동아리 접근코드 <span class="required">*</span></label><div style="display:flex;gap:7px"><input id="accessCode" type="password" autocomplete="off" placeholder="동아리별 접근코드"><button id="historyBtn" type="button" class="btn-main" style="padding:8px 12px;white-space:nowrap">이력 보기</button></div><div id="clubStatus" class="hint">코드를 확인하면 해당 동아리의 과거 생성 결과가 표시됩니다.</div></div>
+        <div class="field"><label for="pageId">결과 파일 이름 <span class="required">*</span></label><input id="pageId" maxlength="32" placeholder="예: my-portfolio-2026"><div class="hint">영문 소문자·숫자·하이픈만 사용하세요. 저장 파일: <span id="slugPreview">...</span>.html</div></div>
         <div class="field"><label for="pdfFile">근거 문서 불러오기</label><input id="pdfFile" type="file" multiple accept=".pdf,application/pdf"><div id="pdfStatus" class="hint">사업계획서·이력서·자기소개서 등 PDF를 여러 개 선택할 수 있습니다. 원본 파일은 업로드하지 않고 이 브라우저에서 텍스트만 읽습니다.</div></div>
         <div class="field"><label for="referenceImage">분위기 참고 이미지</label><input id="referenceImage" type="file" accept="image/jpeg,image/png,image/webp"><div id="referenceStatus" class="hint">디자인·색감·배치 참고용 이미지 1장 (선택). 타인의 디자인을 복제하지 말고 사용 권한이 있는 이미지만 선택하세요.</div></div>
         <div class="field"><label for="siteImages">사이트에 사용할 실제 이미지</label><input id="siteImages" type="file" multiple accept="image/jpeg,image/png,image/webp"><div id="siteImageStatus" class="hint">제품·활동·프로젝트 사진을 최대 3장 선택하세요. 브라우저에서 축소한 뒤 생성 결과에 포함하며, 저작권과 초상권이 확보된 이미지만 사용하세요.</div></div>
@@ -47,7 +47,7 @@
         <div class="field"><label for="colorPalette">색상 팔레트 · 30종</label><select id="colorPalette"><option value="auto">AI 자동 선택</option></select></div>
         <div class="field"><label for="typographyPreset">타이포그래피 · 30종</label><select id="typographyPreset"><option value="auto">AI 자동 선택</option></select></div>
       </div>
-      <div class="privacy">입력 내용은 생성 작업에 사용된 뒤 원문이 삭제됩니다. 주민등록번호, 상세 주소, 계좌번호, 비공개 기술자료는 입력하지 마세요.</div>
+      <div class="privacy"><b>처음 이용해도 어렵지 않습니다.</b> 선택한 PDF와 입력 내용은 제작에만 사용한 뒤 삭제됩니다. 주민등록번호, 상세 주소, 계좌번호는 입력하지 마세요. 취업 결과는 한 번만 열 수 있으므로 완성 화면에서 반드시 <b>결과 파일 저장</b>을 눌러야 합니다.</div>
     </section>
 
     <section id="historyCard" class="card" hidden>
@@ -78,8 +78,10 @@
       <div class="grid">
         <div class="basis-box"><strong>사이트의 진로 방향을 무엇으로 정할까요? <span class="required">*</span></strong><div class="hint">공식 검사 결과는 방향을 찾는 참고자료이며, 실제 경험과 희망 직무를 대신하지 않습니다.</div><div class="basis-grid"><label class="basis-option"><input type="radio" name="careerBasis" value="assessment"><b>공식 검사 결과를 참고해 제작</b><span>고용24 등 적법하게 받은 결과 PDF를 참고하되 실제 경험과 희망 직무를 중심으로 구성합니다.</span></label><label class="basis-option"><input type="radio" name="careerBasis" value="independent"><b>검사 없이 제작</b><span>희망 직무·진로 분야와 이력서·자기소개서만으로 구성합니다.</span></label></div><div id="careerBasisGuide" class="basis-alert">검사 결과를 사용할지 선택해주세요.</div><div class="actions" style="justify-content:flex-start;margin-top:.75rem"><a class="btn btn-secondary" href="career-test.html" target="_blank" rel="noopener noreferrer">고용24 검사 안내 보기 ↗</a></div></div>
         <div class="field"><label for="cName">이름 <span class="required">*</span></label><input id="cName" maxlength="60"></div>
+        <div class="field"><label for="cStudentId">학번 <span class="hint">(선택)</span></label><input id="cStudentId" maxlength="12" inputmode="numeric" placeholder="숫자 6~12자리"></div>
+        <div class="field"><label for="cDepartment">학과 <span class="hint">(선택)</span></label><input id="cDepartment" maxlength="100"></div>
         <div class="field"><label for="cRole">희망 직무</label><input id="cRole" maxlength="100" placeholder="예: 백엔드 개발자, 마케팅 기획"></div>
-        <div class="field"><label for="cMajor">전공·학과</label><input id="cMajor" maxlength="100"></div>
+        <div class="field"><label for="cMajor">세부 전공 <span class="hint">(해당하는 경우만)</span></label><input id="cMajor" maxlength="100" placeholder="예: 경영학과 마케팅 전공"></div>
         <div class="field"><label for="cIndustry">희망 산업·진로 분야</label><input id="cIndustry" maxlength="120" placeholder="예: 공공데이터, 교육서비스, 콘텐츠 산업"></div>
         <div class="field full"><label for="cIntro">한 줄 소개 <span class="required">*</span></label><input id="cIntro" maxlength="160" placeholder="직무 강점과 방향을 한 문장으로"></div>
         <div class="field"><label for="cSkills">핵심 역량·기술</label><textarea id="cSkills" maxlength="1500" placeholder="도구, 기술, 언어, 업무 역량과 숙련 근거"></textarea></div>
@@ -117,7 +119,7 @@
         <div class="field"><label for="heroLayout">첫 화면 배치</label><select id="heroLayout"><option value="auto">내용에 맞게 자동</option><option value="split">글 왼쪽 · 비주얼 오른쪽</option><option value="centered">중앙 집중형</option><option value="poster">큰 제목 포스터형</option><option value="editorial">비대칭 매거진형</option></select></div>
         <div class="field"><label for="sectionLayout">본문 배열</label><select id="sectionLayout"><option value="auto">내용에 맞게 자동</option><option value="story">이야기 흐름형</option><option value="alternating">좌우 교차형</option><option value="timeline">활동 타임라인형</option><option value="showcase">결과물 쇼케이스형</option></select></div>
         <div class="field"><label for="contentDensity">정보 밀도</label><select id="contentDensity"><option value="balanced">균형 있게</option><option value="spacious">크고 여유롭게</option><option value="compact">많은 내용을 한눈에</option></select></div>
-        <div class="field"><label for="visibility">공개 범위</label><select id="visibility"><option value="club">동아리 전용 · 코드 확인 후 표시</option><option value="public">전체 공개 · 링크로 바로 표시</option></select></div>
+        <div id="visibilityField" class="field"><label for="visibility">누가 볼 수 있나요?</label><select id="visibility"><option value="club">우리 동아리만 · 접근코드 필요</option><option value="public">링크를 아는 누구나</option></select></div>
         <div class="field full"><div class="checks"><label class="check"><input id="sectionImages" type="checkbox"> 업로드한 실제 이미지를 섹션에도 사용</label><label class="check"><input id="logoImage" type="checkbox"> 로고 이미지 사용</label><label class="check"><input id="includeFooter" type="checkbox" checked> 푸터 생성</label></div><div class="hint">이미지가 없어도 타이포그래피·CSS·SVG 아트 중심의 완성형 사이트가 생성됩니다. 실제 이미지가 필요한 경우에만 위의 이미지 업로드를 이용하세요.</div></div>
       </div>
       <div class="privacy"><strong>생성 전 확인:</strong> 입력 자료에 없는 경력·수치·성과는 만들지 않습니다. 참고 사이트와 이미지는 분위기만 참고하고 코드·문구·구성을 복제하지 않습니다. 결과 HTML은 반드시 본인이 검토한 뒤 공개하세요.</div>
@@ -164,7 +166,7 @@ function setupCompactForm(formId,advancedIds,sourceId){
   const sourceField=$(sourceId)?.closest('.field');
   if(sourceField){
     const sourceDetails=document.createElement('details');sourceDetails.className='optional-box';
-    sourceDetails.innerHTML='<summary>원문 직접 붙여넣기 (선택)</summary><div class="source-note"><strong>PDF에서 불러온 원문은 여기에 안전하게 보관되며 기본 화면에는 펼쳐 보이지 않습니다.</strong> PDF가 없을 때만 직접 붙여넣으세요.</div>';
+    sourceDetails.innerHTML='<summary>문서 내용 직접 붙여넣기 (선택)</summary><div class="source-note"><strong>PDF에서 읽어 온 내용은 제작하는 동안에만 이 입력란에서 확인할 수 있고, 제작 후에는 저장하지 않습니다.</strong> PDF가 없을 때만 직접 붙여넣으세요.</div>';
     sourceDetails.appendChild(sourceField);root.appendChild(sourceDetails);
   }
 }
@@ -186,6 +188,9 @@ window.selectTrack=function(track){
   $('aiHelperCard').hidden=false;
   $('startupForm').classList.toggle('show',selectedTrack==='startup');$('careerForm').classList.toggle('show',selectedTrack==='career');
   $('careerReviewCard').classList.toggle('show',selectedTrack==='career'&&selectedCareerBasis()==='assessment');
+  $('accessField').hidden=selectedTrack==='career';
+  $('visibilityField').hidden=selectedTrack==='career';
+  if(selectedTrack==='career'){$('historyCard').hidden=true;$('visibility').value='public'}
   $('optionsTitle').textContent=selectedTrack==='career'&&selectedCareerBasis()==='assessment'?'5. 이미지·푸터 설정':'4. 이미지·푸터 설정';
   $('generateBtn').textContent=selectedTrack==='startup'?'무료 창업 웹사이트 생성':'무료 취업 포트폴리오 생성';
   $('commonCard').scrollIntoView({behavior:'smooth',block:'start'});
@@ -197,12 +202,12 @@ $('toggleChatBtn').addEventListener('click',()=>{
 function addBubble(role,text){const bubble=document.createElement('div');bubble.className=`bubble ${role}`;bubble.textContent=text;$('chatLog').appendChild(bubble);$('chatLog').scrollTop=$('chatLog').scrollHeight}
 async function sendInterview(){
   if(!selectedTrack)return;
-  const accessCode=clean($('accessCode').value);if(!accessCode){$('chatApplied').textContent='먼저 동아리 접근코드를 입력해주세요.';return}
+  const accessCode=selectedTrack==='career'?'CAREER-GUEST':clean($('accessCode').value);if(!accessCode){$('chatApplied').textContent='먼저 동아리 접근코드를 입력해주세요.';return}
   const message=clean($('chatInput').value);if(message){interviewMessages.push({role:'user',content:message});addBubble('user',message);$('chatInput').value=''}
   const button=$('chatSendBtn');button.disabled=true;button.textContent='AI 확인 중…';$('chatApplied').textContent='';
   try{
     if(!(await checkWorker()))throw new Error('AI 실행기가 꺼져 있습니다.');
-    const club=currentClub||await verifyAccess(accessCode),requestRef=doc(collection(db,'website_interviews'));
+    const club=selectedTrack==='career'?{id:'',name:'',year:String(new Date().getFullYear())}:(currentClub||await verifyAccess(accessCode)),requestRef=doc(collection(db,'website_interviews'));
     await setDoc(requestRef,{status:'pending',clubCode:club.id,accessCode,mode:selectedTrack,sourceText:buildSource().slice(0,30000),messages:interviewMessages.slice(-10),createdAt:serverTimestamp()});
     for(let attempt=0;attempt<80;attempt++){
       await new Promise(resolve=>setTimeout(resolve,1500));let snapshot;try{snapshot=await getDoc(requestRef)}catch(readError){continue}if(!snapshot.exists())continue;
@@ -304,14 +309,14 @@ function updateCareerSubmitState(){
 ['careerConfirmScores','careerConfirmFacts','careerConfirmSubmit'].forEach(id=>$(id).addEventListener('change',updateCareerSubmitState));
 
 async function createCareerReviewRequest(purpose){
-  const accessCode=clean($('accessCode').value);if(!accessCode)throw new Error('먼저 동아리 접근코드를 입력해주세요.');
+  const accessCode='CAREER-GUEST';
   if(!(await checkWorker()))throw new Error('AI 실행기가 꺼져 있습니다.');
-  const club=currentClub||await verifyAccess(accessCode),requestRef=doc(collection(db,'website_interviews'));
+  const club={id:'',name:'',year:String(new Date().getFullYear())},requestRef=doc(collection(db,'website_interviews'));
   const source=[buildSource(),careerResultText?`\n[고용24 직업선호도검사 L형 결과 텍스트]\n${careerResultText}`:''].join('').slice(0,30000);
   const payload={status:'pending',purpose,clubCode:club.id,accessCode,mode:'career',sourceText:source,messages:careerReviewMessages.slice(-10),createdAt:serverTimestamp()};
   if(careerAnalysisDraft)payload.analysisDraft=careerAnalysisDraft.slice(0,12000);
   if(purpose==='career_submit'){
-    payload.analysisData=careerAnalysisData;payload.studentName=clean($('cName').value);payload.desiredRole=clean($('cRole').value);payload.careerField=clean($('cIndustry').value);payload.confirmations={scores:true,facts:true,submit:true};
+    payload.analysisData=careerAnalysisData;payload.studentName=clean($('cName').value);payload.studentId=clean($('cStudentId').value);payload.department=clean($('cDepartment').value||$('cMajor').value);payload.desiredRole=clean($('cRole').value);payload.careerField=clean($('cIndustry').value);payload.confirmations={scores:true,facts:true,submit:true};
   }
   await setDoc(requestRef,payload);
   for(let attempt=0;attempt<240;attempt++){
@@ -426,7 +431,7 @@ function careerScoreSummary(){
 function buildSource(){
   if(selectedTrack==='startup')return `[제작 목적] 창업 목적 웹사이트\n[프로젝트·서비스명] ${clean($('sProject').value)}\n[팀명·동아리명] ${clean($('sTeam').value)}\n[핵심 한 줄 소개] ${clean($('sIntro').value)}\n[분야·업종] ${clean($('sIndustry').value)}\n[사업화 여부] ${$('commercialized').value}\n[문제 정의] ${clean($('sProblem').value)}\n[해결 방법] ${clean($('sSolution').value)}\n[주요 활동] ${clean($('sActivities').value)}\n[성과·검증 결과] ${clean($('sAchievements').value)}\n[배운 점·향후 계획] ${clean($('sLearning').value)}\n[추가 원문]\n${clean($('sSource').value)}`;
   const basis=selectedCareerBasis(),basisText=basis==='assessment'?'진로검사 결과 기반':'검사 결과와 별개인 희망 직무·진로 분야 기반 (직접 입력한 희망 방향을 최우선 적용)';
-  return `[제작 목적] 취업용 포트폴리오\n[진로 설계 기준] ${basisText}\n[진로검사 기록 ID] ${basis==='assessment'?careerAssessmentRecordId:''}\n[이름] ${clean($('cName').value)}\n[희망 직무] ${clean($('cRole').value)}\n[전공·학과] ${clean($('cMajor').value)}\n[희망 산업·진로 분야] ${clean($('cIndustry').value)}\n[한 줄 소개] ${clean($('cIntro').value)}\n[핵심 역량·기술] ${clean($('cSkills').value)}\n[강점·업무 방식] ${clean($('cStrengths').value)}\n[프로젝트] ${clean($('cProjects').value)}\n[경험·경력·대외활동] ${clean($('cExperience').value)}\n[교육·자격·수상] ${clean($('cEducation').value)}\n[공개 연락 방법] ${clean($('cContact').value)}\n${basis==='assessment'?careerScoreSummary():''}\n[추가 원문]\n${clean($('cSource').value)}`;
+  return `[제작 목적] 취업용 포트폴리오\n[진로 설계 기준] ${basisText}\n[진로검사 기록 ID] ${basis==='assessment'?careerAssessmentRecordId:''}\n[이름] ${clean($('cName').value)}\n[학번] ${clean($('cStudentId').value)}\n[학과] ${clean($('cDepartment').value)}\n[희망 직무] ${clean($('cRole').value)}\n[전공·학과] ${clean($('cMajor').value)}\n[희망 산업·진로 분야] ${clean($('cIndustry').value)}\n[한 줄 소개] ${clean($('cIntro').value)}\n[핵심 역량·기술] ${clean($('cSkills').value)}\n[강점·업무 방식] ${clean($('cStrengths').value)}\n[프로젝트] ${clean($('cProjects').value)}\n[경험·경력·대외활동] ${clean($('cExperience').value)}\n[교육·자격·수상] ${clean($('cEducation').value)}\n[공개 연락 방법] ${clean($('cContact').value)}\n${basis==='assessment'?careerScoreSummary():''}\n[추가 원문]\n${clean($('cSource').value)}`;
 }
 function validateTrack(){
   if(!selectedTrack)return '제작 목적을 선택해주세요.';
@@ -445,19 +450,20 @@ async function verifyAccess(code){const club=currentClub||await resolveClub(code
 
 window.submitWebsiteJob=async function(){
   const validation=validateTrack();if(validation){status(validation,'error');return}
-  const pageId=clean($('pageId').value),accessCode=clean($('accessCode').value);let sourceText=buildSource();
+  const pageId=clean($('pageId').value),accessCode=selectedTrack==='career'?'CAREER-GUEST':clean($('accessCode').value);let sourceText=buildSource();
   if(selectedTrack==='career'&&selectedCareerBasis()==='assessment'&&careerAnalysisDraft)sourceText+=`\n[학생 확인 완료 진로분석 - AI 설계 참고용, 공개 시 민감정보 제외]\n${careerAnalysisDraft}`;
-  if(!accessCode){status('생성 접근코드를 입력해주세요.','error');return}
+  if(selectedTrack==='startup'&&!accessCode){status('생성 접근코드를 입력해주세요.','error');return}
+  if(selectedTrack==='career'&&clean($('cStudentId').value)&&!/^[0-9]{6,12}$/.test(clean($('cStudentId').value))){status('학번은 입력하는 경우 숫자 6~12자리로 작성해주세요.','error');return}
   if(!/^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])?$/.test(pageId)){status('페이지 주소는 영문 소문자·숫자·하이픈 3~32자로 입력해주세요.','error');return}
   if(sourceText.length>50000){status('전체 입력 내용이 50,000자를 초과했습니다. 추가 원문을 줄여주세요.','error');return}
   if(!(await checkWorker()))return;
   const btn=$('generateBtn');btn.disabled=true;
   try{
-    status('동아리 접근코드를 확인하고 있습니다.<div class="progress"><span></span></div>');const club=await verifyAccess(accessCode);
+    status(selectedTrack==='career'?'일회성 취업 포트폴리오 작업을 준비하고 있습니다.<div class="progress"><span></span></div>':'동아리 접근코드를 확인하고 있습니다.<div class="progress"><span></span></div>');const club=selectedTrack==='career'?{id:'',name:'',year:String(new Date().getFullYear())}:await verifyAccess(accessCode);
     const reference=doc(db,'website_jobs',pageId);
-    await setDoc(reference,{status:'pending',pageId,clubCode:club.id,clubName:club.name||'',clubYear:String(club.year||''),sourceText,mode:selectedTrack,visibility:$('visibility').value,referenceImageData,referenceImageName:referenceImageData?clean($('referenceImage').files[0]?.name):'',siteImageData,siteImageNames,options:{bannerCount:Number($('bannerCount').value),sectionImages:$('sectionImages').checked,logoImage:$('logoImage').checked,includeFooter:$('includeFooter').checked,footerText:clean($('footerText').value),commercialized:selectedTrack==='startup'?$('commercialized').value:'not_applicable',startupPurpose:selectedTrack==='startup'?$('startupPurpose').value:'not_applicable',designConcept:$('designStyle').value,layoutPreset:$('layoutPreset').value,colorPalette:$('colorPalette').value,typographyPreset:$('typographyPreset').value,referenceSiteUrl:clean($('referenceSiteUrl').value),heroLayout:$('heroLayout').value,sectionLayout:$('sectionLayout').value,contentDensity:$('contentDensity').value},createdAt:serverTimestamp()});
+    await setDoc(reference,{status:'pending',pageId,clubCode:club.id,clubName:club.name||'',clubYear:String(club.year||''),studentId:selectedTrack==='career'?clean($('cStudentId').value):'',department:selectedTrack==='career'?clean($('cDepartment').value):'',ephemeral:selectedTrack==='career',sourceText,mode:selectedTrack,visibility:selectedTrack==='career'?'public':$('visibility').value,referenceImageData,referenceImageName:referenceImageData?clean($('referenceImage').files[0]?.name):'',siteImageData,siteImageNames,options:{bannerCount:Number($('bannerCount').value),sectionImages:$('sectionImages').checked,logoImage:$('logoImage').checked,includeFooter:$('includeFooter').checked,footerText:clean($('footerText').value),commercialized:selectedTrack==='startup'?$('commercialized').value:'not_applicable',startupPurpose:selectedTrack==='startup'?$('startupPurpose').value:'not_applicable',designConcept:$('designStyle').value,layoutPreset:$('layoutPreset').value,colorPalette:$('colorPalette').value,typographyPreset:$('typographyPreset').value,referenceSiteUrl:clean($('referenceSiteUrl').value),heroLayout:$('heroLayout').value,sectionLayout:$('sectionLayout').value,contentDensity:$('contentDensity').value},createdAt:serverTimestamp()});
     status('작업을 등록했습니다. 로컬 AI가 웹사이트를 생성하고 있습니다.<div class="progress"><span></span></div>');
-    for(let attempt=0;attempt<120;attempt++){await new Promise(resolve=>setTimeout(resolve,3000));let snapshot;try{snapshot=await getDoc(reference)}catch(error){continue}if(!snapshot.exists())continue;const job=snapshot.data();if(job.status==='completed'){const url=`generated-site.html?id=${encodeURIComponent(pageId)}`;status(`${selectedTrack==='startup'?'창업 웹사이트':'취업 포트폴리오'} 생성이 완료됐습니다.<br><a class="btn btn-primary" href="${url}" target="_blank" style="display:inline-block;margin-top:.7rem">결과 열기</a>`,'done');return}if(job.status==='failed')throw new Error(job.error||'AI 생성에 실패했습니다.')}
+    for(let attempt=0;attempt<120;attempt++){await new Promise(resolve=>setTimeout(resolve,3000));let snapshot;try{snapshot=await getDoc(reference)}catch(error){continue}if(!snapshot.exists())continue;const job=snapshot.data();if(job.status==='completed'){const url=`generated-site.html?id=${encodeURIComponent(pageId)}`;if(selectedTrack==='career')alert('취업 포트폴리오는 일회성 결과입니다. 결과 화면이 열리면 반드시 HTML 다운로드를 먼저 눌러 저장하세요. 창을 닫거나 새로고침한 뒤에는 다시 열 수 없습니다.');status(`${selectedTrack==='startup'?'창업 웹사이트':'취업 포트폴리오'} 생성이 완료됐습니다.<br>${selectedTrack==='career'?'<strong>⚠️ 일회성 결과이므로 지금 반드시 HTML을 저장하세요.</strong><br>':''}<a class="btn btn-primary" href="${url}" target="_blank" style="display:inline-block;margin-top:.7rem">결과 열기</a>`,'done');return}if(job.status==='failed')throw new Error(job.error||'AI 생성에 실패했습니다.')}
     status('작업은 등록됐지만 아직 완료되지 않았습니다. AI 실행기를 확인한 뒤 결과 주소를 다시 열어주세요.','error');
   }catch(error){status(error.code==='permission-denied'?'이미 사용 중인 페이지 주소이거나 생성 권한이 없습니다.':(error.message||'생성 요청에 실패했습니다.'),'error')}finally{btn.disabled=false}
 };
