@@ -6,6 +6,7 @@
   <title>무료 웹사이트 제작 | PCU 창업지원</title>
   <link rel="stylesheet" href="theme.css">
   <style>
+    [hidden]{display:none!important}
     body{background:linear-gradient(145deg,#f5f9ff 0%,#fff 48%,#effcf6 100%);min-height:100vh}
     .builder{max-width:1040px;margin:0 auto;padding:2rem 1rem 5rem}.hero{background:#10243e;color:#fff;border-radius:18px;padding:2rem;position:relative;overflow:hidden;margin-bottom:1rem}.hero:after{content:"";position:absolute;width:280px;height:280px;border-radius:50%;right:-100px;top:-130px;background:rgba(49,179,124,.2)}
     .hero h1{font-size:clamp(1.55rem,4vw,2.3rem);margin:.4rem 0}.hero p{color:#c9d8eb;line-height:1.7;font-size:.88rem}.free{display:inline-flex;background:#baf3d7;color:#075f3d;border-radius:20px;padding:4px 10px;font-size:.72rem;font-weight:800}
@@ -189,7 +190,9 @@ window.selectTrack=function(track){
   $('startupForm').classList.toggle('show',selectedTrack==='startup');$('careerForm').classList.toggle('show',selectedTrack==='career');
   $('careerReviewCard').classList.toggle('show',selectedTrack==='career'&&selectedCareerBasis()==='assessment');
   $('accessField').hidden=selectedTrack==='career';
+  $('accessField').style.setProperty('display',selectedTrack==='career'?'none':'flex','important');
   $('visibilityField').hidden=selectedTrack==='career';
+  $('visibilityField').style.setProperty('display',selectedTrack==='career'?'none':'flex','important');
   if(selectedTrack==='career'){$('historyCard').hidden=true;$('visibility').value='public'}
   $('optionsTitle').textContent=selectedTrack==='career'&&selectedCareerBasis()==='assessment'?'5. 이미지·푸터 설정':'4. 이미지·푸터 설정';
   $('generateBtn').textContent=selectedTrack==='startup'?'무료 창업 웹사이트 생성':'무료 취업 포트폴리오 생성';
