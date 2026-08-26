@@ -448,7 +448,7 @@ function validateTrack(){
     if(basis==='independent'&&!clean($('cRole').value)&&!clean($('cIndustry').value))return '희망 직무 또는 희망 진로 분야를 하나 이상 입력해주세요.';
   }
   return '';
-}
+} 
 async function verifyAccess(code){const club=currentClub||await resolveClub(code);if(!club)throw new Error('등록되지 않은 동아리 접근코드입니다.');if(club.status!=='active')throw new Error('운영이 종료된 동아리입니다.');currentClub=club;return club}
 
 window.submitWebsiteJob=async function(){
