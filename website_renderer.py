@@ -771,7 +771,7 @@ def render_website(source, mode, options, page_id, reference_brief="", avoid=Non
         strengths = _get(data, "강점·업무 방식", "강점", default=assessment_strengths or intro)
         projects = _get(data, "프로젝트", default=assessment_portfolio or "실제 프로젝트와 수행 근거를 추가해주세요.")
         project_items = _sentences(projects.replace(" / ", "\n"), 8)
-        experience = _sentences(_get(data, "경험·경력·대외활동", "경험", default=assessment_plan), 8)
+        experience = _sentences(_get(data, "경험·경력·대외활동", "경험", default=assessment_plan), 8) 
         education = _get(data, "교육·자격·수상", "교육")
         contact = _get(data, "공개 연락 방법")
         title = f"{name} · {role} 포트폴리오"
