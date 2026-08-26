@@ -15,14 +15,14 @@
   </style>
 </head>
 <body>
-  <header class="bar"><strong id="resultType">PCU 생성 웹페이지</strong><button id="editBtn" disabled>간단 수정</button><button id="downloadBtn" disabled>HTML 준비 중…</button><button id="aiGuideBtn">외부 AI로 고급 수정</button><button id="deployGuideBtn">GitHub 배포 방법</button><a href="website-builder.html">새로 만들기</a></header>
+  <header class="bar"><strong id="resultType">PCU 생성 웹페이지</strong><button id="editBtn" disabled>글자·색상 수정</button><button id="downloadBtn" disabled>결과 파일 준비 중…</button><button id="aiGuideBtn">다른 AI로 더 수정하기</button><button id="deployGuideBtn">무료 공개 방법</button><a href="website-builder.html">새로 만들기</a></header>
   <div id="concepts" class="concepts"><strong>서로 다른 디자인 시안</strong><button data-concept="0">시안 A</button><button data-concept="1">시안 B</button><button data-concept="2">시안 C</button><button id="selectConcept" class="select">현재 시안 선택</button></div>
   <div id="editor" class="editor"><span class="note">미리보기에서 문구를 직접 클릭해 수정하세요. 구조와 스크립트는 보호됩니다.</span><label>강조색 <input id="accentColor" type="color" value="#31b37c"></label><input id="editCode" type="password" autocomplete="off" placeholder="동아리 접근코드"><button id="saveEditBtn" type="button">수정본 저장</button><button id="cancelEditBtn" type="button" style="background:#64748b">취소</button></div>
   <main id="content"><div class="message">웹페이지를 불러오는 중입니다.</div></main>
   <dialog id="deployGuide" aria-labelledby="guideTitle">
     <div class="guide-head"><h2 id="guideTitle">GitHub Pages로 무료 공개하기</h2><button class="guide-close" type="button" aria-label="안내 닫기">닫기</button></div>
     <div class="guide-body">
-      <div class="guide-note">지금 보이는 결과는 PCU 시스템 안에 이미 저장되어 있습니다. 아래 절차는 자신만의 공개 주소로 별도 배포하고 싶을 때만 진행하세요.</div>
+      <div class="guide-note">창업 사이트는 시스템에서 다시 볼 수 있습니다. 취업 포트폴리오는 한 번만 열 수 있으므로 먼저 HTML 파일을 내 컴퓨터에 저장한 뒤 아래 절차를 진행하세요.</div>
       <h3>1. 파일 준비</h3>
       <ol>
         <li>상단의 <strong>HTML 다운로드</strong>를 누릅니다.</li>
@@ -88,9 +88,19 @@
 반응형 구간, 줄바꿈, 이미지 비율, 터치 영역, 색상 대비를 점검하고 기존 기능과 링크를 제거하지 마세요. 수정된 단일 HTML 전체만 반환해주세요.</pre></div>
     </div>
   </dialog>
+  <dialog id="careerSaveNotice" aria-labelledby="careerSaveTitle">
+    <div class="guide-head"><h2 id="careerSaveTitle">완성 파일을 지금 저장해주세요</h2></div>
+    <div class="guide-body">
+      <p><strong>이 취업 포트폴리오는 한 번만 열 수 있습니다.</strong></p>
+      <p>제출한 이력서·자기소개서·검사 결과는 보관하지 않으며, 이 창을 닫거나 새로고침하면 결과 화면도 다시 불러올 수 없습니다.</p>
+      <div class="guide-note guide-warn">아래 버튼을 누르면 내 컴퓨터의 다운로드 폴더에 HTML 파일이 저장됩니다. 저장한 파일은 나중에 브라우저에서 다시 열 수 있습니다.</div>
+      <button id="careerDownloadNow" type="button" style="width:100%;border:0;border-radius:9px;padding:12px;background:#0052cc;color:#fff;font:inherit;font-weight:800;cursor:pointer">지금 결과 파일 저장하기</button>
+      <button id="careerNoticeClose" type="button" style="width:100%;margin-top:8px;border:1px solid #b9c7d6;border-radius:9px;padding:10px;background:#fff;font:inherit;cursor:pointer">저장하지 않고 화면 먼저 보기</button>
+    </div>
+  </dialog>
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import {getFirestore,collection,doc,getDoc,setDoc,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import {getFirestore,collection,doc,getDoc,setDoc,updateDoc,deleteField,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 const app=initializeApp({apiKey:"AIzaSyBgZ5pqslhIV7SVTgt3ZSc_ZGGtORM-P-A",authDomain:"pcu-startup.firebaseapp.com",projectId:"pcu-startup",storageBucket:"pcu-startup.firebasestorage.app",messagingSenderId:"47845163622",appId:"1:47845163622:web:789eaef6966e9cf28be3a7"});
 const db=getFirestore(app),id=new URLSearchParams(location.search).get('id'),content=document.getElementById('content');
 const guide=document.getElementById('deployGuide');
@@ -106,15 +116,17 @@ document.querySelectorAll('.copy-prompt').forEach(button=>button.addEventListene
   try{await navigator.clipboard.writeText(prompt);button.textContent='복사됨'}catch(error){button.textContent='선택해 복사'}
   setTimeout(()=>button.textContent='예문 복사',1600);
 }));
-let html='',editing=false,variants=[],selectedVariant=0,currentVariant=0,accessCode='';
+let html='',editing=false,variants=[],selectedVariant=0,currentVariant=0,accessCode='',careerDownloaded=false;
 let job={};
+function downloadHtml(){const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`${id}.html`;a.click();URL.revokeObjectURL(url);careerDownloaded=true}
+window.addEventListener('beforeunload',event=>{if(job.ephemeral&&job.track==='career'&&!careerDownloaded){event.preventDefault();event.returnValue=''}});
 function renderPage(markup){
   html=markup;
   document.getElementById('resultType').textContent=`${(job.track||job.mode)==='career'?'PCU 취업 포트폴리오':'PCU 창업 웹사이트'} · ${job.publishStatus==='final'?'최종 확정':'초안'}`;
   const iframe=document.createElement('iframe');iframe.id='siteFrame';iframe.sandbox='allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox';iframe.srcdoc=html;iframe.title=job.title||id;content.replaceChildren(iframe);
-  document.title=`${job.title||id} | PCU`;const download=document.getElementById('downloadBtn');download.disabled=false;download.textContent='HTML 다운로드';
+  document.title=`${job.title||id} | PCU`;const download=document.getElementById('downloadBtn');download.disabled=false;download.textContent='결과 파일 저장 (HTML)';
   document.getElementById('editBtn').disabled=false;
-  download.onclick=()=>{const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`${id}.html`;a.click();URL.revokeObjectURL(url)};
+  download.onclick=downloadHtml;
 }
 function setupVariants(items,selected=0){
   variants=Array.isArray(items)?items.filter(item=>typeof item==='string'&&item.length>300):[];selectedVariant=Number(selected)||0;currentVariant=selectedVariant;
@@ -136,8 +148,10 @@ function cancelEdit(){editing=false;document.getElementById('editor').classList.
 document.getElementById('editBtn').onclick=()=>editing?cancelEdit():beginEdit();document.getElementById('cancelEditBtn').onclick=cancelEdit;
 document.getElementById('accentColor').addEventListener('input',event=>{const frame=document.getElementById('siteFrame');if(editing&&frame?.contentDocument)frame.contentDocument.documentElement.style.setProperty('--accent',event.target.value)});
 document.getElementById('saveEditBtn').onclick=async()=>{
-  const frame=document.getElementById('siteFrame'),code=document.getElementById('editCode').value.trim(),button=document.getElementById('saveEditBtn');if(!code){alert('동아리 접근코드를 입력해주세요.');return}
+  const frame=document.getElementById('siteFrame'),code=document.getElementById('editCode').value.trim(),button=document.getElementById('saveEditBtn');
   const docNode=frame?.contentDocument;if(!docNode)return;docNode.body.removeAttribute('contenteditable');const edited='<!DOCTYPE html>\n'+docNode.documentElement.outerHTML;
+  if(job.ephemeral&&job.track==='career'){html=edited;cancelEdit();alert('수정 내용을 현재 화면에 반영했습니다. 반드시 HTML 다운로드를 눌러 저장하세요.');return}
+  if(!code){alert('동아리 접근코드를 입력해주세요.');return}
   button.disabled=true;button.textContent='저장 중…';
   try{const requestRef=doc(collection(db,'website_access'));await setDoc(requestRef,{status:'pending',pageId:id,accessCode:code,action:'quick_edit',value:edited,createdAt:serverTimestamp()});for(let attempt=0;attempt<80;attempt++){await new Promise(resolve=>setTimeout(resolve,1200));let snapshot;try{snapshot=await getDoc(requestRef)}catch(readError){continue}if(!snapshot.exists())continue;const result=snapshot.data();if(result.status==='failed')throw new Error(result.error||'수정본을 저장하지 못했습니다.');if(result.status==='completed'){html=edited;cancelEdit();alert('수정본을 저장했습니다. HTML 다운로드에도 반영됩니다.');return}}throw new Error('저장 시간이 초과되었습니다. AI 실행기를 확인해주세요.')}catch(error){alert(error.message||'수정본 저장에 실패했습니다.')}finally{button.disabled=false;button.textContent='수정본 저장'}
 };
@@ -164,7 +178,19 @@ try{
   if(job.status==='pending'||job.status==='processing')throw new Error('아직 AI가 웹페이지를 생성하고 있습니다. 잠시 후 새로고침해주세요.');
   if(job.status!=='completed')throw new Error(job.error||'생성된 웹페이지가 없습니다.');
   if(job.html){renderPage(job.html)}
-  else if(job.visibility==='public'){const page=await getDoc(doc(db,'website_content',id));if(!page.exists()||!page.data().html)throw new Error('생성된 웹페이지 본문이 없습니다.');setupVariants(page.data().variants,page.data().selectedVariant);renderPage(page.data().html)}
+  else if(job.visibility==='public'){
+    const contentRef=doc(db,'website_content',id),page=await getDoc(contentRef);if(!page.exists()||!page.data().html)throw new Error(job.ephemeral?'이 일회성 취업 결과는 이미 열렸습니다. 저장한 HTML 파일을 이용해주세요.':'생성된 웹페이지 본문이 없습니다.');
+    setupVariants(page.data().variants,page.data().selectedVariant);renderPage(page.data().html);
+    if(job.ephemeral&&job.track==='career'){
+      try{await updateDoc(contentRef,{html:deleteField(),variants:deleteField(),consumedAt:serverTimestamp()})}catch(cleanupError){console.error('일회성 결과 정리 실패',cleanupError)}
+      const notice=document.getElementById('careerSaveNotice');notice.showModal();
+      document.getElementById('careerDownloadNow').onclick=()=>{downloadHtml();notice.close()};
+      document.getElementById('careerNoticeClose').onclick=()=>notice.close();
+      document.getElementById('selectConcept').style.display='none';
+      document.getElementById('editCode').style.display='none';
+      document.getElementById('saveEditBtn').textContent='수정 내용을 파일에 반영';
+    }
+  }
   else showAccessForm();
 }catch(error){content.innerHTML=`<div class="message"><h2>페이지를 표시할 수 없습니다.</h2><p>${String(error.message||error).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</p></div>`}
 </script>
