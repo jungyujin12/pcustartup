@@ -21,6 +21,7 @@ import pdfplumber
 import requests
 from firebase_admin import credentials, firestore
 from website_renderer import _fields, render_website
+from design_engine_v7 import analyze_content_metadata, choose_design_system, render_v7
 
 
 def _reference_site_brief(url):
@@ -415,8 +416,15 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
         # Planner와 Builder를 분리한다. 로컬 AI는 먼저 콘텐츠와 레퍼런스를
         # 바탕으로 디자인 의사결정만 JSON으로 작성하고, 검증된 렌더러가
         # 그 스펙을 구현한다. 모델이 HTML/CSS를 즉흥 생성하지 않도록 한다.
-        design_plan = self._plan_website_design(source, mode, options, reference_brief)
         options = dict(options)
+        content_metadata = analyze_content_metadata(source, mode, site_images)
+        if content_metadata.get("needsClarification"):
+            missing = ", ".join(content_metadata.get("missingFields", [])[:4]) or "핵심 프로젝트 정보"
+            raise ValueError(
+                f"웹사이트를 만들 핵심 정보가 부족합니다. AI 상세 요구 대화에서 다음 내용을 보완해주세요: {missing}"
+            )
+        options["_contentMetadata"] = content_metadata
+        design_plan = self._plan_website_design(source, mode, options, reference_brief)
         options["_designPlan"] = design_plan
         options["_siteImages"] = site_images
 
@@ -463,17 +471,24 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
                             break
             except Exception as exc:
                 self.log(f"최근 디자인 이력 확인 건너뜀: {exc}")
-        # 같은 콘텐츠로 구조가 실제로 다른 세 시안을 만든다. 단순 색상 변경이
-        # 아니라 editorial / product / narrative 조합을 각각 독립 렌더링한다.
+        # V7 pilot: two content-led systems plus one proven V6 safety variant.
+        # The old engine remains available until representative visual QA passes.
         attempted_systems = list(recent_systems)
         variants = []
         for variant_index in range(3):
             variant_options = dict(options)
             variant_options["_variantIndex"] = variant_index
-            variant_html, variant_title, variant_system = render_website(
-                source, mode, variant_options, f"{page_id}-concept-{variant_index + 1}",
-                reference_brief, attempted_systems + [item["designSystem"] for item in variants]
-            )
+            if variant_index < 2:
+                selected_system = choose_design_system(mode, content_metadata, design_plan, variant_index)
+                variant_html, variant_title, variant_system = render_v7(
+                    source, mode, variant_options,
+                    f"{page_id}-concept-{variant_index + 1}", selected_system, design_plan
+                )
+            else:
+                variant_html, variant_title, variant_system = render_website(
+                    source, mode, variant_options, f"{page_id}-concept-{variant_index + 1}",
+                    reference_brief, attempted_systems + [item["designSystem"] for item in variants]
+                )
             audit = variant_system.get("qualityAudit", {}) if isinstance(variant_system, dict) else {}
             if not audit.get("passed"):
                 raise ValueError(f"디자인 시안 {variant_index + 1}이 품질 기준을 통과하지 못했습니다.")
@@ -519,10 +534,11 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
         return {
             "html": firestore.DELETE_FIELD,
             "title": title,
-            "generator": "pcu-design-engine:v6",
+            "generator": "pcu-design-engine:v7-pilot",
             "designSystem": design_system,
             "designVariants": [item["designSystem"] for item in variants],
             "sourceAnalysis": source_analysis,
+            "contentMetadata": content_metadata,
             "referenceSiteUsed": bool(reference_site),
             "track": mode,
             "visibility": visibility,
@@ -545,7 +561,9 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
             for key, value in fields.items()
             if key not in ("추가 원문", "진로검사 결과지 - AI 설계 참고용, 공개 금지")
         }
-        prompt = f"""당신은 디지털 아트디렉터입니다. 아래 자료로 웹사이트 디자인 기획 JSON만 작성하세요.
+        allowed_systems = ["startup-product", "case-study"] if mode == "startup" else ["quiet-portfolio", "case-study"]
+        content_metadata = options.get("_contentMetadata", {}) if isinstance(options.get("_contentMetadata"), dict) else {}
+        prompt = f"""당신은 학생 프로젝트를 위한 디지털 아트디렉터입니다. 아래 자료로 웹사이트 디자인 기획 JSON만 작성하세요.
 문구나 성과를 새로 만들지 말고, 디자인 판단만 하세요.
 
 [트랙] {mode}
@@ -555,16 +573,27 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
 [참고자료 분석]
 {reference_brief[:3500]}
 
+[객관적 콘텐츠 분석]
+{json.dumps(content_metadata, ensure_ascii=False)[:3500]}
+
 [사용자 설정]
 {json.dumps({key: value for key, value in options.items() if key != '_designPlan'}, ensure_ascii=False)[:2500]}
 
 반드시 아래 키만 가진 JSON 객체 하나를 출력하세요.
+designSystem: {"/".join(allowed_systems)} 중 하나
 archetype: technology/editorial/human/premium/playful/utility 중 하나
 artDirection: 전체 시각 방향을 설명하는 한국어 한 문장
 contentPriority: 방문자가 먼저 이해해야 할 정보 3개 배열
 visualStrategy: 이미지·타이포그래피·도형을 어떻게 사용할지 한국어 한 문장
 motionStrategy: 꼭 필요한 모션만 한국어 한 문장
 avoid: 피해야 할 시각적 클리셰 3개 배열
+
+선택 규칙:
+- 이미지가 없으면 이미지 중심 시스템을 가정하지 마세요.
+- 완료 실적과 계획이 섞여 있으면 둘을 시각적으로 분리하세요.
+- startup-product는 제품·서비스의 이용 흐름이 중심일 때 선택하세요.
+- quiet-portfolio는 취업 트랙의 전문성과 읽기 흐름이 중심일 때 선택하세요.
+- case-study는 문제·역할·행동·결과의 사례 서사가 분명할 때 선택하세요.
 """
         try:
             response = ollama.chat(
@@ -578,7 +607,10 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
                 raise ValueError("디자인 기획 결과가 객체가 아닙니다.")
             if str(plan.get("archetype", "")) not in ("technology", "editorial", "human", "premium", "playful", "utility"):
                 plan["archetype"] = "editorial" if mode == "career" else "technology"
+            if str(plan.get("designSystem", "")) not in allowed_systems:
+                plan["designSystem"] = allowed_systems[0]
             return {
+                "designSystem": str(plan.get("designSystem"))[:40],
                 "archetype": str(plan.get("archetype"))[:24],
                 "artDirection": str(plan.get("artDirection", ""))[:300],
                 "contentPriority": [str(item)[:120] for item in plan.get("contentPriority", [])[:3]] if isinstance(plan.get("contentPriority"), list) else [],
@@ -589,6 +621,7 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
         except Exception as exc:
             self.log(f"디자인 기획 자동 분석 건너뜀: {exc}")
             return {
+                "designSystem": allowed_systems[0],
                 "archetype": "editorial" if mode == "career" else "technology",
                 "artDirection": "콘텐츠 위계와 실제 근거를 중심으로 한 절제된 사이트",
                 "contentPriority": [], "visualStrategy": "", "motionStrategy": "", "avoid": [],
