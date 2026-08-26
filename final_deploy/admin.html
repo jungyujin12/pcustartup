@@ -414,10 +414,21 @@
     .member-table { width: 100%; border-collapse: collapse; font-size: 0.76rem; }
     .member-table th { background: #d6e4ff; padding: 5px 10px; font-weight: 700; text-align: left; }
     .member-table td { padding: 5px 10px; border-bottom: 1px solid rgba(0,82,204,0.1); }
+    .budget-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.8rem; margin-bottom:1rem; }
+    .budget-card { background:#fff; border:1.5px solid var(--pcu-lightblue); border-radius:12px; padding:1rem 1.1rem; min-width:0; }
+    .budget-card strong { display:block; color:var(--pcu-dark); font-size:1.25rem; margin-top:.25rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .budget-form { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.65rem; }
+    .budget-form input,.budget-form select,.budget-form textarea { width:100%; min-width:0; border:1.5px solid var(--pcu-lightgray); border-radius:7px; padding:9px 11px; font:inherit; font-size:.8rem; background:white; }
+    .budget-form textarea { grid-column:span 4; resize:vertical; min-height:70px; }
+    .budget-progress { height:7px; border-radius:99px; background:#e5e7eb; overflow:hidden; margin-top:6px; }
+    .budget-progress span { display:block; height:100%; background:var(--pcu-blue); border-radius:inherit; }
     .accordion-btn { cursor: pointer; background: none; border: none; font-size: 0.75rem; color: var(--pcu-blue); font-weight: 700; }
     tr.expanded { background: #f0f6ff !important; }
     /* 모바일 최적화 */
     @media (max-width: 768px) {
+      .budget-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .budget-form { grid-template-columns:1fr; }
+      .budget-form textarea { grid-column:span 1; }
       .page-header { padding:1.05rem 1rem 1.2rem; text-align:left; }
       .page-header-badge { margin-bottom:.45rem; }
       .tab-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 0.25rem 8px; }
@@ -558,6 +569,7 @@ function logout() { if(window._logout) window._logout(); }
     <button class="tab-btn" onclick="switchTab('files')">📁 파일 관리</button>
     <button class="tab-btn" onclick="switchTab('consult')">💬 상담 신청 <span id="consultBadge" style="display:none;background:#dc2626;color:white;border-radius:10px;padding:1px 6px;font-size:0.65rem;margin-left:4px">0</span></button>
     <button class="tab-btn" onclick="switchTab('ailog')">🤖 AI 분석 기록</button>
+    <button class="tab-btn" onclick="switchTab('budget')">💳 예산 관리</button>
     <button class="tab-btn" onclick="switchTab('rise')">📊 RISE 실적</button>
     <button class="tab-btn" onclick="switchTab('survey')">📝 설문 관리</button>
     <button class="tab-btn" onclick="location.href='website-admin.html'">🌐 제작 사이트 관리</button>
@@ -1181,6 +1193,16 @@ function logout() { if(window._logout) window._logout(); }
     </div>
   </div>
 
+  <!-- ── 사업·프로그램 예산 관리 탭 ── -->
+  <div class="tab-panel" id="tab-budget"><div class="club-manage-wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem"><div><h2>💳 사업·프로그램 예산 관리</h2><p style="margin:.35rem 0 0;color:var(--pcu-gray);font-size:.8rem">동아리·특강·캠프·상담·공모전 등 모든 프로그램의 예산과 지출을 연도별로 관리합니다.</p></div><select id="budgetYear" onchange="loadBudgetData()" style="border:1.5px solid var(--pcu-lightgray);border-radius:7px;padding:8px 12px;font:inherit"></select></div>
+    <div class="budget-grid"><div class="budget-card"><small>총 배정액</small><strong id="budgetAllocated">0원</strong></div><div class="budget-card"><small>총 집행액</small><strong id="budgetSpent">0원</strong></div><div class="budget-card"><small>잔액</small><strong id="budgetRemaining">0원</strong></div><div class="budget-card"><small>집행률</small><strong id="budgetRate">0%</strong><div class="budget-progress"><span id="budgetRateBar" style="width:0"></span></div></div></div>
+    <div class="table-card" style="margin-bottom:1rem"><div class="table-head"><h3>+ 프로그램 등록·수정</h3></div><div style="padding:1rem"><input type="hidden" id="budgetProgramId"><div class="budget-form"><input id="budgetProgramName" placeholder="프로그램명 *"><select id="budgetProgramCategory"><option>창업동아리</option><option>특강</option><option>캠프</option><option>상담</option><option>공모전</option><option>교육</option><option>기타</option></select><input id="budgetProgramAllocated" type="number" min="0" step="1000" placeholder="배정 예산(원) *"><input id="budgetProgramManager" placeholder="담당자"><select id="budgetProgramStatus"><option value="planned">계획</option><option value="active">진행</option><option value="closed">종료</option></select><textarea id="budgetProgramMemo" placeholder="메모·예산 사용 목적"></textarea></div><div style="display:flex;gap:.5rem;margin-top:.8rem"><button class="btn-sm btn-sm-blue" onclick="saveBudgetProgram()">저장</button><button class="btn-sm" onclick="resetBudgetProgramForm()">초기화</button></div></div></div>
+    <div class="table-card" style="margin-bottom:1rem"><div class="table-head"><h3>프로그램별 예산</h3><span class="table-count" id="budgetProgramCount">0개</span></div><div class="table-wrap"><table class="mt" style="min-width:900px"><thead><tr><th>프로그램</th><th>구분</th><th>배정액</th><th>집행액</th><th>잔액·집행률</th><th>상태</th><th>관리</th></tr></thead><tbody id="budgetProgramBody"></tbody></table></div></div>
+    <div class="table-card" style="margin-bottom:1rem"><div class="table-head"><h3>+ 지출 등록·수정</h3></div><div style="padding:1rem"><input type="hidden" id="budgetExpenseId"><div class="budget-form"><select id="budgetExpenseProgram"><option value="">프로그램 선택 *</option></select><input id="budgetExpenseDate" type="date"><select id="budgetExpenseCategory"><option>재료비</option><option>수용비</option><option>전문가활용비</option><option>여비</option><option>홍보비</option><option>임차비</option><option>기타</option></select><input id="budgetExpenseAmount" type="number" min="1" step="100" placeholder="지출액(원) *"><input id="budgetExpenseDescription" placeholder="사용 내용 *"><input id="budgetExpenseVendor" placeholder="지급처"><select id="budgetExpenseEvidence"><option value="pending">증빙 확인 전</option><option value="checked">증빙 확인</option><option value="missing">증빙 누락</option></select><textarea id="budgetExpenseMemo" placeholder="메모·증빙 파일 위치"></textarea></div><div style="display:flex;gap:.5rem;margin-top:.8rem"><button class="btn-sm btn-sm-blue" onclick="saveBudgetExpense()">저장</button><button class="btn-sm" onclick="resetBudgetExpenseForm()">초기화</button></div></div></div>
+    <div class="table-card"><div class="table-head"><h3>지출 원장</h3><span class="table-count" id="budgetExpenseCount">0건</span></div><div class="table-wrap"><table class="mt" style="min-width:1050px"><thead><tr><th>일자</th><th>프로그램</th><th>비목</th><th>사용 내용</th><th>지급처</th><th>금액</th><th>증빙</th><th>관리</th></tr></thead><tbody id="budgetExpenseBody"></tbody></table></div></div>
+  </div></div>
+
   <!-- ── RISE 실적 집계 탭 ── -->
   <div class="tab-panel" id="tab-rise">
     <div class="club-manage-wrap">
@@ -1410,7 +1432,7 @@ window._logout = window.logout = async function() {
 
 // ══ 탭 ══
 window.switchTab = function(tab) {
-  const tabs = ['dashboard','applications','clubs','members','files','consult','ailog','rise','survey','contest'];
+  const tabs = ['dashboard','applications','clubs','members','files','consult','ailog','budget','rise','survey','contest'];
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', (b.getAttribute('onclick')||'').includes(`switchTab('${tab}')`)));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
@@ -1419,6 +1441,7 @@ window.switchTab = function(tab) {
   if (tab === 'files') loadFilesTab();
   if (tab === 'consult') loadConsultations();
   if (tab === 'ailog') populateAILogClubs();
+  if (tab === 'budget') loadBudgetData();
   if (tab === 'rise') loadRiseStats();
   if (tab === 'contest') loadContests();
   if (tab === 'survey') loadSurveys();
@@ -6584,11 +6607,26 @@ window.deleteSelectedAdminFiles = async function() {
   showToast(failed ? `⚠️ ${selected.length-failed}개 삭제, ${failed}개 실패` : `✅ ${selected.length}개 삭제 완료`);
 };
 
+let budgetPrograms=[],budgetExpenses=[];
+const budgetWon=v=>`${Math.max(0,Number(v)||0).toLocaleString('ko-KR')}원`;
+const budgetEsc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function initBudgetYears(){const s=document.getElementById('budgetYear');if(!s||s.options.length)return;const now=new Date().getFullYear();for(let y=now+1;y>=2025;y--)s.add(new Option(`${y}년도`,String(y),false,String(y)===selectedYear));}
+window.loadBudgetData=async function(){initBudgetYears();const year=document.getElementById('budgetYear')?.value||selectedYear||String(new Date().getFullYear());try{const [ps,es]=await Promise.all([getDocs(query(collection(db,'budget_programs'),where('year','==',year))),getDocs(query(collection(db,'budget_expenses'),where('year','==',year)))]);budgetPrograms=ps.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.name).localeCompare(String(b.name),'ko'));budgetExpenses=es.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));renderBudgetData();}catch(e){console.error(e);showToast('⚠️ 예산 자료를 불러오지 못했습니다. Firestore 규칙을 확인하세요.')}};
+function renderBudgetData(){const by={};budgetExpenses.forEach(e=>by[e.programId]=(by[e.programId]||0)+(Number(e.amount)||0));const allocated=budgetPrograms.reduce((s,p)=>s+(Number(p.allocated)||0),0),spent=budgetExpenses.reduce((s,e)=>s+(Number(e.amount)||0),0),rate=allocated?Math.round(spent/allocated*1000)/10:0;document.getElementById('budgetAllocated').textContent=budgetWon(allocated);document.getElementById('budgetSpent').textContent=budgetWon(spent);document.getElementById('budgetRemaining').textContent=budgetWon(allocated-spent);document.getElementById('budgetRate').textContent=`${rate}%`;document.getElementById('budgetRateBar').style.width=`${Math.min(100,rate)}%`;document.getElementById('budgetProgramCount').textContent=`${budgetPrograms.length}개`;document.getElementById('budgetExpenseCount').textContent=`${budgetExpenses.length}건`;const select=document.getElementById('budgetExpenseProgram'),keep=select.value;select.innerHTML='<option value="">프로그램 선택 *</option>'+budgetPrograms.map(p=>`<option value="${p.id}">${budgetEsc(p.name)}</option>`).join('');select.value=keep;document.getElementById('budgetProgramBody').innerHTML=budgetPrograms.length?budgetPrograms.map(p=>{const used=by[p.id]||0,left=(Number(p.allocated)||0)-used,pct=p.allocated?Math.round(used/p.allocated*100):0;return `<tr><td><strong>${budgetEsc(p.name)}</strong><br><small>${budgetEsc(p.manager||'담당자 미지정')}</small></td><td>${budgetEsc(p.category)}</td><td>${budgetWon(p.allocated)}</td><td>${budgetWon(used)}</td><td>${budgetWon(left)}<div class="budget-progress"><span style="width:${Math.min(100,pct)}%"></span></div><small>${pct}%</small></td><td>${({planned:'계획',active:'진행',closed:'종료'})[p.status]||p.status}</td><td><button class="td-btn" onclick="editBudgetProgram('${p.id}')">수정</button> <button class="td-btn red" onclick="deleteBudgetProgram('${p.id}')">삭제</button></td></tr>`}).join(''):'<tr><td colspan="7"><div class="loading-msg">등록된 프로그램이 없습니다.</div></td></tr>';const names=Object.fromEntries(budgetPrograms.map(p=>[p.id,p.name]));document.getElementById('budgetExpenseBody').innerHTML=budgetExpenses.length?budgetExpenses.map(e=>`<tr><td>${budgetEsc(e.date||'—')}</td><td>${budgetEsc(names[e.programId]||'삭제된 프로그램')}</td><td>${budgetEsc(e.category)}</td><td>${budgetEsc(e.description)}</td><td>${budgetEsc(e.vendor||'—')}</td><td>${budgetWon(e.amount)}</td><td>${({pending:'확인 전',checked:'확인',missing:'누락'})[e.evidenceStatus]||'확인 전'}</td><td><button class="td-btn" onclick="editBudgetExpense('${e.id}')">수정</button> <button class="td-btn red" onclick="deleteBudgetExpense('${e.id}')">삭제</button></td></tr>`).join(''):'<tr><td colspan="8"><div class="loading-msg">등록된 지출이 없습니다.</div></td></tr>';}
+window.resetBudgetProgramForm=()=>{['budgetProgramId','budgetProgramName','budgetProgramAllocated','budgetProgramManager','budgetProgramMemo'].forEach(id=>document.getElementById(id).value='');document.getElementById('budgetProgramStatus').value='planned'};
+window.saveBudgetProgram=async()=>{const id=document.getElementById('budgetProgramId').value,name=document.getElementById('budgetProgramName').value.trim(),allocated=Number(document.getElementById('budgetProgramAllocated').value);if(!name||allocated<0)return alert('프로그램명과 배정 예산을 확인하세요.');const p={name,allocated,year:document.getElementById('budgetYear').value,category:document.getElementById('budgetProgramCategory').value,manager:document.getElementById('budgetProgramManager').value.trim(),status:document.getElementById('budgetProgramStatus').value,memo:document.getElementById('budgetProgramMemo').value.trim(),updatedAt:serverTimestamp(),updatedBy:auth.currentUser?.email||''};id?await setDoc(doc(db,'budget_programs',id),p,{merge:true}):await addDoc(collection(db,'budget_programs'),{...p,createdAt:serverTimestamp()});resetBudgetProgramForm();await loadBudgetData();showToast('✅ 프로그램 예산 저장 완료')};
+window.editBudgetProgram=id=>{const p=budgetPrograms.find(x=>x.id===id);if(!p)return;for(const [k,v]of Object.entries({budgetProgramId:id,budgetProgramName:p.name||'',budgetProgramCategory:p.category||'기타',budgetProgramAllocated:p.allocated||0,budgetProgramManager:p.manager||'',budgetProgramStatus:p.status||'planned',budgetProgramMemo:p.memo||''}))document.getElementById(k).value=v;document.getElementById('budgetProgramName').focus()};
+window.deleteBudgetProgram=async id=>{if(budgetExpenses.some(e=>e.programId===id))return alert('지출 내역이 있는 프로그램은 삭제할 수 없습니다.');if(confirm('이 프로그램 예산을 삭제할까요?')){await deleteDoc(doc(db,'budget_programs',id));await loadBudgetData()}};
+window.resetBudgetExpenseForm=()=>{['budgetExpenseId','budgetExpenseProgram','budgetExpenseAmount','budgetExpenseDescription','budgetExpenseVendor','budgetExpenseMemo'].forEach(id=>document.getElementById(id).value='');document.getElementById('budgetExpenseDate').value=new Date().toISOString().slice(0,10);document.getElementById('budgetExpenseEvidence').value='pending'};
+window.saveBudgetExpense=async()=>{const id=document.getElementById('budgetExpenseId').value,programId=document.getElementById('budgetExpenseProgram').value,amount=Number(document.getElementById('budgetExpenseAmount').value),description=document.getElementById('budgetExpenseDescription').value.trim(),program=budgetPrograms.find(p=>p.id===programId);if(!program||amount<=0||!description)return alert('프로그램, 지출액, 사용 내용을 확인하세요.');const e={programId,programName:program.name,year:document.getElementById('budgetYear').value,date:document.getElementById('budgetExpenseDate').value||new Date().toISOString().slice(0,10),category:document.getElementById('budgetExpenseCategory').value,amount,description,vendor:document.getElementById('budgetExpenseVendor').value.trim(),evidenceStatus:document.getElementById('budgetExpenseEvidence').value,memo:document.getElementById('budgetExpenseMemo').value.trim(),updatedAt:serverTimestamp(),updatedBy:auth.currentUser?.email||''};id?await setDoc(doc(db,'budget_expenses',id),e,{merge:true}):await addDoc(collection(db,'budget_expenses'),{...e,createdAt:serverTimestamp()});resetBudgetExpenseForm();await loadBudgetData();showToast('✅ 지출 저장 완료')};
+window.editBudgetExpense=id=>{const e=budgetExpenses.find(x=>x.id===id);if(!e)return;for(const [k,v]of Object.entries({budgetExpenseId:id,budgetExpenseProgram:e.programId||'',budgetExpenseDate:e.date||'',budgetExpenseCategory:e.category||'기타',budgetExpenseAmount:e.amount||'',budgetExpenseDescription:e.description||'',budgetExpenseVendor:e.vendor||'',budgetExpenseEvidence:e.evidenceStatus||'pending',budgetExpenseMemo:e.memo||''}))document.getElementById(k).value=v;document.getElementById('budgetExpenseProgram').focus()};
+window.deleteBudgetExpense=async id=>{if(confirm('이 지출 내역을 삭제할까요?')){await deleteDoc(doc(db,'budget_expenses',id));await loadBudgetData()}};
+
 function showAdminMsg(el, text, color) {
   el.textContent=text; el.style.color=color; el.style.display='block';
   setTimeout(()=>el.style.display='none', 4000);
 }
- 
+
 // CSS 유틸
 const style = document.createElement('style');
 style.textContent = `
