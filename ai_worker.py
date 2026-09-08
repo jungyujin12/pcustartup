@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 import ipaddress
 import os
@@ -12,6 +13,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from html import escape
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -20,8 +22,9 @@ import ollama
 import pdfplumber
 import requests
 from firebase_admin import credentials, firestore
-from website_renderer import _fields, render_website
-from design_engine_v7 import analyze_content_metadata, choose_design_system, render_v7
+from website_renderer import _fields
+from design_engine_v7 import analyze_content_metadata
+from design_engine_v8 import compose_dynamic_css
 
 
 def _reference_site_brief(url):
@@ -101,9 +104,14 @@ class PCUWorker:
         self.worker_id = f"{os.environ.get('COMPUTERNAME', 'pc')}-{uuid.uuid4().hex[:8]}"
         self.db = self._initialize_firebase()
         self.text_model = os.getenv("OLLAMA_TEXT_MODEL", "gemma3")
-        self.website_model = os.getenv("OLLAMA_WEBSITE_MODEL", "llama3:8b")
+        self.website_model = os.getenv("OLLAMA_WEBSITE_MODEL", "qwen2.5-coder:7b")
         self.vision_model = os.getenv("OLLAMA_VISION_MODEL", "llava")
         self.poll_interval = max(2, int(os.getenv("POLL_INTERVAL", "5")))
+        self.hardware_profile = os.getenv("PCU_HARDWARE_PROFILE", "gtx1650")
+        self.context_size = max(4096, int(os.getenv("OLLAMA_CONTEXT_SIZE", "8192")))
+        self.max_revisions = max(0, min(3, int(os.getenv("OLLAMA_MAX_REVISIONS", "1"))))
+        self.work_throttle = max(0, int(os.getenv("PCU_WORK_THROTTLE_SECONDS", "0")))
+        self.last_ephemeral_cleanup = datetime.min.replace(tzinfo=timezone.utc)
         self.admin_email = os.getenv("ADMIN_EMAIL", "").strip()
         self.admin_email_pw = os.getenv("ADMIN_EMAIL_PW", "")
         self.notify_to = [x.strip() for x in os.getenv("NOTIFY_TO", "").split(",") if x.strip()]
@@ -128,6 +136,9 @@ class PCUWorker:
         while not self.stop_event.is_set():
             try:
                 self._heartbeat()
+                if datetime.now(timezone.utc) - self.last_ephemeral_cleanup >= timedelta(minutes=10):
+                    self._cleanup_ephemeral_websites()
+                    self.last_ephemeral_cleanup = datetime.now(timezone.utc)
                 worked = self._process_collection("ai_jobs", self._process_ai_job)
                 worked = self._process_collection(
                     "website_jobs", self._process_website_job
@@ -138,8 +149,13 @@ class PCUWorker:
                 worked = self._process_collection(
                     "website_interviews", self._process_website_interview
                 ) or worked
+                worked = self._process_collection(
+                    "design_generation_jobs", self._process_design_generation_job
+                ) or worked
                 worked = self._process_collection("email_jobs", self._process_email_job) or worked
                 worked = self._process_collection("recovery_jobs", self._process_recovery_job) or worked
+                if worked and self.work_throttle:
+                    self.stop_event.wait(self.work_throttle)
                 if not worked:
                     self.stop_event.wait(self.poll_interval)
             except Exception as exc:
@@ -166,9 +182,26 @@ class PCUWorker:
                 "heartbeat": firestore.SERVER_TIMESTAMP,
                 "models": models,
                 "emailConfigured": bool(self.admin_email and self.admin_email_pw and self.notify_to),
+                "hardwareProfile": self.hardware_profile,
+                "contextSize": self.context_size,
             },
             merge=True,
         )
+
+    def _cleanup_ephemeral_websites(self):
+        """Remove unopened one-time career HTML after 24 hours, keeping only its admin summary."""
+        now = datetime.now(timezone.utc)
+        for snapshot in self.db.collection("website_content").where(
+            filter=firestore.FieldFilter("ephemeral", "==", True)
+        ).limit(50).stream():
+            data = snapshot.to_dict() or {}
+            expires_at = data.get("expiresAt")
+            if expires_at and expires_at <= now and (data.get("html") or data.get("variants")):
+                snapshot.reference.update({
+                    "html": firestore.DELETE_FIELD,
+                    "variants": firestore.DELETE_FIELD,
+                    "expiredAt": firestore.SERVER_TIMESTAMP,
+                })
 
     def _process_collection(self, collection_name, handler):
         now = datetime.now(timezone.utc)
@@ -424,6 +457,19 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
                 f"웹사이트를 만들 핵심 정보가 부족합니다. AI 상세 요구 대화에서 다음 내용을 보완해주세요: {missing}"
             )
         options["_contentMetadata"] = content_metadata
+        library_design = self._select_library_design(mode, content_metadata, options)
+        if not library_design:
+            raise ValueError(
+                "사용 가능한 승인 디자인이 없습니다. 관리자가 디자인 라이브러리에서 "
+                "후보를 미리 생성하고 실제 HTML을 확인한 뒤 한 개 이상 승인해주세요."
+            )
+        options["_libraryDesign"] = library_design
+        reference_brief = (
+            f"{reference_brief}\n\n[관리자 승인 디자인 자산]\n"
+            f"{json.dumps(library_design.get('designSpec', {}), ensure_ascii=False)[:6000]}\n"
+            "승인된 정보구조와 디자인 언어는 바꾸지 말고 학생 콘텐츠의 분량에 맞게 조정하세요. "
+            "예시 문구나 샘플 콘텐츠는 절대 복사하지 마세요."
+        )
         design_plan = self._plan_website_design(source, mode, options, reference_brief)
         options["_designPlan"] = design_plan
         options["_siteImages"] = site_images
@@ -443,11 +489,9 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
         }.get(mode)
         if not mode_instruction:
             raise ValueError("지원하지 않는 웹사이트 제작 트랙입니다.")
-        # Small local language models are useful for document analysis, but
-        # letting them author an entire CSS layout produces unstable geometry
-        # (oversized fixed blocks, collapsed columns, and broken mobile text).
-        # The curated renderer preserves the user's chosen layout/theme while
-        # guaranteeing responsive, accessible HTML on every run.
+        # The design model authors each document from the content brief. Python
+        # validates and repairs the result; it no longer chooses a fixed HTML
+        # template or injects content into a prebuilt layout.
         recent_systems = []
         club_code = str(data.get("clubCode", ""))
         if club_code:
@@ -471,34 +515,10 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
                             break
             except Exception as exc:
                 self.log(f"최근 디자인 이력 확인 건너뜀: {exc}")
-        # V7 pilot: two content-led systems plus one proven V6 safety variant.
-        # The old engine remains available until representative visual QA passes.
-        attempted_systems = list(recent_systems)
-        variants = []
-        for variant_index in range(3):
-            variant_options = dict(options)
-            variant_options["_variantIndex"] = variant_index
-            if variant_index < 2:
-                selected_system = choose_design_system(mode, content_metadata, design_plan, variant_index)
-                variant_html, variant_title, variant_system = render_v7(
-                    source, mode, variant_options,
-                    f"{page_id}-concept-{variant_index + 1}", selected_system, design_plan
-                )
-            else:
-                variant_html, variant_title, variant_system = render_website(
-                    source, mode, variant_options, f"{page_id}-concept-{variant_index + 1}",
-                    reference_brief, attempted_systems + [item["designSystem"] for item in variants]
-                )
-            audit = variant_system.get("qualityAudit", {}) if isinstance(variant_system, dict) else {}
-            if not audit.get("passed"):
-                raise ValueError(f"디자인 시안 {variant_index + 1}이 품질 기준을 통과하지 못했습니다.")
-            variants.append({"html": variant_html, "title": variant_title, "designSystem": variant_system})
-        direction_keys = [item["designSystem"].get("artDirectionKey") for item in variants]
-        if len(set(direction_keys)) != 3 or any(not key for key in direction_keys):
-            raise ValueError("세 디자인 시안의 아트디렉션이 충분히 다르지 않습니다.")
-        structure_families = [item["designSystem"].get("structureFamily") for item in variants]
-        if "legacy-pitch" not in structure_families and (len(set(structure_families)) != 3 or any(not family for family in structure_families)):
-            raise ValueError("세 디자인 시안의 정보구조가 충분히 다르지 않습니다.")
+        variant_html, variant_title, variant_system = self._adapt_library_design(
+            source, mode, page_id, library_design, content_metadata
+        )
+        variants = [{"html": variant_html, "title": variant_title, "designSystem": variant_system}]
         html, title, design_system = variants[0]["html"], variants[0]["title"], variants[0]["designSystem"]
         if sum(len(item["html"].encode("utf-8")) for item in variants) > 900000:
             raise ValueError("생성된 디자인 시안의 전체 크기가 저장 가능한 범위를 초과했습니다.")
@@ -507,6 +527,8 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
             "variants": [item["html"] for item in variants],
             "selectedVariant": 0,
             "visibility": visibility,
+            "ephemeral": mode == "career",
+            "expiresAt": datetime.now(timezone.utc) + timedelta(hours=24) if mode == "career" else None,
             "clubCode": str(data.get("clubCode", "")),
             "updatedAt": firestore.SERVER_TIMESTAMP,
         })
@@ -519,6 +541,8 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
                 "clubName": str(data.get("clubName", ""))[:100],
                 "clubYear": str(data.get("clubYear", ""))[:4],
                 "name": fields.get("이름", "")[:60],
+                "studentId": fields.get("학번", "")[:12],
+                "department": fields.get("학과", fields.get("전공·학과", ""))[:100],
                 "careerBasis": fields.get("진로 설계 기준", "")[:160],
                 "desiredRole": fields.get("희망 직무", "")[:100],
                 "careerField": fields.get("희망 산업·진로 분야", "")[:120],
@@ -529,19 +553,29 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
                 "createdAt": firestore.SERVER_TIMESTAMP,
                 "privacyScope": "admin-only-summary",
                 "copyrightScope": "no-questions-no-scoring-no-result-copy",
+                "resultTitle": title[:160],
+                "resultStatus": "generated-one-time",
+                "resultStored": False,
             }, merge=True)
         self.log(f"웹페이지 생성 완료: {page_id}")
+        if library_design:
+            self.db.collection("design_library").document(library_design["id"]).set({
+                "usageCount": firestore.Increment(1),
+                "lastUsedAt": firestore.SERVER_TIMESTAMP,
+            }, merge=True)
         return {
             "html": firestore.DELETE_FIELD,
             "title": title,
-            "generator": "pcu-design-engine:v7-pilot",
+            "generator": f"ollama-dynamic:{self.website_model}:v8",
             "designSystem": design_system,
             "designVariants": [item["designSystem"] for item in variants],
             "sourceAnalysis": source_analysis,
             "contentMetadata": content_metadata,
             "referenceSiteUsed": bool(reference_site),
+            "libraryDesignId": library_design.get("id", "") if library_design else "",
             "track": mode,
             "visibility": visibility,
+            "ephemeral": mode == "career",
             "publishStatus": "draft",
             "revision": 1,
             "rootPageId": page_id,
@@ -551,7 +585,382 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
             "referenceImageName": firestore.DELETE_FIELD,
             "siteImageData": firestore.DELETE_FIELD,
             "siteImageNames": firestore.DELETE_FIELD,
+            "studentId": firestore.DELETE_FIELD,
+            "department": firestore.DELETE_FIELD,
         }
+
+    def _adapt_library_design(self, source, mode, page_id, library_design, metadata):
+        """Apply student facts to one pre-approved design without inventing a new design."""
+        preview_html = str(library_design.get("previewHtml", ""))
+        if not preview_html.startswith("<!") or len(preview_html) < 4500:
+            raise ValueError("선택된 승인 디자인에 실제 HTML 원본이 없습니다. 해당 디자인을 폐기하고 다시 생성해주세요.")
+        fields = {key: value[:5000] for key, value in _fields(source).items()
+                  if key not in ("추가 원문", "진로검사 결과지 - AI 설계 참고용, 공개 금지")}
+        prompt = f"""당신은 승인된 웹디자인에 학생 콘텐츠를 편집·배치하는 프론트엔드 편집자입니다.
+새로운 디자인을 만들지 마세요. 아래 승인 HTML의 색상, 타이포 체계, 내비게이션, 시각 언어,
+섹션 문법, 반응형 규칙과 모션을 유지해야 합니다. 샘플 문구는 모두 제거하고 학생 입력 사실로 교체하세요.
+콘텐츠가 짧거나 길면 기존 디자인 시스템 안에서 섹션 수·열 수·글자 크기만 안전하게 조정하세요.
+입력에 없는 수치, 경력, 고객, 수상, 링크, 연락처를 만들지 마세요.
+
+[트랙] {mode}
+[학생 입력]
+{json.dumps(fields, ensure_ascii=False)}
+[콘텐츠 특성]
+{json.dumps(metadata, ensure_ascii=False)}
+[승인 디자인 ID] {library_design.get('id', '')}
+[승인 HTML]
+{preview_html}
+
+오직 수정 완료된 단일 HTML 전체만 출력하세요."""
+        response = ollama.chat(
+            model=self.website_model,
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": .28, "num_ctx": self.context_size, "num_predict": 7000},
+        )
+        html = self._extract_generated_html(response["message"]["content"])
+        score = self._website_quality_score(html)
+        if score < 8 or len(html) < 4200:
+            raise ValueError(f"승인 디자인에 학생 내용을 배치한 결과가 품질 기준을 통과하지 못했습니다({score}/10).")
+        title_match = re.search(r"<title[^>]*>(.*?)</title>", html, re.I | re.S)
+        title = re.sub(r"<[^>]+>", "", title_match.group(1)).strip()[:120] if title_match else page_id
+        system = {
+            "engineVersion": "library-adapter-v1",
+            "designSystem": "admin-approved-library",
+            "artDirectionKey": f"library-{library_design.get('id', '')}",
+            "structureFamily": f"approved-{library_design.get('id', '')}",
+            "libraryDesignId": library_design.get("id", ""),
+            "libraryVersion": int(library_design.get("version", 1)),
+            "qualityAudit": {"score": score * 10, "passed": True},
+        }
+        return html, title or page_id, system
+
+    def _select_library_design(self, mode, metadata, options):
+        """Choose a recent approved asset by fit, freshness and low usage."""
+        preferred = str(options.get("designLibraryId", "")).strip()
+        if preferred:
+            snapshot = self.db.collection("design_library").document(preferred).get()
+            if snapshot.exists:
+                data = snapshot.to_dict() or {}
+                if data.get("status") == "approved" and data.get("track") in (mode, "both"):
+                    return {"id": snapshot.id, **data}
+        candidates = []
+        for snapshot in self.db.collection("design_library").where(
+            filter=firestore.FieldFilter("status", "==", "approved")
+        ).limit(80).stream():
+            data = snapshot.to_dict() or {}
+            if data.get("track") not in (mode, "both"):
+                continue
+            tags = {str(tag).lower() for tag in data.get("tags", []) if tag}
+            score = 100 - min(60, int(data.get("usageCount", 0)) * 3)
+            if metadata.get("hasData") and tags.intersection({"data", "evidence", "성과", "데이터"}):
+                score += 25
+            if metadata.get("hasTimeline") and tags.intersection({"timeline", "process", "과정", "스토리"}):
+                score += 20
+            if metadata.get("imageCount", 0) == 0 and tags.intersection({"no-image", "typography", "이미지없음"}):
+                score += 18
+            if metadata.get("contentDensity") == "high" and tags.intersection({"editorial", "dense", "에디토리얼"}):
+                score += 14
+            candidates.append((score, snapshot.id, data))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: (-item[0], int(item[2].get("usageCount", 0)), item[1]))
+        _, design_id, design = candidates[0]
+        return {"id": design_id, **design}
+
+    def _process_design_generation_job(self, reference, data):
+        """Generate review candidates ahead of student requests."""
+        track = str(data.get("track", "startup"))
+        if track not in ("startup", "career", "both"):
+            raise ValueError("디자인 종류는 창업·취업·공통 중 하나여야 합니다.")
+        count = max(1, min(12, int(data.get("count", 1))))
+        brief = str(data.get("brief", "")).strip()[:3000]
+        reference_urls = [str(url)[:500] for url in data.get("referenceUrls", [])[:3] if url]
+        created_ids = []
+        for index in range(count):
+            prompt = f"""당신은 학생용 웹사이트 디자인 시스템을 만드는 한국 웹 아트디렉터입니다.
+학생 콘텐츠를 만들지 말고, 여러 프로젝트에 재사용할 수 있는 고품질 디자인 자산 JSON 하나만 작성하세요.
+One Page Love·Lapa Ninja 수준의 정제된 한 페이지 웹사이트를 목표로 하되 특정 작품을 복제하지 마세요.
+
+[종류] {track}
+[관리자 요청] {brief or '콘텐츠가 주인공인 현대적이고 독창적인 디자인'}
+[참고 주소] {json.dumps(reference_urls, ensure_ascii=False)}
+[후보 번호] {index + 1}/{count}
+
+반드시 JSON 객체만 출력하세요.
+{{
+ "name":"관리자가 구분할 한국어 이름",
+ "concept":"한 문장 디자인 콘셉트",
+ "bestFor":["적합한 프로젝트 유형"],
+ "tags":["data|timeline|editorial|no-image|typography 등 3~8개"],
+ "designSpec":{{
+   "informationArchitecture":"고유한 정보 흐름",
+   "hero":"첫 화면의 구체적인 구성",
+   "navigation":"내비게이션 형태와 모바일 동작",
+   "sectionGrammar":["서로 다른 섹션 배치 규칙"],
+   "typeSystem":"한글 크기·굵기·행간 규칙",
+   "palette":{{"ink":"#hex","paper":"#hex","accent":"#hex","surface":"#hex"}},
+   "motion":"절제된 진입·스크롤·호버 효과",
+   "responsive":"360px·768px·1440px 대응 규칙",
+   "contentRules":"짧거나 긴 한글과 이미지 유무 대응",
+   "avoid":["이 디자인에서 금지할 상투적 표현"]
+ }},
+ "qualityChecklist":["관리자가 미리보기에서 확인할 항목"]
+}}
+"""
+            response = ollama.chat(
+                model=self.website_model,
+                messages=[{"role": "user", "content": prompt}],
+                format="json",
+                options={"temperature": .82, "num_ctx": self.context_size, "num_predict": 1900},
+            )
+            try:
+                parsed = json.loads(str(response["message"]["content"]))
+            except Exception as exc:
+                raise ValueError(f"디자인 후보 {index + 1} 생성 실패: {exc}")
+            spec = parsed.get("designSpec") if isinstance(parsed, dict) else None
+            if not isinstance(spec, dict) or len(spec) < 7:
+                raise ValueError(f"디자인 후보 {index + 1}의 설계 내용이 부족합니다.")
+            sample = ({
+                "title": "RE:FORM", "intro": "버려지는 지역 자원을 다시 쓰임 있는 제품으로 바꾸는 학생 창업 프로젝트",
+                "sections": [
+                    ["우리가 발견한 문제", "지역에서 반복적으로 버려지는 부산물과 일회용 포장재 문제를 관찰했습니다."],
+                    ["해결 접근", "재료 조사, 배합 실험, 사용성 확인을 거쳐 적용 가능한 시제품 방향을 검토했습니다."],
+                    ["실행 과정", "문제 조사 · 소재 비교 · 시제품 제작 · 사용자 의견 확인"],
+                    ["확인한 결과", "입력 자료에 존재하는 검증 결과와 수치만 이 영역에 표시합니다."],
+                    ["다음 단계", "추가 검증과 개선 계획을 명확한 행동 단위로 정리합니다."],
+                ],
+            } if track != "career" else {
+                "title": "김배재 — 서비스 기획 포트폴리오", "intro": "사용자의 문제를 구조화하고 실행 가능한 서비스 경험으로 연결합니다.",
+                "sections": [
+                    ["소개", "관찰과 협업을 통해 문제의 핵심을 찾는 학생 기획자입니다."],
+                    ["대표 프로젝트", "사용자 조사 · 요구사항 정리 · 화면 흐름 설계 · 결과 검토"],
+                    ["나의 역할", "입력 자료에서 확인된 역할과 기여만 명확하게 보여줍니다."],
+                    ["역량의 근거", "경험, 교육, 도구와 결과를 채용 담당자가 빠르게 확인하도록 구성합니다."],
+                    ["다음 목표", "희망 직무와 준비 방향을 간결하게 정리합니다."],
+                ],
+            })
+            preview_prompt = f"""당신은 시니어 프론트엔드 디자이너입니다. 아래 승인 후보 설계와 샘플 내용으로 실제 검수용 웹사이트를 만드세요.
+특정 갤러리 작품을 복제하지 말고, 흔한 중앙정렬 그래디언트 히어로와 카드 3개 반복을 사용하지 마세요.
+설계의 정보구조·타이포·내비게이션·반응형·모션 규칙을 모두 실제 코드로 구현하세요.
+
+[설계]
+{json.dumps(spec, ensure_ascii=False)}
+[샘플 내용]
+{json.dumps(sample, ensure_ascii=False)}
+
+조건: 단일 self-contained HTML, 한국어 word-break:keep-all, 360/768/1440px 반응형, 키보드 접근성,
+prefers-reduced-motion 대응, 실제 내비게이션과 푸터 포함. 외부 이미지·라이브러리·빌드 도구 금지.
+오직 <!doctype html>부터 끝나는 완성 HTML만 출력하세요."""
+            preview_response = ollama.chat(
+                model=self.website_model,
+                messages=[{"role": "user", "content": preview_prompt}],
+                options={"temperature": .72, "num_ctx": self.context_size, "num_predict": 6000},
+            )
+            preview_html = self._extract_generated_html(preview_response["message"]["content"])
+            quality_score = self._website_quality_score(preview_html)
+            if quality_score < 8 or len(preview_html) < 4500:
+                raise ValueError(f"디자인 후보 {index + 1} 미리보기가 품질 기준을 통과하지 못했습니다({quality_score}/10).")
+            asset_id = uuid.uuid4().hex[:20]
+            self.db.collection("design_library").document(asset_id).set({
+                "name": str(parsed.get("name", f"신규 디자인 {index + 1}"))[:100],
+                "concept": str(parsed.get("concept", ""))[:500],
+                "track": track,
+                "status": "review",
+                "bestFor": [str(x)[:100] for x in parsed.get("bestFor", [])[:8]],
+                "tags": [str(x)[:40] for x in parsed.get("tags", [])[:10]],
+                "designSpec": spec,
+                "qualityChecklist": [str(x)[:200] for x in parsed.get("qualityChecklist", [])[:12]],
+                "previewHtml": preview_html,
+                "automaticQualityScore": quality_score * 10,
+                "sourceJobId": reference.id,
+                "version": 1,
+                "usageCount": 0,
+                "createdAt": firestore.SERVER_TIMESTAMP,
+                "updatedAt": firestore.SERVER_TIMESTAMP,
+            })
+            created_ids.append(asset_id)
+        self.log(f"디자인 라이브러리 후보 생성 완료: {len(created_ids)}개")
+        return {"createdDesignIds": created_ids, "createdCount": len(created_ids)}
+
+    def _generate_dynamic_website(self, source, mode, options, page_id, plan, metadata,
+                                  reference_brief, variant_index, previous_systems):
+        """Generate one independent page through a small-model friendly staged pipeline."""
+        intents = (
+            "방문자가 10초 안에 가치와 행동을 이해하는 전환 중심 구성",
+            "문제와 실행 과정을 따라 읽는 에디토리얼 서사 구성",
+            "가장 강한 결과·작업·근거를 전면에 내세우는 쇼케이스 구성",
+        )
+        fields = {k: v[:5000] for k, v in _fields(source).items()
+                  if k not in ("추가 원문", "진로검사 결과지 - AI 설계 참고용, 공개 금지")}
+        pcu_support = ("본 프로젝트는 배재대학교 RISE사업단의 지원을 받았습니다."
+                       if mode == "startup" else "배재대학교 학생 포트폴리오")
+        blueprint_prompt = f"""당신은 한국 웹 아트디렉터입니다. 고정 템플릿을 고르는 대신 이번 콘텐츠만의 화면 설계도를 만드세요.
+
+[콘텐츠 JSON]\n{json.dumps(fields, ensure_ascii=False)}
+[객관 분석]\n{json.dumps(metadata, ensure_ascii=False)}
+[아트디렉터 브리프]\n{json.dumps(plan, ensure_ascii=False)}
+[참고 화면 분석]\n{reference_brief[:3500] or '없음'}
+[이번 시안의 목적]\n{intents[variant_index]}
+[이미 만든 시안의 구조 서명]\n{json.dumps(previous_systems, ensure_ascii=False)}
+
+JSON 객체만 출력하세요. 사실이나 카피를 창작하지 말고 디자인 결정만 하세요.
+{{
+ "concept":"한 문장 콘셉트", "visualMetaphor":"콘텐츠에서 가져온 시각 은유",
+ "palette":{{"ink":"#hex","paper":"#hex","accent":"#hex","muted":"#hex"}},
+ "type":{{"display":"Google Font 이름","body":"Google Font 이름","scale":"compact|balanced|expressive"}},
+ "heroComposition":"split|editorial|index|statement|timeline|showcase 중 하나",
+ "sectionOrder":["실제 콘텐츠 필드명"],
+ "sectionPatterns":["각 섹션마다 서로 다른 배치 지시"],
+ "navigation":"내비게이션 구성", "motion":"절제된 모션 규칙",
+ "signatureElement":"이 사이트에만 쓰는 CSS 시각요소", "avoid":["금지 요소"]
+}}
+"""
+        blueprint_response = ollama.chat(
+            model=self.website_model, messages=[{"role":"user","content":blueprint_prompt}], format="json",
+            options={"temperature":.68,"num_ctx":self.context_size,"num_predict":1100},
+        )
+        try:
+            blueprint = json.loads(str(blueprint_response["message"]["content"]))
+        except Exception as exc:
+            raise ValueError(f"AI가 화면 설계도를 만들지 못했습니다: {exc}")
+        title_value = (fields.get("프로젝트·서비스명") or fields.get("프로젝트명") or
+                       fields.get("이름") or page_id)
+        intro_value = (fields.get("핵심 한 줄 소개") or fields.get("한 줄 소개") or
+                       fields.get("희망 직무") or "")
+        skip_labels = {"프로젝트·서비스명", "프로젝트명", "이름", "핵심 한 줄 소개", "한 줄 소개"}
+        ordered_labels = []
+        for label in blueprint.get("sectionOrder", []) if isinstance(blueprint.get("sectionOrder"), list) else []:
+            if label in fields and label not in skip_labels and label not in ordered_labels:
+                ordered_labels.append(label)
+        for label in fields:
+            if label not in skip_labels and label not in ordered_labels:
+                ordered_labels.append(label)
+        ordered_labels = [label for label in ordered_labels if fields.get(label)][:6]
+        if len(ordered_labels) < 4:
+            raise ValueError("웹사이트를 만들 공개 항목이 4개보다 적습니다. 내용을 조금 더 입력해주세요.")
+
+        css, compositor_family = compose_dynamic_css(
+            blueprint, metadata, mode, page_id, variant_index
+        )
+        sections, nav_links = [], []
+        for index, label in enumerate(ordered_labels, 1):
+            section_id = f"section-{index:02d}"
+            value = str(fields[label]).strip()
+            parts = [item.strip(" -\t") for item in re.split(r"[;\n•]+", value) if item.strip(" -\t")]
+            if len(parts) >= 2:
+                body = "<ul>" + "".join(f"<li>{escape(item)}</li>" for item in parts[:8]) + "</ul>"
+            else:
+                body = f"<p>{escape(value)}</p>"
+            lowered = label.lower()
+            role = ("evidence" if any(word in lowered for word in ("성과", "결과", "수상")) else
+                    "process" if any(word in lowered for word in ("활동", "과정", "경험", "프로젝트")) else
+                    "statement")
+            if compositor_family == "editorial-axis":
+                section_markup = (
+                    f'<section id="{section_id}" class="section--{role} editorial-spread">'
+                    f'<div class="spread-index">FEATURE {index:02d}</div>'
+                    f'<h2>{escape(label)}</h2><div class="section-content">{body}</div></section>'
+                )
+            elif compositor_family == "evidence-ledger":
+                section_markup = (
+                    f'<section id="{section_id}" class="section--{role} ledger-row">'
+                    f'<div class="ledger-code">DATA / {index:02d}</div>'
+                    f'<div class="ledger-title"><h2>{escape(label)}</h2></div>'
+                    f'<div class="section-content">{body}</div></section>'
+                )
+            else:
+                section_markup = (
+                    f'<section id="{section_id}" class="section--{role} manifesto-block">'
+                    f'<div class="manifesto-number">{index:02d}</div>'
+                    f'<div class="manifesto-copy"><h2>{escape(label)}</h2>'
+                    f'<div class="section-content">{body}</div></div></section>'
+                )
+            sections.append(section_markup)
+            nav_links.append(f'<a href="#{section_id}">{escape(label)}</a>')
+        content = "<main>" + "".join(sections) + "</main>"
+        menu_links = "".join(nav_links[:4])
+        composition = escape(str(blueprint.get("heroComposition", "editorial")))
+        signature = escape(str(blueprint.get("signatureElement", "프로젝트 포트폴리오")))
+        nav_core = (
+            '<a href="#top">PCU PORTFOLIO</a>'
+            '<button type="button" aria-controls="main-menu" aria-expanded="false">메뉴</button>'
+            f'<div id="main-menu" data-menu>{menu_links}</div>'
+        )
+        if compositor_family == "editorial-axis":
+            opening = (
+                f'<nav class="nav-editorial" aria-label="주요 메뉴">{nav_core}</nav>'
+                f'<header id="top" class="hero-editorial hero--{composition}">'
+                '<div class="issue-mark">PCU / STUDENT EDITION</div>'
+                f'<div class="hero-copy"><h1>{escape(title_value)}</h1><p>{escape(intro_value)}</p>'
+                '<a href="#section-01">전체 이야기 읽기</a></div>'
+                f'<aside class="hero-index"><span>ART DIRECTION</span><strong>{signature}</strong>'
+                f'<span>{len(ordered_labels):02d} STORIES</span></aside></header>'
+            )
+        elif compositor_family == "evidence-ledger":
+            opening = (
+                f'<nav class="nav-ledger" aria-label="주요 메뉴">{nav_core}</nav>'
+                f'<header id="top" class="hero-ledger hero--{composition}">'
+                '<div class="system-status"><span>PCU LAB</span><span>STATUS / ACTIVE</span></div>'
+                f'<div class="hero-copy"><p class="hero-label">PROJECT EVIDENCE FILE</p>'
+                f'<h1>{escape(title_value)}</h1><p>{escape(intro_value)}</p>'
+                '<a href="#section-01">기록 열기</a></div>'
+                f'<div class="hero-readout"><span>SECTIONS</span><strong>{len(ordered_labels):02d}</strong>'
+                f'<span>{signature}</span></div></header>'
+            )
+        else:
+            opening = (
+                f'<nav class="nav-campaign" aria-label="주요 메뉴">{nav_core}</nav>'
+                f'<header id="top" class="hero-manifesto hero--{composition}">'
+                f'<div class="poster-kicker">{signature}</div><div class="hero-copy">'
+                f'<h1>{escape(title_value)}</h1><p>{escape(intro_value)}</p>'
+                '<a href="#section-01">이야기 시작</a></div>'
+                '<div class="manifesto-stamp" aria-hidden="true">STUDENT<br>PROJECT<br>ARCHIVE</div></header>'
+            )
+        utility_css = """
+*,*::before,*::after{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;overflow-x:hidden}img,svg{max-width:100%;display:block}button,a{font:inherit}[id]{scroll-margin-top:5rem}:focus-visible{outline:3px solid var(--accent,#009ac9);outline-offset:4px}.reveal{opacity:0;transform:translateY(24px);transition:opacity .7s ease,transform .7s ease}.reveal.is-visible{opacity:1;transform:none}@media(max-width:720px){body{font-size:16px}nav [data-menu]{display:none}nav [data-menu].is-open{display:flex}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}.reveal{opacity:1;transform:none}}
+"""
+        script = """(()=>{const b=document.querySelector('[aria-controls]'),m=b&&document.getElementById(b.getAttribute('aria-controls'));b?.addEventListener('click',()=>{const o=m?.classList.toggle('is-open');b.setAttribute('aria-expanded',String(!!o))});const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('is-visible');io.unobserve(e.target)}}),{threshold:.08});document.querySelectorAll('main section').forEach(e=>{e.classList.add('reveal');io.observe(e)});})();"""
+        footer = f'<footer><p>{escape(pcu_support)}</p></footer>'
+        html = (f'<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">'
+                f'<meta name="viewport" content="width=device-width,initial-scale=1">'
+                f'<title>{escape(title_value)}</title><style>{css}{utility_css}</style></head>'
+                f'<body>{opening}{content}{footer}<script>{script}</script></body></html>')
+        body_markup = opening + content + footer
+        lower_body = body_markup.lower()
+        html_ids = re.findall(r'\bid\s*=\s*["\']([^"\']+)["\']', body_markup, re.I)
+        structural_errors = []
+        if lower_body.count("<main") != 1:
+            structural_errors.append("main 중복")
+        if lower_body.count("<nav") != 1 or lower_body.count("<header") != 1:
+            structural_errors.append("첫 화면 구조 중복")
+        if not 4 <= lower_body.count("<section") <= 8:
+            structural_errors.append("섹션 수 오류")
+        if len(html_ids) != len(set(html_ids)):
+            structural_errors.append("ID 중복")
+        if structural_errors:
+            raise ValueError("AI 화면 구조 무결성 오류: " + ", ".join(structural_errors))
+        score = self._website_quality_score(html)
+        if score < 9 or len(html) < 5200:
+            raise ValueError(
+                f"AI가 새 디자인을 완성하지 못했습니다({score}/10, {len(html)}자). "
+                "기존 템플릿으로 대체하지 않았습니다. 다시 생성해주세요."
+            )
+        if len(html.encode("utf-8")) > 850000:
+            raise ValueError("생성된 HTML이 저장 가능한 크기를 초과했습니다.")
+        title_match = re.search(r"<title[^>]*>(.*?)</title>", html, re.I | re.S)
+        title = re.sub(r"<[^>]+>", "", title_match.group(1)).strip()[:120] if title_match else page_id
+        skeleton = re.sub(r">[^<]+<", "><", html)
+        skeleton = re.sub(r"#[0-9a-fA-F]{3,8}|\d+(?:\.\d+)?(?:px|rem|vw|vh|%)", "#", skeleton)
+        signature = hashlib.sha256(skeleton.encode("utf-8")).hexdigest()[:16]
+        system = {
+            "engineVersion":"8.1-dynamic", "designSystem":"ai-structure+quality-compositor",
+            "artDirectionKey":f"dynamic-{variant_index + 1}-{signature}",
+            "structureFamily":f"generated-{signature}", "contentMetadata":metadata,
+            "designPlan":plan, "dynamicBlueprint":blueprint,
+            "compositorFamily":compositor_family,
+            "qualityAudit":{"score":score * 10,"passed":score >= 8},
+        }
+        return html, title or page_id, system
 
     def _plan_website_design(self, source, mode, options, reference_brief):
         """Create a small factual art-direction spec; never author page copy here."""
@@ -561,7 +970,9 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
             for key, value in fields.items()
             if key not in ("추가 원문", "진로검사 결과지 - AI 설계 참고용, 공개 금지")
         }
-        allowed_systems = ["startup-product", "case-study"] if mode == "startup" else ["quiet-portfolio", "case-study"]
+        allowed_systems = (["startup-product", "local-story", "evidence-lab", "youth-brand"]
+                           if mode == "startup" else
+                           ["quiet-portfolio", "case-study", "editorial-resume"])
         content_metadata = options.get("_contentMetadata", {}) if isinstance(options.get("_contentMetadata"), dict) else {}
         prompt = f"""당신은 학생 프로젝트를 위한 디지털 아트디렉터입니다. 아래 자료로 웹사이트 디자인 기획 JSON만 작성하세요.
 문구나 성과를 새로 만들지 말고, 디자인 판단만 하세요.
@@ -591,16 +1002,20 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
 선택 규칙:
 - 이미지가 없으면 이미지 중심 시스템을 가정하지 마세요.
 - 완료 실적과 계획이 섞여 있으면 둘을 시각적으로 분리하세요.
-- startup-product는 제품·서비스의 이용 흐름이 중심일 때 선택하세요.
-- quiet-portfolio는 취업 트랙의 전문성과 읽기 흐름이 중심일 때 선택하세요.
+- startup-product는 앱·플랫폼·서비스의 이용 흐름이 중심일 때 선택하세요.
+- local-story는 지역·관광·문화·전통·로컬푸드처럼 장소와 사람의 이야기가 중심일 때 선택하세요.
+- evidence-lab은 데이터·연구·실험·친환경 소재·제조 검증이 중심일 때 선택하세요.
+- youth-brand는 브랜드·콘텐츠·커뮤니티·교육처럼 밝고 대중적인 인상이 중요할 때 선택하세요.
+- quiet-portfolio는 취업 트랙의 차분한 전문성과 읽기 흐름이 중심일 때 선택하세요.
 - case-study는 문제·역할·행동·결과의 사례 서사가 분명할 때 선택하세요.
+- editorial-resume는 콘텐츠·기획·마케팅·에디터 직무처럼 편집 감각을 보여줄 때 선택하세요.
 """
         try:
             response = ollama.chat(
                 model=self.website_model,
                 messages=[{"role": "user", "content": prompt}],
                 format="json",
-                options={"temperature": .2, "num_ctx": 8192, "num_predict": 700},
+                options={"temperature": .2, "num_ctx": min(self.context_size, 12288), "num_predict": 700},
             )
             plan = json.loads(str(response["message"]["content"]))
             if not isinstance(plan, dict):
@@ -656,7 +1071,7 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
                 model=self.website_model,
                 messages=[{"role": "user", "content": prompt}],
                 format="json",
-                options={"temperature": 0.15, "num_ctx": 16384, "num_predict": 1800},
+                options={"temperature": 0.15, "num_ctx": self.context_size, "num_predict": 1800},
             )
             extracted = json.loads(str(response["message"]["content"]))
             if not isinstance(extracted, dict):
@@ -672,7 +1087,7 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
 계획을 완료 실적으로 바꾸지 말고 JSON 객체 하나만 출력하세요.
 {json.dumps(extracted, ensure_ascii=False)}"""}],
                     format="json",
-                    options={"temperature": 0.05, "num_ctx": 8192, "num_predict": 1800},
+                    options={"temperature": 0.05, "num_ctx": min(self.context_size, 12288), "num_predict": 1800},
                 )
                 corrected = json.loads(str(correction["message"]["content"]))
                 if isinstance(corrected, dict):
@@ -756,7 +1171,7 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
         response = ollama.chat(
             model=self.website_model,
             messages=[{"role": "user", "content": prompt}],
-            options={"temperature": 0.72, "num_ctx": 16384, "num_predict": 8192},
+            options={"temperature": 0.72, "num_ctx": self.context_size, "num_predict": 8192},
         )
         html = self._extract_generated_html(response["message"]["content"])
         if self._website_quality_score(html) < 8:
@@ -784,7 +1199,7 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
                 refined = ollama.chat(
                     model=self.website_model,
                     messages=[{"role": "user", "content": refine_prompt}],
-                    options={"temperature": 0.68, "num_ctx": 24576, "num_predict": 8192},
+                    options={"temperature": 0.68, "num_ctx": self.context_size, "num_predict": 8192},
                 )
                 refined_html = self._extract_generated_html(refined["message"]["content"])
                 if self._website_quality_score(refined_html) > self._website_quality_score(html):
@@ -898,7 +1313,7 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
             revised = ollama.chat(
                 model=self.website_model,
                 messages=[{"role": "user", "content": revise_prompt}],
-                options={"temperature": 0.5, "num_ctx": 24576, "num_predict": 8192},
+                options={"temperature": 0.5, "num_ctx": self.context_size, "num_predict": 8192},
             )
             revised_html = self._extract_generated_html(revised["message"]["content"])
             visibility = page_data.get("visibility", "club")
@@ -957,15 +1372,19 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
         access_code = str(data.get("accessCode", "")).strip().upper()
         club_id = str(data.get("clubCode", "")).strip()
         mode = "career" if str(data.get("mode")) == "career" else "startup"
-        if not access_code or not club_id:
-            raise ValueError("동아리 확인 정보가 필요합니다.")
-        club = self.db.collection("clubs").document(club_id).get()
-        if not club.exists or club.to_dict().get("status") != "active":
-            raise PermissionError("사용 가능한 동아리가 아닙니다.")
-        club_data = club.to_dict()
-        current_code = str(club_data.get("accessCode") or club_data.get("code") or club.id).upper()
-        if current_code != access_code:
-            raise PermissionError("동아리 접근코드가 올바르지 않습니다.")
+        guest_career = mode == "career" and access_code == "CAREER-GUEST" and not club_id
+        if guest_career:
+            club_data = {"name": "", "year": str(datetime.now().year)}
+        else:
+            if not access_code or not club_id:
+                raise ValueError("동아리 확인 정보가 필요합니다.")
+            club = self.db.collection("clubs").document(club_id).get()
+            if not club.exists or club.to_dict().get("status") != "active":
+                raise PermissionError("사용 가능한 동아리가 아닙니다.")
+            club_data = club.to_dict()
+            current_code = str(club_data.get("accessCode") or club_data.get("code") or club.id).upper()
+            if current_code != access_code:
+                raise PermissionError("동아리 접근코드가 올바르지 않습니다.")
         purpose = str(data.get("purpose", "content_interview"))
         source = str(data.get("sourceText", ""))[:30000]
         messages = data.get("messages", [])
@@ -1002,6 +1421,8 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
                 "clubName": str(club_data.get("name", ""))[:100],
                 "clubYear": str(club_data.get("year", ""))[:4],
                 "studentName": str(data.get("studentName", ""))[:60],
+                "studentId": str(data.get("studentId", ""))[:12],
+                "department": str(data.get("department", ""))[:100],
                 "desiredRole": str(data.get("desiredRole", ""))[:100],
                 "careerField": str(data.get("careerField", ""))[:120],
                 "analysisDraft": draft,
@@ -1019,6 +1440,8 @@ avoid: 피해야 할 시각적 클리셰 3개 배열
                 "analysisDraft": firestore.DELETE_FIELD,
                 "analysisData": firestore.DELETE_FIELD,
                 "studentName": firestore.DELETE_FIELD,
+                "studentId": firestore.DELETE_FIELD,
+                "department": firestore.DELETE_FIELD,
                 "desiredRole": firestore.DELETE_FIELD,
                 "careerField": firestore.DELETE_FIELD,
                 "confirmations": firestore.DELETE_FIELD,
@@ -1105,7 +1528,7 @@ PDF 그래프에서 추정한 숫자나 유형별 설명의 예시 숫자는 결
             detailed = ollama.chat(
                 model=self.text_model,
                 messages=[{"role": "user", "content": detailed_prompt}],
-                options={"temperature": 0.16, "num_ctx": 12288, "num_predict": 1600},
+                options={"temperature": 0.16, "num_ctx": self.context_size, "num_predict": 1600},
             )
             reply = str(detailed["message"]["content"]).strip()
             if len(reply) < 700:
@@ -1168,7 +1591,7 @@ PDF 그래프에서 추정한 숫자나 유형별 설명의 예시 숫자는 결
             model=self.website_model,
             messages=[{"role": "system", "content": prompt}, *safe_messages],
             format="json",
-            options={"temperature": 0.35, "num_ctx": 12288, "num_predict": 900},
+            options={"temperature": 0.35, "num_ctx": self.context_size, "num_predict": 900},
         )
         parsed = json.loads(response["message"]["content"])
         updates = parsed.get("fieldUpdates", {}) if isinstance(parsed, dict) else {}
@@ -1201,17 +1624,28 @@ PDF 그래프에서 추정한 숫자나 유형별 설명의 예시 숫자는 결
     def _website_quality_score(html):
         lower = html.lower()
         css = lower[lower.find("<style") : lower.rfind("</style>")]
+        ids = re.findall(r'\bid\s*=\s*["\']([^"\']+)["\']', html, re.I)
+        section_bodies = re.findall(r'<section\b[^>]*>(.*?)</section>', html, re.I | re.S)
+        section_signatures = []
+        for body in section_bodies:
+            plain = re.sub(r'<[^>]+>', ' ', body)
+            plain = re.sub(r'\s+', ' ', plain).strip().lower()
+            if plain:
+                section_signatures.append(plain[:500])
         checks = (
-            len(css) >= 3500,
-            lower.count("<section") >= 4,
+            lower.count("<!doctype html") == 1 and lower.count("<html") == 1,
+            len(css) >= 2800,
+            4 <= lower.count("<section") <= 8,
+            'name="viewport"' in lower or "name='viewport'" in lower,
             "@media" in css,
             "clamp(" in css,
-            "gradient(" in css,
-            ("@keyframes" in css or "intersectionobserver" in lower),
-            ("display:grid" in css.replace(" ", "") or "display: grid" in css),
-            ("::before" in css or ":before" in css),
-            "focus-visible" in css,
-            "prefers-reduced-motion" in css,
+            "<nav" in lower and "min-height" in css,
+            "<script" in lower and ("transition" in css or "@keyframes" in css),
+            "focus-visible" in css and "prefers-reduced-motion" in css,
+            (lower.count("<head") == 1 and lower.count("<body") == 1 and
+             lower.count("</body>") == 1 and lower.count("<main") == 1 and
+             lower.count("<header") == 1 and len(ids) == len(set(ids)) and
+             len(section_signatures) == len(set(section_signatures))),
         )
         return sum(bool(item) for item in checks)
 
