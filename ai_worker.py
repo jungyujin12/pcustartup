@@ -676,7 +676,39 @@ JSON 배열만 반환하세요. code, name, score(0~100 정수), reason을 포�
         brief = str(data.get("brief", "")).strip()[:3000]
         reference_urls = [str(url)[:500] for url in data.get("referenceUrls", [])[:3] if url]
         created_ids = []
+        reference.set({
+            "progressPercent": 3,
+            "progressText": "생성 준비 중",
+            "currentCandidate": 0,
+            "totalCandidates": count,
+        }, merge=True)
+        self.log(f"디자인 후보 생성 준비: 0/{count} (3%)")
         for index in range(count):
+            # A retry must resume the same logical candidates instead of
+            # creating duplicates for the candidates completed before failure.
+            asset_id = hashlib.sha256(f"{reference.id}:{index}".encode("utf-8")).hexdigest()[:20]
+            existing = self.db.collection("design_library").document(asset_id).get()
+            if existing.exists:
+                existing_data = existing.to_dict() or {}
+                if existing_data.get("sourceJobId") == reference.id and existing_data.get("previewHtml"):
+                    created_ids.append(asset_id)
+                    reference.set({
+                        "progressPercent": min(98, round(((index + 1) / count) * 100)),
+                        "progressText": f"기존 후보 확인 완료 ({index + 1}/{count})",
+                        "currentCandidate": index + 1,
+                    }, merge=True)
+                    self.log(f"디자인 후보 기존 결과 확인: {index + 1}/{count}")
+                    continue
+            base_percent = (index / count) * 100
+            reference.set({
+                "progressPercent": min(95, round(base_percent + 8 / count)),
+                "progressText": f"디자인 설계 생성 중 ({index + 1}/{count})",
+                "currentCandidate": index + 1,
+            }, merge=True)
+            self.log(
+                f"디자인 설계 생성 중: {index + 1}/{count} "
+                f"({min(95, round(base_percent + 8 / count))}%)"
+            )
             prompt = f"""당신은 학생용 웹사이트 디자인 시스템을 만드는 한국 웹 아트디렉터입니다.
 학생 콘텐츠를 만들지 말고, 여러 프로젝트에 재사용할 수 있는 고품질 디자인 자산 JSON 하나만 작성하세요.
 One Page Love·Lapa Ninja 수준의 정제된 한 페이지 웹사이트를 목표로 하되 특정 작품을 복제하지 마세요.
@@ -720,6 +752,14 @@ One Page Love·Lapa Ninja 수준의 정제된 한 페이지 웹사이트를 목�
             spec = parsed.get("designSpec") if isinstance(parsed, dict) else None
             if not isinstance(spec, dict) or len(spec) < 7:
                 raise ValueError(f"디자인 후보 {index + 1}의 설계 내용이 부족합니다.")
+            reference.set({
+                "progressPercent": min(96, round(base_percent + 45 / count)),
+                "progressText": f"실제 HTML 제작 중 ({index + 1}/{count})",
+            }, merge=True)
+            self.log(
+                f"디자인 HTML 제작 중: {index + 1}/{count} "
+                f"({min(96, round(base_percent + 45 / count))}%)"
+            )
             sample = ({
                 "title": "RE:FORM", "intro": "버려지는 지역 자원을 다시 쓰임 있는 제품으로 바꾸는 학생 창업 프로젝트",
                 "sections": [
@@ -760,7 +800,14 @@ prefers-reduced-motion 대응, 실제 내비게이션과 푸터 포함. 외부 �
             quality_score = self._website_quality_score(preview_html)
             if quality_score < 8 or len(preview_html) < 4500:
                 raise ValueError(f"디자인 후보 {index + 1} 미리보기가 품질 기준을 통과하지 못했습니다({quality_score}/10).")
-            asset_id = uuid.uuid4().hex[:20]
+            reference.set({
+                "progressPercent": min(98, round(base_percent + 82 / count)),
+                "progressText": f"품질검사 및 저장 중 ({index + 1}/{count})",
+            }, merge=True)
+            self.log(
+                f"디자인 품질검사·저장 중: {index + 1}/{count} "
+                f"({min(98, round(base_percent + 82 / count))}%)"
+            )
             self.db.collection("design_library").document(asset_id).set({
                 "name": str(parsed.get("name", f"신규 디자인 {index + 1}"))[:100],
                 "concept": str(parsed.get("concept", ""))[:500],
@@ -779,8 +826,15 @@ prefers-reduced-motion 대응, 실제 내비게이션과 푸터 포함. 외부 �
                 "updatedAt": firestore.SERVER_TIMESTAMP,
             })
             created_ids.append(asset_id)
-        self.log(f"디자인 라이브러리 후보 생성 완료: {len(created_ids)}개")
-        return {"createdDesignIds": created_ids, "createdCount": len(created_ids)}
+        self.log(f"디자인 라이브러리 후보 생성 완료: {len(created_ids)}/{count}개 (100%)")
+        return {
+            "createdDesignIds": created_ids,
+            "createdCount": len(created_ids),
+            "progressPercent": 100,
+            "progressText": "모든 후보 생성 완료",
+            "currentCandidate": count,
+            "totalCandidates": count,
+        }
 
     def _generate_dynamic_website(self, source, mode, options, page_id, plan, metadata,
                                   reference_brief, variant_index, previous_systems):
