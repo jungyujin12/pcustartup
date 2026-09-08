@@ -791,15 +791,47 @@ One Page Love·Lapa Ninja 수준의 정제된 한 페이지 웹사이트를 목�
 조건: 단일 self-contained HTML, 한국어 word-break:keep-all, 360/768/1440px 반응형, 키보드 접근성,
 prefers-reduced-motion 대응, 실제 내비게이션과 푸터 포함. 외부 이미지·라이브러리·빌드 도구 금지.
 오직 <!doctype html>부터 끝나는 완성 HTML만 출력하세요."""
-            preview_response = ollama.chat(
-                model=self.website_model,
-                messages=[{"role": "user", "content": preview_prompt}],
-                options={"temperature": .72, "num_ctx": self.context_size, "num_predict": 6000},
-            )
-            preview_html = self._extract_generated_html(preview_response["message"]["content"])
-            quality_score = self._website_quality_score(preview_html)
+            preview_html = ""
+            quality_score = 0
+            quality_failures = []
+            render_prompt = preview_prompt
+            for render_attempt in range(1, 4):
+                preview_response = ollama.chat(
+                    model=self.website_model,
+                    messages=[{"role": "user", "content": render_prompt}],
+                    options={"temperature": .62, "num_ctx": self.context_size, "num_predict": 7000},
+                )
+                try:
+                    preview_html = self._extract_generated_html(preview_response["message"]["content"])
+                    quality_score, quality_failures = self._website_quality_audit(preview_html)
+                except ValueError as exc:
+                    preview_html = ""
+                    quality_score = 0
+                    quality_failures = [str(exc)]
+                if quality_score >= 8 and len(preview_html) >= 4500:
+                    break
+                failure_text = ", ".join(quality_failures) or "HTML 길이 부족"
+                self.log(
+                    f"디자인 후보 {index + 1} 자동 보정 {render_attempt}/3: "
+                    f"{quality_score}/10 · {failure_text}"
+                )
+                reference.set({
+                    "progressText": f"후보 {index + 1} 자동 보정 중 ({render_attempt}/3)",
+                    "qualityScore": quality_score,
+                    "qualityFailures": quality_failures,
+                }, merge=True)
+                render_prompt = preview_prompt + f"""
+
+[직전 결과 자동검사 실패]
+점수: {quality_score}/10
+고쳐야 할 항목: {failure_text}
+HTML은 최소 4,500자 이상이어야 합니다. 위 항목을 빠짐없이 구현해 처음부터 완성 HTML 전체를 다시 출력하세요."""
             if quality_score < 8 or len(preview_html) < 4500:
-                raise ValueError(f"디자인 후보 {index + 1} 미리보기가 품질 기준을 통과하지 못했습니다({quality_score}/10).")
+                failure_text = ", ".join(quality_failures) or "HTML 길이 부족"
+                raise ValueError(
+                    f"디자인 후보 {index + 1}이 자동 보정 3회 후에도 품질 기준을 통과하지 못했습니다"
+                    f"({quality_score}/10: {failure_text})."
+                )
             reference.set({
                 "progressPercent": min(98, round(base_percent + 82 / count)),
                 "progressText": f"품질검사 및 저장 중 ({index + 1}/{count})",
@@ -1676,6 +1708,10 @@ PDF 그래프에서 추정한 숫자나 유형별 설명의 예시 숫자는 결
 
     @staticmethod
     def _website_quality_score(html):
+        return PCUWorker._website_quality_audit(html)[0]
+
+    @staticmethod
+    def _website_quality_audit(html):
         lower = html.lower()
         css = lower[lower.find("<style") : lower.rfind("</style>")]
         ids = re.findall(r'\bid\s*=\s*["\']([^"\']+)["\']', html, re.I)
@@ -1687,21 +1723,25 @@ PDF 그래프에서 추정한 숫자나 유형별 설명의 예시 숫자는 결
             if plain:
                 section_signatures.append(plain[:500])
         checks = (
-            lower.count("<!doctype html") == 1 and lower.count("<html") == 1,
-            len(css) >= 2800,
-            4 <= lower.count("<section") <= 8,
-            'name="viewport"' in lower or "name='viewport'" in lower,
-            "@media" in css,
-            "clamp(" in css,
-            "<nav" in lower and "min-height" in css,
-            "<script" in lower and ("transition" in css or "@keyframes" in css),
-            "focus-visible" in css and "prefers-reduced-motion" in css,
-            (lower.count("<head") == 1 and lower.count("<body") == 1 and
+            ("HTML 문서 구조", lower.count("<!doctype html") == 1 and lower.count("<html") == 1),
+            ("충분한 CSS", len(css) >= 2800),
+            ("섹션 4~8개", 4 <= lower.count("<section") <= 8),
+            ("모바일 viewport", 'name="viewport"' in lower or "name='viewport'" in lower),
+            ("반응형 media query", "@media" in css),
+            ("유동형 글자·간격", "clamp(" in css),
+            ("내비게이션·화면 높이", "<nav" in lower and "min-height" in css),
+            ("모션 구현", "<script" in lower and ("transition" in css or "@keyframes" in css)),
+            ("키보드·모션 접근성", "focus-visible" in css and "prefers-reduced-motion" in css),
+            ("중복 없는 시맨틱 구조", (lower.count("<head") == 1 and lower.count("<body") == 1 and
              lower.count("</body>") == 1 and lower.count("<main") == 1 and
              lower.count("<header") == 1 and len(ids) == len(set(ids)) and
-             len(section_signatures) == len(set(section_signatures))),
+             len(section_signatures) == len(set(section_signatures)))),
         )
-        return sum(bool(item) for item in checks)
+        score = sum(bool(passed) for _, passed in checks)
+        failures = [name for name, passed in checks if not passed]
+        if len(html) < 4500:
+            failures.append(f"HTML 분량 {len(html):,}/4,500자")
+        return score, failures
 
     def _process_email_job(self, reference, data):
         if not self.admin_email or not self.admin_email_pw:
