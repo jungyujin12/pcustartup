@@ -7,11 +7,34 @@ import threading
 import tkinter as tk
 import urllib.request
 from pathlib import Path
-from tkinter import filedialog, messagebox, scrolledtext
+from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from dotenv import load_dotenv
 
 from ai_worker import PCUWorker
+
+
+_INSTANCE_MUTEX = None
+
+
+def ensure_single_instance():
+    """Prevent two GUI workers from competing for the same Firebase queue."""
+    global _INSTANCE_MUTEX
+    if os.name != "nt":
+        return True
+    import ctypes
+
+    kernel32 = ctypes.windll.kernel32
+    _INSTANCE_MUTEX = kernel32.CreateMutexW(None, False, "Local\\PCU_AI_LAUNCHER_V71")
+    if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        ctypes.windll.user32.MessageBoxW(
+            None,
+            "PCU AI 실행기가 이미 실행 중입니다.\n기존 창을 사용해주세요.",
+            "PCU AI 실행기",
+            0x40,
+        )
+        return False
+    return True
 
 
 def app_dir():
@@ -30,7 +53,8 @@ class Launcher:
         self.messages = queue.Queue()
         self.worker = None
         self.worker_thread = None
-        self.settings_path = app_dir() / "ai_launcher_settings.json"
+        profile_suffix = "_4060" if "4060" in Path(sys.executable).stem else "_1650" if getattr(sys, "frozen", False) else ""
+        self.settings_path = app_dir() / f"ai_launcher_settings{profile_suffix}.json"
         load_dotenv(app_dir() / ".env")
         self.settings = self._load_settings()
         self._build()
@@ -75,8 +99,23 @@ class Launcher:
         self.worker_label = tk.Label(status, text="● AI 작업 중지", fg="#777")
         self.worker_label.pack(side="right")
 
+        profile_frame = tk.LabelFrame(body, text="컴퓨터 사용 방식", padx=10, pady=9)
+        profile_frame.pack(fill="x", pady=(14, 0))
+        executable_hint = Path(sys.executable).stem if getattr(sys, "frozen", False) else ""
+        default_profile = "개인 PC 고품질형 · RTX 4060" if "4060" in executable_hint else "회사 PC 절전형 · GTX 1650"
+        self.profile_var = tk.StringVar(value=self.settings.get("profile", default_profile))
+        self.profile_box = ttk.Combobox(
+            profile_frame, textvariable=self.profile_var, state="readonly",
+            values=("회사 PC 절전형 · GTX 1650", "개인 PC 고품질형 · RTX 4060"),
+        )
+        self.profile_box.pack(fill="x")
+        self.profile_box.bind("<<ComboboxSelected>>", lambda _event: self._update_profile_help())
+        self.profile_help = tk.Label(profile_frame, anchor="w", justify="left", fg="#5A6A7E")
+        self.profile_help.pack(fill="x", pady=(6, 0))
+        self._update_profile_help()
+
         key_frame = tk.LabelFrame(body, text="Firebase 서비스 계정", padx=10, pady=9)
-        key_frame.pack(fill="x", pady=(14, 10))
+        key_frame.pack(fill="x", pady=(10, 10))
         self.key_var = tk.StringVar(
             value=self.settings.get("serviceAccount", "")
             or os.getenv("FIREBASE_SERVICE_ACCOUNT", "")
@@ -145,7 +184,7 @@ class Launcher:
             with urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=3) as response:
                 models = [x.get("name", "") for x in json.loads(response.read()).get("models", [])]
             missing = [
-                name for name in ("gemma3", "llava")
+                name for name in ("gemma3", "llava", "qwen2.5-coder:7b")
                 if not any(model.startswith(name) for model in models)
             ]
             if missing:
@@ -156,6 +195,35 @@ class Launcher:
         except Exception:
             self.ollama_label.config(text="● Ollama 꺼짐", fg="#DC2626")
             return False
+
+    def _update_profile_help(self):
+        low = self.profile_var.get().startswith("회사 PC")
+        text = ("업무 우선: 낮은 프로세스 우선순위 · 동시작업 1개 · 작업 사이 휴식"
+                if low else
+                "품질 우선: 긴 문맥 · 최대 2회 자동수정 · 설치 모델 중 고품질 모델 우선")
+        self.profile_help.config(text=text)
+
+    def _apply_profile(self):
+        low = self.profile_var.get().startswith("회사 PC")
+        profile = {
+            "PCU_HARDWARE_PROFILE": "gtx1650" if low else "rtx4060",
+            "POLL_INTERVAL": "12" if low else "4",
+            "PCU_WORK_THROTTLE_SECONDS": "8" if low else "1",
+            "OLLAMA_NUM_PARALLEL": "1",
+            "OLLAMA_MAX_LOADED_MODELS": "1" if low else "2",
+            "OLLAMA_CONTEXT_SIZE": "8192" if low else "24576",
+            "OLLAMA_MAX_REVISIONS": "1" if low else "2",
+            "OLLAMA_KEEP_ALIVE": "90s" if low else "10m",
+            "OLLAMA_WEBSITE_MODEL": "qwen2.5-coder:7b",
+        }
+        os.environ.update(profile)
+        if low:
+            try:
+                import psutil
+                psutil.Process().nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)
+            except Exception:
+                pass
+        self.log("실행 프로필: " + self.profile_var.get())
 
     def _start_ollama(self):
         if self.check_ollama():
@@ -180,6 +248,7 @@ class Launcher:
             key_path = self.key_var.get().strip()
             if not key_path:
                 return
+        self._apply_profile()
         self._start_ollama()
         try:
             self.worker = PCUWorker(key_path, log=self.log)
@@ -187,6 +256,7 @@ class Launcher:
             messagebox.showerror("시작 실패", str(exc))
             return
         self.settings["serviceAccount"] = key_path
+        self.settings["profile"] = self.profile_var.get()
         self._save_settings()
         self.worker_thread = threading.Thread(target=self.worker.run, daemon=True)
         self.worker_thread.start()
@@ -210,6 +280,8 @@ class Launcher:
 
 
 def main():
+    if not ensure_single_instance():
+        return
     Launcher().run()
 
 
