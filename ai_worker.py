@@ -795,7 +795,10 @@ prefers-reduced-motion 대응, 실제 내비게이션과 푸터 포함. 외부 �
             quality_score = 0
             quality_failures = []
             render_prompt = preview_prompt
-            for render_attempt in range(1, 4):
+            # First pass plus at most three corrective edits.  Corrective calls
+            # receive the actual failed HTML; otherwise a small local model
+            # tends to regenerate the same short document from scratch.
+            for render_attempt in range(1, 5):
                 preview_response = ollama.chat(
                     model=self.website_model,
                     messages=[{"role": "user", "content": render_prompt}],
@@ -811,21 +814,40 @@ prefers-reduced-motion 대응, 실제 내비게이션과 푸터 포함. 외부 �
                 if quality_score >= 8 and len(preview_html) >= 4500:
                     break
                 failure_text = ", ".join(quality_failures) or "HTML 길이 부족"
+                correction_number = min(render_attempt, 3)
                 self.log(
-                    f"디자인 후보 {index + 1} 자동 보정 {render_attempt}/3: "
+                    f"디자인 후보 {index + 1} 자동 보정 {correction_number}/3: "
                     f"{quality_score}/10 · {failure_text}"
                 )
                 reference.set({
-                    "progressText": f"후보 {index + 1} 자동 보정 중 ({render_attempt}/3)",
+                    "progressText": f"후보 {index + 1} 자동 보정 중 ({correction_number}/3)",
                     "qualityScore": quality_score,
                     "qualityFailures": quality_failures,
                 }, merge=True)
-                render_prompt = preview_prompt + f"""
+                if render_attempt >= 4:
+                    break
+                if preview_html:
+                    render_prompt = f"""당신은 기존 HTML을 교정하는 시니어 프론트엔드 개발자입니다.
+아래 HTML의 콘텐츠와 고유한 아트디렉션은 유지하고, 자동검사에서 빠진 항목만 정확히 보완하세요.
+요약하거나 새 디자인으로 다시 시작하지 마세요. CSS를 충분히 구체화하고 완성 HTML 전체를 출력하세요.
 
-[직전 결과 자동검사 실패]
+[자동검사 결과]
 점수: {quality_score}/10
+반드시 보완할 항목: {failure_text}
+추가 조건: 최소 4,500자, section 4~8개, nav/header/main/footer, viewport, @media,
+clamp(), min-height, transition 또는 keyframes, JavaScript, :focus-visible,
+prefers-reduced-motion을 모두 실제 코드로 구현하세요.
+
+[교정할 기존 HTML]
+{preview_html}
+
+설명이나 코드펜스 없이 <!doctype html>부터 </html>까지 출력하세요."""
+                else:
+                    render_prompt = preview_prompt + f"""
+
+[직전 출력 오류]
 고쳐야 할 항목: {failure_text}
-HTML은 최소 4,500자 이상이어야 합니다. 위 항목을 빠짐없이 구현해 처음부터 완성 HTML 전체를 다시 출력하세요."""
+요건을 모두 구현하여 최소 4,500자의 완성 HTML 전체를 다시 출력하세요."""
             if quality_score < 8 or len(preview_html) < 4500:
                 failure_text = ", ".join(quality_failures) or "HTML 길이 부족"
                 raise ValueError(
